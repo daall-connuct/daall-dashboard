@@ -3602,10 +3602,11 @@ function AppInner() {
         // DB에 데이터가 있으면 불러오기
         const loaded = hospRows.map(row => {
           const h = row.data;
-          const monthly = monthlyRows?.find(r => r.hospital_id === h.id);
-          const channel = channelRows?.find(r => r.hospital_id === h.id);
-          const content = contentRows?.find(r => r.hospital_id === h.id);
-          const meeting = meetingRows?.find(r => r.hospital_id === h.id);
+          const hId = Number(h.id);
+          const monthly = monthlyRows?.find(r => Number(r.hospital_id) === hId);
+          const channel = channelRows?.find(r => Number(r.hospital_id) === hId);
+          const content = contentRows?.find(r => Number(r.hospital_id) === hId);
+          const meeting = meetingRows?.find(r => Number(r.hospital_id) === hId);
           return {
             ...h,
             monthlyData: monthly?.data || [],
@@ -3647,10 +3648,10 @@ function AppInner() {
     for (const h of hospitalList) {
       const { monthlyData, channelData, contentData, meetingData, ...hospData } = h;
       await supabase.from('hospitals').upsert({ id: h.id, data: hospData });
-      await supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData });
-      await supabase.from('channel_data').upsert({ hospital_id: h.id, data: channelData });
-      await supabase.from('content_data').upsert({ hospital_id: h.id, data: contentData });
-      await supabase.from('meeting_data').upsert({ hospital_id: h.id, data: meetingData || [] });
+      await supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData }, { onConflict: 'hospital_id' });
+      await supabase.from('channel_data').upsert({ hospital_id: h.id, data: channelData }, { onConflict: 'hospital_id' });
+      await supabase.from('content_data').upsert({ hospital_id: h.id, data: contentData }, { onConflict: 'hospital_id' });
+      await supabase.from('meeting_data').upsert({ hospital_id: h.id, data: meetingData || [] }, { onConflict: 'hospital_id' });
     }
   };
 
@@ -3659,10 +3660,10 @@ function AppInner() {
       
       const { monthlyData, channelData, contentData, meetingData, keywordData, ...hospData } = h;
       await supabase.from('hospitals').upsert({ id: h.id, data: hospData });
-      await supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData || [] });
-      await supabase.from('channel_data').upsert({ hospital_id: h.id, data: channelData || [] });
-      await supabase.from('content_data').upsert({ hospital_id: h.id, data: contentData || [] });
-      await supabase.from('meeting_data').upsert({ hospital_id: h.id, data: meetingData || [] });
+      await supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData || [] }, { onConflict: 'hospital_id' });
+      await supabase.from('channel_data').upsert({ hospital_id: h.id, data: channelData || [] }, { onConflict: 'hospital_id' });
+      await supabase.from('content_data').upsert({ hospital_id: h.id, data: contentData || [] }, { onConflict: 'hospital_id' });
+      await supabase.from('meeting_data').upsert({ hospital_id: h.id, data: meetingData || [] }, { onConflict: 'hospital_id' });
     } catch (err) {
       console.error('저장 실패:', err);
     }
