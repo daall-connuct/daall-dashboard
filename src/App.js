@@ -1,5 +1,10 @@
 /* eslint-disable */
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { createClient } from '@supabase/supabase-js';
+const supabase = createClient(
+  'https://jfausjwfxpturkkmmyrd.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmYXVzandmeHB0dXJra21teXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MDE1NzksImV4cCI6MjA4OTQ3NzU3OX0.PofOLAP6nT7NZ8pWM5xNaEq6T-yCNzNThz36IgynOfM'
+);
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 
 // ─── 색상 ─────────────────────────────────────────────────────
@@ -3574,39 +3579,139 @@ export default function App() {
 }
 
 function AppInner() {
-  const [hospitals, setHospitals] = useState(() =>
-    HOSPITALS_INIT.map(h => ({
-      ...h,
-      monthlyData: MONTHLY_INIT[h.id] || [],
-      channelData: CHANNEL_INIT[h.id] || [],
-      keywordData: KEYWORD_INIT[h.id] || [],
-      contentData: CONTENT_INIT[h.id] || [],
-    }))
-  );
+  const [hospitals, setHospitals] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleUpdateHospital = (updated) => {
+  // ─── Supabase에서 데이터 불러오기 ────────────────────────────
+  useEffect(() => {
+    loadHospitals();
+  }, []);
+
+  const loadHospitals = async () => {
+    try {
+      
+
+      const { data: hospRows } = await supabase.from('hospitals').select('*');
+      const { data: monthlyRows } = await supabase.from('monthly_data').select('*');
+      const { data: channelRows } = await supabase.from('channel_data').select('*');
+      const { data: contentRows } = await supabase.from('content_data').select('*');
+      const { data: meetingRows } = await supabase.from('meeting_data').select('*');
+
+      if (hospRows && hospRows.length > 0) {
+        // DB에 데이터가 있으면 불러오기
+        const loaded = hospRows.map(row => {
+          const h = row.data;
+          const monthly = monthlyRows?.find(r => r.hospital_id === h.id);
+          const channel = channelRows?.find(r => r.hospital_id === h.id);
+          const content = contentRows?.find(r => r.hospital_id === h.id);
+          const meeting = meetingRows?.find(r => r.hospital_id === h.id);
+          return {
+            ...h,
+            monthlyData: monthly?.data || [],
+            channelData: channel?.data || [],
+            contentData: content?.data || [],
+            meetingData: meeting?.data || [],
+          };
+        });
+        setHospitals(loaded);
+      } else {
+        // DB가 비어있으면 초기 데이터로 시작 후 저장
+        const initial = HOSPITALS_INIT.map(h => ({
+          ...h,
+          monthlyData: MONTHLY_INIT[h.id] || [],
+          channelData: CHANNEL_INIT[h.id] || [],
+          keywordData: KEYWORD_INIT[h.id] || [],
+          contentData: CONTENT_INIT[h.id] || [],
+          meetingData: [],
+        }));
+        setHospitals(initial);
+        await saveAllToSupabase(initial, supabase);
+      }
+    } catch (err) {
+      console.error('DB 로드 실패, 로컬 데이터 사용:', err);
+      setHospitals(HOSPITALS_INIT.map(h => ({
+        ...h,
+        monthlyData: MONTHLY_INIT[h.id] || [],
+        channelData: CHANNEL_INIT[h.id] || [],
+        keywordData: KEYWORD_INIT[h.id] || [],
+        contentData: CONTENT_INIT[h.id] || [],
+        meetingData: [],
+      })));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveAllToSupabase = async (hospitalList, supabase) => {
+    for (const h of hospitalList) {
+      const { monthlyData, channelData, contentData, meetingData, ...hospData } = h;
+      await supabase.from('hospitals').upsert({ id: h.id, data: hospData });
+      await supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData });
+      await supabase.from('channel_data').upsert({ hospital_id: h.id, data: channelData });
+      await supabase.from('content_data').upsert({ hospital_id: h.id, data: contentData });
+      await supabase.from('meeting_data').upsert({ hospital_id: h.id, data: meetingData || [] });
+    }
+  };
+
+  const saveHospitalToSupabase = async (h) => {
+    try {
+      
+      const { monthlyData, channelData, contentData, meetingData, keywordData, ...hospData } = h;
+      await supabase.from('hospitals').upsert({ id: h.id, data: hospData });
+      await supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData || [] });
+      await supabase.from('channel_data').upsert({ hospital_id: h.id, data: channelData || [] });
+      await supabase.from('content_data').upsert({ hospital_id: h.id, data: contentData || [] });
+      await supabase.from('meeting_data').upsert({ hospital_id: h.id, data: meetingData || [] });
+    } catch (err) {
+      console.error('저장 실패:', err);
+    }
+  };
+
+  const handleUpdateHospital = async (updated) => {
     setHospitals(prev => prev.map(h => h.id === updated.id ? updated : h));
     setSelectedId(updated.id);
+    await saveHospitalToSupabase(updated);
   };
 
-  const handleAddHospital = (form) => {
+  const handleAddHospital = async (form) => {
     const newId = Date.now();
-    setHospitals(prev => [...prev, {
+    const newHospital = {
       ...form, id: newId,
-      monthlyData: [], channelData: [], keywordData: [], contentData: [],
-    }]);
+      monthlyData: [], channelData: [], keywordData: [], contentData: [], meetingData: [],
+    };
+    setHospitals(prev => [...prev, newHospital]);
+    await saveHospitalToSupabase(newHospital);
   };
 
-  const handleEditHospital = (updated) => {
+  const handleEditHospital = async (updated) => {
     setHospitals(prev => prev.map(h => h.id === updated.id ? { ...h, ...updated } : h));
+    const full = hospitals.find(h => h.id === updated.id);
+    if (full) await saveHospitalToSupabase({ ...full, ...updated });
   };
 
-  const handleDeleteHospital = (id) => {
+  const handleDeleteHospital = async (id) => {
     setHospitals(prev => prev.filter(h => h.id !== id));
+    try {
+      
+      await supabase.from('hospitals').delete().eq('id', id);
+      await supabase.from('monthly_data').delete().eq('hospital_id', id);
+      await supabase.from('channel_data').delete().eq('hospital_id', id);
+      await supabase.from('content_data').delete().eq('hospital_id', id);
+      await supabase.from('meeting_data').delete().eq('hospital_id', id);
+    } catch (err) {
+      console.error('삭제 실패:', err);
+    }
   };
 
   const selected = hospitals.find(h => h.id === selectedId);
+
+  if (loading) return (
+    <div style={{ minHeight:"100vh", background:"#070D18", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, fontFamily:"'Noto Sans KR', sans-serif" }}>
+      <div style={{ color:"#38BDF8", fontSize:18, fontWeight:700 }}>다올 마케팅 대시보드</div>
+      <div style={{ color:"#64748B", fontSize:13 }}>데이터를 불러오는 중이에요...</div>
+    </div>
+  );
 
   if (!selected) {
     return (
