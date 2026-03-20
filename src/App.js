@@ -1,5 +1,6 @@
 /* eslint-disable */
 import { useState, useMemo, useRef, useEffect } from "react";
+import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(
   'https://jfausjwfxpturkkmmyrd.supabase.co',
@@ -563,9 +564,9 @@ function AdminChecklist({ hospitals }) {
 
 // ─── 병원 목록 화면 ───────────────────────────────────────────
 const PALETTE = ["#38BDF8","#34D399","#FBBF24","#F472B6","#A78BFA","#FB923C","#2DD4BF","#60A5FA","#E879F9","#4ADE80","#FCD34D","#F87171"];
-const EMPTY_HOSPITAL_FORM = { name:"", region:"", dept:"", manager:"", target_patients:"", target_revenue:"", color:"#38BDF8" };
+const EMPTY_HOSPITAL_FORM = { name:"", region:"", dept:"", manager:"", target_patients:"", target_revenue:"", color:"#38BDF8", password:"" };
 
-function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospital, onDeleteHospital }) {
+function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospital, onDeleteHospital, isAdmin, onAdminLogin, onAdminLogout }) {
   const [showForm, setShowForm]     = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [form, setForm]             = useState(EMPTY_HOSPITAL_FORM);
@@ -576,7 +577,6 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   const [adminAccounts, setAdminAccounts] = useState([
     { id:1, name:"임지혜", password:"Daall" },
   ]);
-  const [isAdmin, setIsAdmin]         = useState(false);
   const [adminName, setAdminName]     = useState("");
   const [showPwModal, setShowPwModal] = useState(false);
   const [pwInput, setPwInput]         = useState("");
@@ -592,8 +592,9 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   const handleAdminLogin = () => {
     const matched = adminAccounts.find(a => a.password === pwInput);
     if (matched) {
-      setIsAdmin(true); setAdminName(matched.name);
+      setAdminName(matched.name);
       setShowPwModal(false); setPwInput(""); setPwError(false);
+      onAdminLogin(matched.name);
       toast(`${matched.name}님, 관리자 모드 활성화!`);
     } else {
       setPwError(true); setPwInput("");
@@ -616,7 +617,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   const toast = (msg) => { setSavedMsg(msg); setTimeout(() => setSavedMsg(""), 2200); };
 
   const openAdd = () => { setForm(EMPTY_HOSPITAL_FORM); setEditTarget(null); setShowForm(true); };
-  const openEdit = (e, h) => { e.stopPropagation(); setForm({ name:h.name, region:h.region, dept:h.dept, manager:h.manager, target_patients:String(h.target_patients), target_revenue:String(h.target_revenue), color:h.color }); setEditTarget(h); setShowForm(true); };
+  const openEdit = (e, h) => { e.stopPropagation(); setForm({ name:h.name, region:h.region, dept:h.dept, manager:h.manager, target_patients:String(h.target_patients), target_revenue:String(h.target_revenue), color:h.color, password:h.password||"" }); setEditTarget(h); setShowForm(true); };
 
   const handleSave = () => {
     if (!form.name || !form.dept) return;
@@ -700,7 +701,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
               <button onClick={openAdd} style={{ background:`linear-gradient(135deg,${C.accent},${C.accent2})`, border:"none", color:"#fff", borderRadius:12, padding:"11px 22px", fontSize:14, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
                 + 새 병원 추가
               </button>
-              <button onClick={() => { setIsAdmin(false); setAdminName(""); setShowChecklist(false); setShowAccountMgmt(false); toast("관리자 모드 해제"); }} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer" }}>
+              <button onClick={() => { onAdminLogout(); setAdminName(""); setShowChecklist(false); setShowAccountMgmt(false); toast("관리자 모드 해제"); }} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer" }}>
                 로그아웃
               </button>
               <button onClick={() => setShowAccountMgmt(!showAccountMgmt)} style={{
@@ -789,6 +790,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
             <F label="담당자" k="manager" placeholder="예: 김민지" />
             <F label="신환 목표 (명/월)" k="target_patients" placeholder="120" type="number" />
             <F label="매출 목표 (만원/월)" k="target_revenue" placeholder="15000" type="number" />
+            <F label="공유 링크 비밀번호" k="password" placeholder="예: lead2024" />
           </div>
 
           {/* 색상 선택 */}
@@ -860,7 +862,8 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
 
             <div style={{ position:"absolute", top:0, right:0, width:120, height:120, background:`radial-gradient(circle at top right, ${h.color}15, transparent)`, pointerEvents:"none" }} />
 
-            {/* 수정 / 삭제 버튼 */}
+            {/* 수정 / 삭제 버튼 - 관리자만 */}
+            {isAdmin && (
             <div style={{ position:"absolute", top:14, right:14, display:"flex", gap:6, zIndex:10 }} onClick={e => e.stopPropagation()}>
               <button onClick={e => openEdit(e, h)} style={{ background:`${h.color}20`, border:`1px solid ${h.color}40`, color:h.color, borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>수정</button>
               {deleteConfirm === h.id ? (
@@ -869,6 +872,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
                 <button onClick={e => handleDelete(e, h.id)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer" }}>삭제</button>
               )}
             </div>
+            )}
 
             <div style={{ display:"flex", alignItems:"flex-start", gap:14, marginBottom:16, paddingRight:120 }}>
               <div style={{ width:42, height:42, borderRadius:13, background:`linear-gradient(135deg,${h.color},${h.color}88)`, flexShrink:0 }} />
@@ -908,13 +912,15 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
           </div>
         ))}
 
-        {/* 빈 추가 카드 */}
+        {/* 빈 추가 카드 - 관리자만 */}
+        {isAdmin && (
         <div onClick={openAdd} style={{ background:"transparent", border:`2px dashed ${C.border}`, borderRadius:20, padding:24, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12, minHeight:200, transition:"all 0.2s" }}
           onMouseEnter={e => { e.currentTarget.style.border = `2px dashed ${C.accent}60`; e.currentTarget.style.background = `${C.accent}05`; }}
           onMouseLeave={e => { e.currentTarget.style.border = `2px dashed ${C.border}`; e.currentTarget.style.background = "transparent"; }}>
           <div style={{ width:44, height:44, borderRadius:14, border:`2px dashed ${C.muted}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, color:C.muted }}>+</div>
           <div style={{ color:C.muted, fontSize:13, fontWeight:600 }}>새 병원 추가</div>
         </div>
+        )}
       </div>
     </div>
   );
@@ -2828,7 +2834,7 @@ function CostTab({ hospital, hData }) {
 }
 
 // ─── 병원 대시보드 ────────────────────────────────────────────
-function HospitalDashboard({ hospital, onBack, onUpdateHospital }) {
+function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
   const [tab, setTab] = useState("overview");
   const [showPerfInput, setShowPerfInput] = useState(false);
   const [showChannelInput, setShowChannelInput] = useState(false);
@@ -3091,12 +3097,12 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital }) {
   };
 
   // 입력 버튼 (탭마다 다르게)
-  const inputBtn = (label, onClick, color) => (
+  const inputBtn = (label, onClick, color) => isAdmin ? (
     <button onClick={onClick} style={{
       background:`${color||hospital.color}20`, border:`1px solid ${color||hospital.color}50`,
       color:color||hospital.color, borderRadius:9, padding:"7px 16px", fontSize:12, cursor:"pointer", fontWeight:700,
     }}>{label}</button>
-  );
+  ) : null;
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"'Noto Sans KR', sans-serif" }}>
@@ -3104,9 +3110,11 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital }) {
       {/* 헤더 */}
       <div style={{ background:"rgba(255,255,255,0.02)", borderBottom:`1px solid ${C.border}`, padding:"16px 28px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 }}>
         <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-          <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:9, padding:"7px 14px", fontSize:13, cursor:"pointer", fontWeight:600 }}>
-            &larr; 병원 목록
-          </button>
+          {onBack && (
+            <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:9, padding:"7px 14px", fontSize:13, cursor:"pointer", fontWeight:600 }}>
+              &larr; 병원 목록
+            </button>
+          )}
           <div style={{ width:1, height:24, background:C.border }} />
           <div>
             <div style={{ color:C.text, fontSize:16, fontWeight:800 }}>{hospital.name}</div>
@@ -3571,10 +3579,10 @@ const CONTENT_INIT = {
 // ─── 메인 앱 ──────────────────────────────────────────────────
 export default function App() {
   return (
-    <>
+    <BrowserRouter>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap'); * { box-sizing: border-box; margin: 0; padding: 0; } ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 3px; }`}</style>
       <AppInner />
-    </>
+    </BrowserRouter>
   );
 }
 
@@ -3582,6 +3590,7 @@ function AppInner() {
   const [hospitals, setHospitals] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // ─── Supabase에서 데이터 불러오기 ────────────────────────────
   useEffect(() => {
@@ -3705,6 +3714,8 @@ function AppInner() {
     }
   };
 
+  const navigate = useNavigate();
+
   const selected = hospitals.find(h => h.id === selectedId);
 
   if (loading) return (
@@ -3714,22 +3725,99 @@ function AppInner() {
     </div>
   );
 
-  if (!selected) {
-    return (
-      <HospitalSelectScreen
-        hospitals={hospitals}
-        onSelect={(h) => setSelectedId(h.id)}
-        onAddHospital={handleAddHospital}
-        onEditHospital={handleEditHospital}
-        onDeleteHospital={handleDeleteHospital}
-      />
-    );
-  }
+  return (
+    <Routes>
+      <Route path="/" element={
+        <HospitalSelectScreen
+          hospitals={hospitals}
+          onSelect={(h) => { setSelectedId(h.id); navigate(`/hospital/${h.id}`); }}
+          onAddHospital={handleAddHospital}
+          onEditHospital={handleEditHospital}
+          onDeleteHospital={handleDeleteHospital}
+          isAdmin={isAdmin}
+          onAdminLogin={(name) => setIsAdmin(true)}
+          onAdminLogout={() => setIsAdmin(false)}
+        />
+      } />
+      <Route path="/hospital/:hospitalId" element={
+        <HospitalRoute
+          hospitals={hospitals}
+          onUpdateHospital={handleUpdateHospital}
+          isAdmin={isAdmin}
+        />
+      } />
+    </Routes>
+  );
+}
+
+function HospitalRoute({ hospitals, onUpdateHospital, isAdmin }) {
+  const { hospitalId } = useParams();
+  const navigate = useNavigate();
+  const hospital = hospitals.find(h => String(h.id) === String(hospitalId));
+
+  const [pwInput, setPwInput] = useState("");
+  const [pwError, setPwError] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
+  const pwRef = useRef(null);
+
+  // 관리자이거나 비밀번호 없는 병원은 바로 접근
+  const needsPw = !isAdmin && hospital?.password;
+  const canAccess = isAdmin || unlocked || !hospital?.password;
+
+  const handleUnlock = () => {
+    if (pwInput === hospital.password) {
+      setUnlocked(true); setPwError(false);
+    } else {
+      setPwError(true); setPwInput("");
+      setTimeout(() => pwRef.current?.focus(), 0);
+    }
+  };
+
+  if (!hospital) return (
+    <div style={{ minHeight:"100vh", background:"#070D18", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, fontFamily:"'Noto Sans KR', sans-serif" }}>
+      <div style={{ color:"#38BDF8", fontSize:18, fontWeight:700 }}>병원을 찾을 수 없어요</div>
+      <button onClick={() => navigate("/")} style={{ background:"transparent", border:"1px solid #334155", color:"#64748B", borderRadius:9, padding:"8px 20px", fontSize:13, cursor:"pointer" }}>← 목록으로</button>
+    </div>
+  );
+
+  // 비밀번호 입력 화면
+  if (!canAccess) return (
+    <div style={{ minHeight:"100vh", background:"#070D18", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Noto Sans KR', sans-serif" }}>
+      <div style={{ background:"#0F172A", border:`1px solid ${hospital.color}30`, borderRadius:20, padding:40, width:360, boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }}>
+        {/* 병원 정보 */}
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:28 }}>
+          <div style={{ width:44, height:44, borderRadius:13, background:`linear-gradient(135deg,${hospital.color},${hospital.color}88)`, flexShrink:0 }} />
+          <div>
+            <div style={{ color:"#E2E8F0", fontSize:16, fontWeight:800 }}>{hospital.name}</div>
+            <div style={{ color:"#64748B", fontSize:12, marginTop:2 }}>{hospital.dept} · {hospital.region}</div>
+          </div>
+        </div>
+        <div style={{ color:"#E2E8F0", fontSize:14, fontWeight:700, marginBottom:6 }}>비밀번호를 입력해주세요</div>
+        <div style={{ color:"#64748B", fontSize:12, marginBottom:20 }}>이 대시보드는 비밀번호로 보호되어 있어요</div>
+        <input
+          ref={pwRef}
+          type="password"
+          value={pwInput}
+          onChange={e => { setPwInput(e.target.value); setPwError(false); }}
+          onKeyDown={e => e.key === "Enter" && handleUnlock()}
+          placeholder="비밀번호"
+          autoFocus
+          style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${pwError ? "#F87171" : "#1E293B"}`, borderRadius:8, color:"#E2E8F0", padding:"10px 14px", fontSize:15, fontFamily:"'Noto Sans KR', sans-serif", width:"100%", outline:"none", letterSpacing:4, marginBottom:8 }}
+        />
+        {pwError && <div style={{ color:"#F87171", fontSize:12, marginBottom:12 }}>비밀번호가 틀렸어요</div>}
+        <button onClick={handleUnlock} style={{ width:"100%", background:`linear-gradient(135deg,${hospital.color},#818CF8)`, border:"none", color:"#fff", borderRadius:10, padding:"12px 0", fontSize:14, cursor:"pointer", fontWeight:700, marginTop:8 }}>
+          입장하기
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <HospitalDashboard
-      hospital={selected}
-      onBack={() => setSelectedId(null)}
-      onUpdateHospital={handleUpdateHospital}
+      hospital={hospital}
+      onBack={isAdmin ? () => navigate("/") : null}
+      onUpdateHospital={onUpdateHospital}
+      isAdmin={isAdmin}
     />
   );
 }
