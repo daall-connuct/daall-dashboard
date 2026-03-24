@@ -44,81 +44,11 @@ const FIXED_CHANNELS = ["네이버블로그","인스타그램","유튜브","네�
 const CHANNEL_OPTIONS = ["네이버블로그","인스타그램","유튜브","네이버카페","지식인","홈페이지SEO","웹사이트","메타광고","검색광고","네이버플레이스","강남언니","힐링페이퍼","바비톡","오프라인/소개"];
 const STATUS_OPTIONS = ["발행","예약발행","임시저장","수정필요"];
 
-// ─── 초기 월별 성과 데이터 ────────────────────────────────────
-const makeMonthly = (base) => ["1월","2월","3월","4월","5월","6월"].map((m,i) => ({
-  month: m,
-  inquiry: Math.round(base.inquiry * (0.65 + i*0.07)),
-  consult: Math.round(base.inquiry * (0.65 + i*0.07) * 0.78),
-  reservation: Math.round(base.inquiry * (0.65 + i*0.07) * 0.62),
-  visit: Math.round(base.inquiry * (0.65 + i*0.07) * 0.50),
-  payment: Math.round(base.inquiry * (0.65 + i*0.07) * 0.38),
-  newPatient: Math.round(base.inquiry * (0.65 + i*0.07) * 0.38),
-  revenue: Math.round(base.revenue * (0.59 + i*0.08)),
-  marketingCost: Math.round(base.cost * (0.83 + i*0.04)),
-}));
-
-const MONTHLY_INIT = {
-  1: makeMonthly({inquiry:130, revenue:7100, cost:1250}),
-  2: makeMonthly({inquiry:190, revenue:11500, cost:1750}),
-  3: makeMonthly({inquiry:74,  revenue:4000,  cost:730}),
-  4: makeMonthly({inquiry:148, revenue:8700,  cost:1380}),
-  5: makeMonthly({inquiry:175, revenue:10300, cost:1650}),
-  6: makeMonthly({inquiry:100, revenue:5700,  cost:980}),
-  7: makeMonthly({inquiry:86,  revenue:4900,  cost:880}),
-};
+// ─── 초기 월별 성과 데이터 (샘플 없음 - 직접 입력)
+const MONTHLY_INIT = { 1:[], 2:[], 3:[], 4:[], 5:[], 6:[], 7:[] };
 
 // ─── 초기 채널 데이터 ─────────────────────────────────────────
-const CHANNEL_INIT = {
-  1: [
-    {channel:"네이버블로그",inflow:2200,inquiry:280,reservation:110,visit:88,payment:62,revenue:5800,cost:1400},
-    {channel:"인스타그램",inflow:1800,inquiry:210,reservation:90,visit:72,payment:48,revenue:4500,cost:600},
-    {channel:"유튜브",inflow:1200,inquiry:130,reservation:52,visit:38,payment:22,revenue:2100,cost:800},
-    {channel:"검색광고",inflow:900,inquiry:110,reservation:44,visit:33,payment:20,revenue:1900,cost:700},
-    {channel:"메타광고",inflow:1500,inquiry:160,reservation:64,visit:50,payment:30,revenue:2800,cost:900},
-  ],
-  2: [
-    {channel:"네이버플레이스",inflow:3200,inquiry:480,reservation:260,visit:210,payment:158,revenue:14200,cost:800},
-    {channel:"네이버블로그",inflow:2100,inquiry:280,reservation:140,visit:112,payment:78,revenue:7000,cost:500},
-    {channel:"검색광고",inflow:2800,inquiry:360,reservation:180,visit:144,payment:105,revenue:9400,cost:1800},
-    {channel:"네이버카페",inflow:1400,inquiry:170,reservation:72,visit:58,payment:38,revenue:3400,cost:250},
-    {channel:"지식인",inflow:1100,inquiry:140,reservation:58,visit:47,payment:30,revenue:2700,cost:200},
-  ],
-  3: [
-    {channel:"네이버블로그",inflow:1200,inquiry:150,reservation:62,visit:50,payment:34,revenue:3100,cost:400},
-    {channel:"네이버카페",inflow:800,inquiry:100,reservation:40,visit:32,payment:21,revenue:1900,cost:220},
-    {channel:"지식인",inflow:900,inquiry:110,reservation:44,visit:35,payment:22,revenue:2000,cost:180},
-    {channel:"검색광고",inflow:600,inquiry:80,reservation:32,visit:26,payment:16,revenue:1400,cost:150},
-    {channel:"오프라인/소개",inflow:300,inquiry:90,reservation:60,visit:55,payment:45,revenue:4100,cost:50},
-  ],
-  4: [
-    {channel:"검색광고",inflow:2400,inquiry:310,reservation:145,visit:116,payment:86,revenue:7700,cost:1600},
-    {channel:"홈페이지SEO",inflow:1800,inquiry:220,reservation:98,visit:78,payment:55,revenue:4900,cost:400},
-    {channel:"인스타그램",inflow:2000,inquiry:240,reservation:104,visit:83,payment:58,revenue:5200,cost:1100},
-    {channel:"네이버블로그",inflow:1200,inquiry:148,reservation:66,visit:53,payment:36,revenue:3200,cost:350},
-    {channel:"오프라인/소개",inflow:400,inquiry:120,reservation:82,visit:74,payment:62,revenue:5600,cost:80},
-  ],
-  5: [
-    {channel:"인스타그램",inflow:3800,inquiry:460,reservation:188,visit:150,payment:98,revenue:9200,cost:2000},
-    {channel:"유튜브",inflow:2800,inquiry:320,reservation:128,visit:102,payment:65,revenue:6100,cost:1500},
-    {channel:"메타광고",inflow:3200,inquiry:390,reservation:156,visit:125,payment:82,revenue:7700,cost:2200},
-    {channel:"네이버블로그",inflow:1400,inquiry:168,reservation:68,visit:54,payment:33,revenue:3100,cost:350},
-    {channel:"검색광고",inflow:1800,inquiry:220,reservation:88,visit:70,payment:45,revenue:4200,cost:900},
-  ],
-  6: [
-    {channel:"네이버블로그",inflow:1600,inquiry:190,reservation:80,visit:64,payment:44,revenue:3900,cost:420},
-    {channel:"네이버플레이스",inflow:2200,inquiry:290,reservation:140,visit:112,payment:80,revenue:7100,cost:600},
-    {channel:"지식인",inflow:900,inquiry:108,reservation:44,visit:35,payment:23,revenue:2000,cost:180},
-    {channel:"검색광고",inflow:1400,inquiry:170,reservation:70,visit:56,payment:38,revenue:3400,cost:800},
-    {channel:"오프라인/소개",inflow:280,inquiry:84,reservation:58,visit:52,payment:44,revenue:3900,cost:60},
-  ],
-  7: [
-    {channel:"검색광고",inflow:1800,inquiry:220,reservation:92,visit:74,payment:52,revenue:4600,cost:1000},
-    {channel:"네이버블로그",inflow:1400,inquiry:168,reservation:70,visit:56,payment:38,revenue:3400,cost:380},
-    {channel:"홈페이지SEO",inflow:1200,inquiry:144,reservation:60,visit:48,payment:32,revenue:2800,cost:300},
-    {channel:"메타광고",inflow:900,inquiry:110,reservation:46,visit:37,payment:25,revenue:2200,cost:200},
-    {channel:"오프라인/소개",inflow:200,inquiry:60,reservation:42,visit:38,payment:32,revenue:2800,cost:40},
-  ],
-};
+const CHANNEL_INIT = { 1:[], 2:[], 3:[], 4:[], 5:[], 6:[], 7:[] };
 
 // ─── 초기 키워드 데이터 ───────────────────────────────────────
 const KEYWORD_INIT = {
@@ -160,6 +90,42 @@ const KEYWORD_INIT = {
 // ─── 공통 컴포넌트 ────────────────────────────────────────────
 const fmt = (n) => (n || 0).toLocaleString();
 const pct = (a, b) => b > 0 ? ((a / b) * 100).toFixed(1) + "%" : "-";
+
+// ─── 공통 연도+월 선택 컴포넌트 ──────────────────────────────
+function YearMonthSelector({ availMonths, selMonth, setSelMonth, color }) {
+  const years = [...new Set(availMonths.map(m => m.slice(0,4)))].sort().reverse();
+  const [selYear, setSelYear] = useState(() => {
+    if (selMonth && selMonth.length >= 4) return selMonth.slice(0,4);
+    return years[0] || String(new Date().getFullYear());
+  });
+  const monthsInYear = availMonths.filter(m => m.startsWith(selYear));
+
+  const accentColor = color || "#38BDF8";
+
+  if (availMonths.length === 0) return (
+    <span style={{ color:"#64748B", fontSize:12 }}>데이터 없음</span>
+  );
+
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+      <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelMonth(""); }}
+        style={{ background:"rgba(255,255,255,0.05)", border:`1px solid #1E293B`, borderRadius:8, color:"#E2E8F0", padding:"4px 10px", fontSize:12, fontFamily:"'Noto Sans KR', sans-serif", outline:"none", cursor:"pointer" }}>
+        {years.map(y => <option key={y} value={y} style={{background:"#0F172A"}}>{y}년</option>)}
+      </select>
+      {monthsInYear.length === 0
+        ? <span style={{ color:"#64748B", fontSize:12 }}>{selYear}년 데이터 없음</span>
+        : monthsInYear.map(m => (
+            <button key={m} onClick={() => setSelMonth(m)} style={{
+              background: selMonth===m ? `${accentColor}25` : "transparent",
+              border: `1px solid ${selMonth===m ? accentColor : "#1E293B"}`,
+              color: selMonth===m ? accentColor : "#64748B",
+              borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+            }}>{+m.slice(5)}월</button>
+          ))
+      }
+    </div>
+  );
+}
 
 const KPICard = ({ label, value, unit, sub, color = C.accent, trend }) => (
   <div style={{ background: C.surface, border: `1px solid ${color}25`, borderRadius: 14, padding: "20px 22px", position: "relative", overflow: "hidden" }}>
@@ -928,12 +894,23 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
 
 // ─── 통합요약 + 상세성과 탭 입력 폼 ──────────────────────────
 function PerformanceInputForm({ hospital, monthlyData, onSave, onClose }) {
-  const MONTHS = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
-  const [selMonth, setSelMonth] = useState(monthlyData.length > 0 ? monthlyData[monthlyData.length-1].month : "1월");
+  const currentYear = new Date().getFullYear();
+  const YEARS = Array.from({length: 5}, (_, i) => String(currentYear - i));
+  const MONTH_NUMS = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+
+  const lastEntry = monthlyData.length > 0 ? monthlyData[monthlyData.length-1].month : null;
+  const initYear = lastEntry ? lastEntry.slice(0,4) : String(currentYear);
+  const initMonth = lastEntry ? lastEntry.slice(5,7) : "01";
+
+  const [selYear, setSelYear] = useState(initYear);
+  const [selMonthNum, setSelMonthNum] = useState(initMonth);
   const [savedMsg, setSavedMsg] = useState("");
-  const existing = monthlyData.find(d => d.month === selMonth) || {};
+
+  const selMonthKey = `${selYear}-${selMonthNum}`;
+  const existing = monthlyData.find(d => d.month === selMonthKey) || {};
+
   const [form, setForm] = useState({
-    month: selMonth,
+    month: selMonthKey,
     inquiry: existing.inquiry || 0,
     consult: existing.consult || 0,
     reservation: existing.reservation || 0,
@@ -944,16 +921,28 @@ function PerformanceInputForm({ hospital, monthlyData, onSave, onClose }) {
     marketingCost: existing.marketingCost || 0,
   });
 
-  const handleMonthChange = (m) => {
-    setSelMonth(m);
-    const ex = monthlyData.find(d => d.month === m) || {};
-    setForm({ month: m, inquiry: ex.inquiry||0, consult: ex.consult||0, reservation: ex.reservation||0, visit: ex.visit||0, payment: ex.payment||0, newPatient: ex.newPatient||0, revenue: ex.revenue||0, marketingCost: ex.marketingCost||0 });
+  const handleYearChange = (y) => {
+    setSelYear(y);
+    const key = `${y}-${selMonthNum}`;
+    const ex = monthlyData.find(d => d.month === key) || {};
+    setForm({ month:key, inquiry:ex.inquiry||0, consult:ex.consult||0, reservation:ex.reservation||0, visit:ex.visit||0, payment:ex.payment||0, newPatient:ex.newPatient||0, revenue:ex.revenue||0, marketingCost:ex.marketingCost||0 });
+  };
+
+  const handleMonthChange = (mn) => {
+    setSelMonthNum(mn);
+    const key = `${selYear}-${mn}`;
+    const ex = monthlyData.find(d => d.month === key) || {};
+    setForm({ month:key, inquiry:ex.inquiry||0, consult:ex.consult||0, reservation:ex.reservation||0, visit:ex.visit||0, payment:ex.payment||0, newPatient:ex.newPatient||0, revenue:ex.revenue||0, marketingCost:ex.marketingCost||0 });
   };
 
   const handleSave = () => {
     const updated = monthlyData.filter(d => d.month !== form.month);
-    const newData = [...updated, {...form, inquiry:+form.inquiry, consult:+form.consult, reservation:+form.reservation, visit:+form.visit, payment:+form.payment, newPatient:+form.newPatient, revenue:+form.revenue, marketingCost:+form.marketingCost}]
-      .sort((a,b) => MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month));
+    const newData = [...updated, {
+      ...form,
+      inquiry:+form.inquiry, consult:+form.consult, reservation:+form.reservation,
+      visit:+form.visit, payment:+form.payment, newPatient:+form.newPatient,
+      revenue:+form.revenue, marketingCost:+form.marketingCost
+    }].sort((a,b) => a.month > b.month ? 1 : -1);
     onSave(newData);
     setSavedMsg("저장 완료!");
     setTimeout(() => setSavedMsg(""), 2000);
@@ -977,16 +966,35 @@ function PerformanceInputForm({ hospital, monthlyData, onSave, onClose }) {
         <div style={{ color:hospital.color, fontSize:14, fontWeight:700 }}>월별 성과 데이터 입력</div>
         <button onClick={onClose} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:7, padding:"5px 12px", fontSize:12, cursor:"pointer" }}>닫기</button>
       </div>
-      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:18 }}>
-        {MONTHS.map(m => (
-          <button key={m} onClick={() => handleMonthChange(m)} style={{
-            background: selMonth===m ? `${hospital.color}25` : "transparent",
-            border: `1px solid ${selMonth===m ? hospital.color : C.border}`,
-            color: selMonth===m ? hospital.color : C.muted,
-            borderRadius:7, padding:"5px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
-          }}>{m}</button>
-        ))}
+
+      {/* 연도 선택 */}
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+        <label style={{ color:C.muted, fontSize:12, flexShrink:0 }}>연도:</label>
+        <select value={selYear} onChange={e => handleYearChange(e.target.value)}
+          style={{ ...inputSt, width:100, padding:"6px 10px", fontSize:13, appearance:"none" }}>
+          {YEARS.map(y => <option key={y} value={y} style={{background:"#0F172A"}}>{y}년</option>)}
+        </select>
       </div>
+
+      {/* 월 버튼 */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:18 }}>
+        {MONTH_NUMS.map(mn => {
+          const key = `${selYear}-${mn}`;
+          const hasData = monthlyData.some(d => d.month === key);
+          return (
+            <button key={mn} onClick={() => handleMonthChange(mn)} style={{
+              background: selMonthNum===mn ? `${hospital.color}25` : "transparent",
+              border: `1px solid ${selMonthNum===mn ? hospital.color : hasData ? hospital.color+"50" : C.border}`,
+              color: selMonthNum===mn ? hospital.color : hasData ? hospital.color : C.muted,
+              borderRadius:7, padding:"5px 12px", fontSize:12, cursor:"pointer", fontWeight:600, position:"relative",
+            }}>
+              {+mn}월
+              {hasData && <span style={{ position:"absolute", top:2, right:2, width:5, height:5, borderRadius:"50%", background:hospital.color }} />}
+            </button>
+          );
+        })}
+      </div>
+
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))", gap:12, marginBottom:16 }}>
         {fields.map(f => (
           <div key={f.key}>
@@ -1738,16 +1746,18 @@ function MarketingTab({ hospital, chData, initialContents }) {
       {/* 월 선택 */}
       <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
         <span style={{ color:C.muted, fontSize:12, flexShrink:0 }}>조회 월:</span>
-        {monthList.map(m => (
-          <button key={m} onClick={() => { setSelMonth(m); setContentFilter("전체"); }} style={{
-            background: selMonth===m ? `${hospital.color}25` : "transparent",
-            border: `1px solid ${selMonth===m ? hospital.color : C.border}`,
-            color: selMonth===m ? hospital.color : C.muted,
-            borderRadius:8, padding:"4px 14px", fontSize:12, cursor:"pointer", fontWeight:600, whiteSpace:"nowrap",
-          }}>
-            {m === "전체" ? "전체" : `${+m.slice(5)}월`}
-          </button>
-        ))}
+        <button onClick={() => { setSelMonth("전체"); setContentFilter("전체"); }} style={{
+          background: selMonth==="전체" ? `${hospital.color}25` : "transparent",
+          border: `1px solid ${selMonth==="전체" ? hospital.color : C.border}`,
+          color: selMonth==="전체" ? hospital.color : C.muted,
+          borderRadius:8, padding:"4px 14px", fontSize:12, cursor:"pointer", fontWeight:600,
+        }}>전체</button>
+        <YearMonthSelector
+          availMonths={monthList.filter(m => m !== "전체")}
+          selMonth={selMonth === "전체" ? "" : selMonth}
+          setSelMonth={(m) => { setSelMonth(m); setContentFilter("전체"); }}
+          color={hospital.color}
+        />
       </div>
 
       {/* 채널별 요약 카드 */}
@@ -1987,14 +1997,8 @@ const INFLOW_CHANNELS = ["네이버블로그","인스타그램","유튜브","검
 const AGE_COLORS = ["#38BDF8","#34D399","#FBBF24","#F472B6","#A78BFA","#FB923C"];
 
 function PatientTab({ hospital }) {
-  const [records, setRecords] = useState(() => [
-    { month:"2024-06", newPatient:49, returnPatient:82, targetNew:hospital.target_patients||100,
-      ageData:[{group:"10대 이하",female:2,male:1},{group:"20대",female:18,male:6},{group:"30대",female:22,male:8},{group:"40대",female:14,male:10},{group:"50대",female:8,male:7},{group:"60대 이상",female:4,male:5}],
-      channelData:INFLOW_CHANNELS.map((c,i)=>({channel:c,count:[16,10,6,8,4,9,5,3,2][i]||0})),
-      treatmentData:[{item:"시술A",count:12},{item:"시술B",count:9},{item:"시술C",count:8}],
-    },
-  ]);
-  const [selMonth, setSelMonth] = useState("2024-06");
+  const [records, setRecords] = useState([]);
+  const [selMonth, setSelMonth] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
@@ -2037,9 +2041,7 @@ function PatientTab({ hospital }) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           <span style={{color:C.muted,fontSize:13}}>조회 월:</span>
-          {availMonths.map(m=>(
-            <button key={m} onClick={()=>setSelMonth(m)} style={{background:selMonth===m?`${hospital.color}25`:"transparent",border:`1px solid ${selMonth===m?hospital.color:C.border}`,color:selMonth===m?hospital.color:C.muted,borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>{m.slice(5)}월</button>
-          ))}
+          <YearMonthSelector availMonths={availMonths} selMonth={selMonth} setSelMonth={setSelMonth} color={hospital.color} />
         </div>
         <div style={{display:"flex",gap:8}}>
           {rec && <button onClick={openEdit} style={{background:`${hospital.color}20`,border:`1px solid ${hospital.color}50`,color:hospital.color,borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>수정</button>}
@@ -2214,29 +2216,7 @@ const EMPTY_MEETING = {
 };
 
 function MeetingTab({ hospital }) {
-  const [logs, setLogs] = useState([
-    {
-      id: 1, date: "2025-02-20", type: "대면",
-      attendees: "임지혜, 원장님, 실장님",
-      summary: "2월 콘텐츠 성과 공유 및 3월 계획 논의. 블로그 상위노출 3건 확인, 인스타 반응 개선 필요.",
-      actions: [
-        { id:101, text:"인스타 게시물 스타일 변경 (3/5까지)", done:true },
-        { id:102, text:"이벤트 배너 제작 요청 (3/10까지)", done:true },
-        { id:103, text:"플레이스 사진 교체", done:false },
-      ],
-      link: "", memo: "원장님 만족도 높음",
-    },
-    {
-      id: 2, date: "2025-01-22", type: "전화",
-      attendees: "임지혜, 담당자",
-      summary: "1월 광고비 정산 확인 및 2월 예산 협의.",
-      actions: [
-        { id:201, text:"2월 검색광고 예산 10% 증액 확정", done:true },
-        { id:202, text:"유튜브 영상 편집본 전달", done:false },
-      ],
-      link: "", memo: "",
-    },
-  ]);
+  const [logs, setLogs] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY_MEETING);
@@ -2316,14 +2296,18 @@ function MeetingTab({ hospital }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
         <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
           <span style={{ color:C.muted, fontSize:12, flexShrink:0 }}>조회 월:</span>
-          {meetingMonthList.map(m => (
-            <button key={m} onClick={() => setSelMeetingMonth(m)} style={{
-              background: selMeetingMonth===m ? `${hospital.color}25` : "transparent",
-              border: `1px solid ${selMeetingMonth===m ? hospital.color : C.border}`,
-              color: selMeetingMonth===m ? hospital.color : C.muted,
-              borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600, whiteSpace:"nowrap",
-            }}>{m === "전체" ? "전체" : `${+m.slice(5)}월`}</button>
-          ))}
+          <button onClick={() => setSelMeetingMonth("전체")} style={{
+            background: selMeetingMonth==="전체" ? `${hospital.color}25` : "transparent",
+            border: `1px solid ${selMeetingMonth==="전체" ? hospital.color : C.border}`,
+            color: selMeetingMonth==="전체" ? hospital.color : C.muted,
+            borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+          }}>전체</button>
+          <YearMonthSelector
+            availMonths={meetingMonthList.filter(m => m !== "전체")}
+            selMonth={selMeetingMonth === "전체" ? "" : selMeetingMonth}
+            setSelMonth={setSelMeetingMonth}
+            color={hospital.color}
+          />
         </div>
         <button onClick={() => { cancelForm(); setShowForm(!showForm); }} style={{
           background: showForm && !editId ? "rgba(248,113,113,0.15)" : `linear-gradient(135deg,${hospital.color},${C.accent2})`,
@@ -2603,23 +2587,10 @@ const COST_CATEGORIES = [
 ];
 
 function CostTab({ hospital, hData }) {
-  const [contracts, setContracts] = useState([
-    {month:"2024-01",amount:3000},{month:"2024-02",amount:3000},{month:"2024-03",amount:3200},
-    {month:"2024-04",amount:3200},{month:"2024-05",amount:3500},{month:"2024-06",amount:3500},
-  ]);
-  const [expenses, setExpenses] = useState([
-    {id:1,month:"2024-06",category:"marketing_blog",amount:680,memo:"6월 블로그 포스팅 8건",date:"2024-06-05"},
-    {id:2,month:"2024-06",category:"marketing_insta",amount:520,memo:"6월 인스타 콘텐츠 제작",date:"2024-06-07"},
-    {id:3,month:"2024-06",category:"design",amount:400,memo:"원장 프로필 & 배너 디자인",date:"2024-06-10"},
-    {id:4,month:"2024-06",category:"cs",amount:300,memo:"6월 CS 경영지원 비용",date:"2024-06-12"},
-    {id:5,month:"2024-06",category:"marketing_youtube",amount:480,memo:"유튜브 영상 편집 2건",date:"2024-06-15"},
-    {id:6,month:"2024-06",category:"marketing_search",amount:620,memo:"네이버 검색광고 집행",date:"2024-06-18"},
-    {id:7,month:"2024-05",category:"marketing_blog",amount:640,memo:"5월 블로그 포스팅 8건",date:"2024-05-05"},
-    {id:8,month:"2024-05",category:"marketing_insta",amount:500,memo:"5월 인스타 콘텐츠",date:"2024-05-08"},
-    {id:9,month:"2024-05",category:"design",amount:380,memo:"이벤트 배너 디자인",date:"2024-05-12"},
-    {id:10,month:"2024-05",category:"cs",amount:290,memo:"5월 CS 경영지원",date:"2024-05-14"},
-  ]);
-  const [selMonth, setSelMonth] = useState("2024-06");
+  const [contracts, setContracts] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const currentYm = new Date().toISOString().slice(0,7);
+  const [selMonth, setSelMonth] = useState(currentYm);
   const [showContractForm, setShowContractForm] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [expenseForm, setExpenseForm] = useState({month:selMonth,category:"marketing_blog",amount:"",memo:"",date:""});
@@ -2672,9 +2643,7 @@ function CostTab({ hospital, hData }) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           <span style={{color:C.muted,fontSize:13}}>조회 월:</span>
-          {availMonths.map(m=>(
-            <button key={m} onClick={()=>setSelMonth(m)} style={{background:selMonth===m?`${hospital.color}25`:"transparent",border:`1px solid ${selMonth===m?hospital.color:C.border}`,color:selMonth===m?hospital.color:C.muted,borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>{m.slice(5)}월</button>
-          ))}
+          <YearMonthSelector availMonths={availMonths} selMonth={selMonth} setSelMonth={setSelMonth} color={hospital.color} />
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setShowContractForm(!showContractForm)} style={{background:`${C.accent2}20`,border:`1px solid ${C.accent2}50`,color:C.accent2,borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>계약금 등록</button>
@@ -2725,7 +2694,7 @@ function CostTab({ hospital, hData }) {
       </div>
 
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:24}}>
-        <SectionTitle sub={`${selMonth.slice(5)}월 계약금 ${fmt(contractAmt)}만원 기준`}>소진 현황</SectionTitle>
+        <SectionTitle sub={`${+selMonth.slice(5)}월 계약금 ${fmt(contractAmt)}만원 기준`}>소진 현황</SectionTitle>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
           <span style={{color:C.muted,fontSize:13}}>소진 금액</span>
           <span style={{color:hospital.color,fontWeight:800,fontSize:15}}>{fmt(totalSpent)}만원 / {fmt(contractAmt)}만원</span>
@@ -2843,9 +2812,13 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
   const chData = hospital.channelData || [];
 
   // ─── 공통 월 선택 ─────────────────────────────────────────
-  const MONTHS = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
-  const availMonths = [...hData].reverse().map(d => d.month);
+  const availMonths = [...hData].reverse().map(d => d.month); // YYYY-MM 형식
+  const availYears = [...new Set(availMonths.map(m => m.slice(0,4)))].sort().reverse();
   const [selMonth, setSelMonth] = useState(() => hData.length > 0 ? hData[hData.length-1].month : "");
+  const [selYear, setSelYear] = useState(() => hData.length > 0 ? hData[hData.length-1].month.slice(0,4) : String(new Date().getFullYear()));
+
+  // 선택된 연도의 월 목록
+  const monthsInYear = availMonths.filter(m => m.startsWith(selYear));
 
   // 선택된 월 데이터
   const last = (selMonth ? hData.find(d => d.month === selMonth) : hData[hData.length-1]) || {};
@@ -2857,20 +2830,27 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
   const cpaVal = last.marketingCost && last.newPatient ? Math.round(last.marketingCost / last.newPatient) : 0;
   const arpu = last.payment ? Math.round(last.revenue / last.payment) : 0;
 
-  // 월 선택 UI 공통 컴포넌트
+  // 월 선택 UI 공통 컴포넌트 - 연도 드롭다운 + 월 버튼
   const MonthSelector = () => (
-    <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+    <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
       <span style={{ color:C.muted, fontSize:12, flexShrink:0 }}>조회 월:</span>
-      {availMonths.length === 0
+      {availYears.length === 0
         ? <span style={{ color:C.muted, fontSize:12 }}>데이터 없음</span>
-        : availMonths.map(m => (
-          <button key={m} onClick={() => setSelMonth(m)} style={{
-            background: selMonth===m ? `${hospital.color}25` : "transparent",
-            border: `1px solid ${selMonth===m ? hospital.color : C.border}`,
-            color: selMonth===m ? hospital.color : C.muted,
-            borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600, whiteSpace:"nowrap",
-          }}>{m}</button>
-        ))
+        : <>
+            <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelMonth(""); }}
+              style={{ ...inputSt, width:90, padding:"4px 8px", fontSize:12, appearance:"none" }}>
+              {availYears.map(y => <option key={y} value={y} style={{background:"#0F172A"}}>{y}년</option>)}
+            </select>
+            {monthsInYear.map(m => (
+              <button key={m} onClick={() => setSelMonth(m)} style={{
+                background: selMonth===m ? `${hospital.color}25` : "transparent",
+                border: `1px solid ${selMonth===m ? hospital.color : C.border}`,
+                color: selMonth===m ? hospital.color : C.muted,
+                borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600, whiteSpace:"nowrap",
+              }}>{+m.slice(5)}월</button>
+            ))}
+            {monthsInYear.length === 0 && <span style={{ color:C.muted, fontSize:12 }}>{selYear}년 데이터 없음</span>}
+          </>
       }
     </div>
   );
@@ -3529,52 +3509,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
 }
 
 // ─── 초기 콘텐츠 데이터 ───────────────────────────────────────
-const CONTENT_INIT = {
-  1: [
-    { id:1001, channel:"네이버블로그", title:"강남 눈매교정 비용과 회복기간 총정리", date:"2025-02-18", clicks:1240, rank:2, topExposed:true,  status:"발행", url:"", memo:"상위노출 유지 중" },
-    { id:1002, channel:"네이버블로그", title:"쌍꺼풀 수술 전 꼭 알아야 할 5가지", date:"2025-02-05", clicks:870,  rank:5, topExposed:true,  status:"발행", url:"", memo:"" },
-    { id:1003, channel:"인스타그램",   title:"리드성형외과 2월 이벤트 안내",      date:"2025-02-12", clicks:540,  rank:null, topExposed:false, status:"발행", url:"", memo:"스토리 연계" },
-    { id:1004, channel:"네이버카페",   title:"강남 성형외과 후기 모음 (눈·코)",   date:"2025-01-28", clicks:320,  rank:8, topExposed:false, status:"발행", url:"", memo:"" },
-    { id:1005, channel:"유튜브",       title:"눈매교정 수술 과정 영상 공개",      date:"2025-02-01", clicks:2100, rank:null, topExposed:false, status:"발행", url:"", memo:"조회 2.1만" },
-  ],
-  2: [
-    { id:2001, channel:"네이버블로그", title:"광동병원 한방 디스크 치료 후기",    date:"2025-02-20", clicks:980,  rank:3, topExposed:true,  status:"발행", url:"", memo:"" },
-    { id:2002, channel:"네이버블로그", title:"강남 한의원 추천 이유 TOP5",        date:"2025-02-10", clicks:750,  rank:6, topExposed:false, status:"발행", url:"", memo:"" },
-    { id:2003, channel:"인스타그램",   title:"한방 면역 프로그램 소개 카드뉴스",  date:"2025-02-14", clicks:420,  rank:null, topExposed:false, status:"발행", url:"", memo:"" },
-    { id:2004, channel:"지식인",       title:"허리 디스크 한방치료 효과 있나요?", date:"2025-01-22", clicks:310,  rank:1, topExposed:true,  status:"발행", url:"", memo:"지식인 채택 답변" },
-  ],
-  3: [
-    { id:3001, channel:"네이버블로그", title:"부산 요양병원 선택 기준 정리",      date:"2025-02-16", clicks:620,  rank:4, topExposed:true,  status:"발행", url:"", memo:"" },
-    { id:3002, channel:"네이버플레이스", title:"아미힐 요양병원 시설 안내",       date:"2025-02-08", clicks:440,  rank:1, topExposed:true,  status:"발행", url:"", memo:"플레이스 상위" },
-    { id:3003, channel:"인스타그램",   title:"요양 프로그램 일상 스토리",         date:"2025-02-19", clicks:280,  rank:null, topExposed:false, status:"발행", url:"", memo:"" },
-  ],
-  4: [
-    { id:4001, channel:"네이버블로그", title:"서울 임플란트 가격 비교 완벽 정리", date:"2025-02-22", clicks:1580, rank:2, topExposed:true,  status:"발행", url:"", memo:"유입 최다" },
-    { id:4002, channel:"네이버블로그", title:"치아교정 기간과 비용 현실 후기",    date:"2025-02-11", clicks:920,  rank:4, topExposed:true,  status:"발행", url:"", memo:"" },
-    { id:4003, channel:"인스타그램",   title:"OK치과 비포·애프터 케이스",        date:"2025-02-15", clicks:680,  rank:null, topExposed:false, status:"발행", url:"", memo:"릴스 제작" },
-    { id:4004, channel:"유튜브",       title:"임플란트 시술 과정 A to Z",        date:"2025-01-30", clicks:1900, rank:null, topExposed:false, status:"발행", url:"", memo:"" },
-    { id:4005, channel:"지식인",       title:"강남 치과 임플란트 잘하는 곳 추천", date:"2025-02-03", clicks:260,  rank:1, topExposed:true,  status:"발행", url:"", memo:"채택 답변" },
-  ],
-  5: [
-    { id:5001, channel:"네이버블로그", title:"강남 피부과 레이저토닝 효과 후기",  date:"2025-02-21", clicks:1340, rank:2, topExposed:true,  status:"발행", url:"", memo:"" },
-    { id:5002, channel:"인스타그램",   title:"2월 피부 관리 이벤트 카드뉴스",    date:"2025-02-13", clicks:890,  rank:null, topExposed:false, status:"발행", url:"", memo:"광고 연계" },
-    { id:5003, channel:"네이버블로그", title:"색소침착 없애는 시술 종류 비교",    date:"2025-02-06", clicks:760,  rank:5, topExposed:false, status:"발행", url:"", memo:"" },
-    { id:5004, channel:"유튜브",       title:"피부과 의사가 알려주는 홈케어 팁",  date:"2025-01-25", clicks:3200, rank:null, topExposed:false, status:"발행", url:"", memo:"조회 3.2만" },
-    { id:5005, channel:"네이버카페",   title:"강남미소 다녀온 솔직 후기",         date:"2025-02-17", clicks:410,  rank:null, topExposed:false, status:"발행", url:"", memo:"" },
-  ],
-  6: [
-    { id:6001, channel:"네이버블로그", title:"분당 정형외과 무릎 연골 치료 후기", date:"2025-02-19", clicks:830,  rank:3, topExposed:true,  status:"발행", url:"", memo:"" },
-    { id:6002, channel:"네이버블로그", title:"허리·무릎 통증 자가진단 체크리스트",date:"2025-02-07", clicks:650,  rank:5, topExposed:false, status:"발행", url:"", memo:"" },
-    { id:6003, channel:"인스타그램",   title:"연세정형 재활 프로그램 소개",       date:"2025-02-16", clicks:310,  rank:null, topExposed:false, status:"발행", url:"", memo:"" },
-    { id:6004, channel:"지식인",       title:"무릎 연골 주사 vs 수술 어떤게 나을까", date:"2025-01-20", clicks:490, rank:1, topExposed:true, status:"발행", url:"", memo:"채택 답변" },
-  ],
-  7: [
-    { id:7001, channel:"네이버블로그", title:"인천 라식 vs 라섹 차이점 완벽 정리",date:"2025-02-23", clicks:1120, rank:2, topExposed:true,  status:"발행", url:"", memo:"" },
-    { id:7002, channel:"네이버블로그", title:"하늘안과 스마일라식 수술 후기",     date:"2025-02-12", clicks:860,  rank:3, topExposed:true,  status:"발행", url:"", memo:"" },
-    { id:7003, channel:"인스타그램",   title:"라식 수술 전후 비교 카드뉴스",      date:"2025-02-18", clicks:540,  rank:null, topExposed:false, status:"발행", url:"", memo:"" },
-    { id:7004, channel:"유튜브",       title:"안과 원장이 알려주는 라식 선택법",  date:"2025-02-02", clicks:2400, rank:null, topExposed:false, status:"발행", url:"", memo:"조회 2.4만" },
-  ],
-};
+const CONTENT_INIT = { 1:[], 2:[], 3:[], 4:[], 5:[], 6:[], 7:[] };
 
 // ─── 메인 앱 ──────────────────────────────────────────────────
 export default function App() {
