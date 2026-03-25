@@ -51,41 +51,6 @@ const MONTHLY_INIT = { 1:[], 2:[], 3:[], 4:[], 5:[], 6:[], 7:[] };
 const CHANNEL_INIT = { 1:[], 2:[], 3:[], 4:[], 5:[], 6:[], 7:[] };
 
 // ─── 초기 키워드 데이터 ───────────────────────────────────────
-const KEYWORD_INIT = {
-  1: [
-    {keyword:"강남 눈매교정",  channel:"네이버블로그",   type:"브랜드", exposure:8200,  click:640,  ctr:"7.8%",  contribution:"높음"},
-    {keyword:"강남 성형외과",  channel:"검색광고",        type:"일반",   exposure:11400, click:870,  ctr:"7.6%",  contribution:"높음"},
-    {keyword:"쌍꺼풀 비용",    channel:"네이버블로그",   type:"일반",   exposure:4800,  click:400,  ctr:"8.3%",  contribution:"중간"},
-    {keyword:"리드성형외과",   channel:"네이버플레이스", type:"브랜드", exposure:3200,  click:580,  ctr:"18.1%", contribution:"높음"},
-  ],
-  2: [
-    {keyword:"광동병원 한방",   channel:"네이버플레이스", type:"브랜드", exposure:9800,  click:820,  ctr:"8.4%",  contribution:"높음"},
-    {keyword:"강남 한의원",     channel:"검색광고",        type:"일반",   exposure:12400, click:980,  ctr:"7.9%",  contribution:"높음"},
-    {keyword:"허리 디스크 치료",channel:"네이버블로그",   type:"일반",   exposure:5600,  click:400,  ctr:"7.1%",  contribution:"중간"},
-  ],
-  3: [
-    {keyword:"부산 요양병원",  channel:"검색광고",        type:"일반",   exposure:6400,  click:490,  ctr:"7.7%",  contribution:"높음"},
-    {keyword:"아미힐 요양",    channel:"네이버플레이스", type:"브랜드", exposure:4200,  click:310,  ctr:"7.4%",  contribution:"중간"},
-  ],
-  4: [
-    {keyword:"서울 임플란트",  channel:"검색광고",        type:"일반",   exposure:11200, click:890,  ctr:"7.9%",  contribution:"높음"},
-    {keyword:"강남 치과",      channel:"네이버블로그",   type:"일반",   exposure:9400,  click:720,  ctr:"7.7%",  contribution:"중간"},
-    {keyword:"치아 교정 비용", channel:"홈페이지SEO",    type:"일반",   exposure:7600,  click:630,  ctr:"8.3%",  contribution:"중간"},
-  ],
-  5: [
-    {keyword:"강남 피부과",    channel:"검색광고",        type:"일반",   exposure:14200, click:1100, ctr:"7.7%",  contribution:"높음"},
-    {keyword:"레이저 토닝",    channel:"네이버블로그",   type:"일반",   exposure:8400,  click:680,  ctr:"8.1%",  contribution:"중간"},
-    {keyword:"강남미소피부과", channel:"네이버플레이스", type:"브랜드", exposure:3800,  click:820,  ctr:"21.6%", contribution:"높음"},
-  ],
-  6: [
-    {keyword:"분당 정형외과",  channel:"검색광고",        type:"일반",   exposure:8800,  click:690,  ctr:"7.8%",  contribution:"높음"},
-    {keyword:"무릎 통증 치료", channel:"네이버블로그",   type:"일반",   exposure:6200,  click:510,  ctr:"8.2%",  contribution:"중간"},
-  ],
-  7: [
-    {keyword:"인천 안과",      channel:"검색광고",        type:"일반",   exposure:7600,  click:590,  ctr:"7.8%",  contribution:"높음"},
-    {keyword:"라식 라섹 비용", channel:"홈페이지SEO",    type:"일반",   exposure:12800, click:1020, ctr:"8.0%",  contribution:"높음"},
-  ],
-};
 
 // ─── 공통 컴포넌트 ────────────────────────────────────────────
 const fmt = (n) => (n || 0).toLocaleString();
@@ -98,8 +63,17 @@ function YearMonthSelector({ availMonths, selMonth, setSelMonth, color }) {
     if (selMonth && selMonth.length >= 4) return selMonth.slice(0,4);
     return years[0] || String(new Date().getFullYear());
   });
-  const monthsInYear = availMonths.filter(m => m.startsWith(selYear));
 
+  // 외부에서 selMonth가 바뀌면 selYear도 동기화
+  useEffect(() => {
+    if (selMonth && selMonth.length >= 4) {
+      setSelYear(selMonth.slice(0,4));
+    } else if (years.length > 0 && !years.includes(selYear)) {
+      setSelYear(years[0]);
+    }
+  }, [selMonth, availMonths]);
+
+  const monthsInYear = availMonths.filter(m => m.startsWith(selYear));
   const accentColor = color || "#38BDF8";
 
   if (availMonths.length === 0) return (
@@ -162,6 +136,41 @@ const TT = (props) => (
 );
 
 const inputSt = { background: "rgba(255,255,255,0.05)", border: `1px solid ${C.dim}`, borderRadius: 8, color: C.text, padding: "8px 12px", fontSize: 13, fontFamily: "'Noto Sans KR', sans-serif", width: "100%", outline: "none" };
+
+// ─── 한글 입력 버그 방지 Input 컴포넌트 ──────────────────────
+function KInput({ value, onChange, style, type="text", placeholder, onKeyDown, autoFocus, ...rest }) {
+  const composing = useRef(false);
+  const [inner, setInner] = useState(value ?? "");
+  const isFirstRender = useRef(true);
+
+  // 외부에서 value가 바뀔 때만 동기화 (조합 중 아닐 때)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    if (!composing.current) setInner(value ?? "");
+  }, [value]);
+
+  return (
+    <input
+      {...rest}
+      type={type}
+      value={inner}
+      placeholder={placeholder}
+      autoFocus={autoFocus}
+      onKeyDown={onKeyDown}
+      style={{ ...inputSt, ...style }}
+      onCompositionStart={() => { composing.current = true; }}
+      onCompositionEnd={(e) => {
+        composing.current = false;
+        setInner(e.target.value);
+        onChange?.({ target: { value: e.target.value } });
+      }}
+      onChange={(e) => {
+        setInner(e.target.value);
+        if (!composing.current) onChange?.(e);
+      }}
+    />
+  );
+}
 
 const Toast = ({ msg }) => msg ? (
   <div style={{ position: "fixed", bottom: 28, right: 28, background: C.green, color: "#000", borderRadius: 10, padding: "10px 20px", fontSize: 13, fontWeight: 700, zIndex: 999, boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>{msg}</div>
@@ -487,7 +496,7 @@ function AdminChecklist({ hospitals }) {
                   </div>
                   {/* 메모 */}
                   <div style={{ marginTop:12 }}>
-                    <input type="text" placeholder="메모" value={d.memo||""}
+                    <KInput type="text" placeholder="메모" value={d.memo||""}
                       onChange={e => updateHospital(h.id, { memo: e.target.value })}
                       style={{ ...inputSt, fontSize:11, padding:"6px 10px" }} />
                   </div>
@@ -531,6 +540,24 @@ function AdminChecklist({ hospitals }) {
 // ─── 병원 목록 화면 ───────────────────────────────────────────
 const PALETTE = ["#38BDF8","#34D399","#FBBF24","#F472B6","#A78BFA","#FB923C","#2DD4BF","#60A5FA","#E879F9","#4ADE80","#FCD34D","#F87171"];
 const EMPTY_HOSPITAL_FORM = { name:"", region:"", dept:"", manager:"", target_patients:"", target_revenue:"", color:"#38BDF8", password:"" };
+
+// ─── 병원 폼 필드 컴포넌트 (외부 선언으로 리렌더링 방지) ──────
+function HospitalFormField({ label, k, placeholder, type="text", required, form, setForm }) {
+  return (
+    <div>
+      <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>
+        {label}{required && <span style={{color:C.red}}> *</span>}
+      </label>
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={form[k]}
+        onChange={e => setForm(prev => ({...prev, [k]:e.target.value}))}
+        style={inputSt}
+      />
+    </div>
+  );
+}
 
 function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospital, onDeleteHospital, isAdmin, onAdminLogin, onAdminLogout }) {
   const [showForm, setShowForm]     = useState(false);
@@ -607,13 +634,6 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
     const achieve = last.newPatient && h.target_patients ? Math.round((last.newPatient / h.target_patients) * 100) : 0;
     return { ...h, last, roi, achieve };
   }), [hospitals]);
-
-  const F = ({ label, k, placeholder, type="text", required }) => (
-    <div>
-      <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>{label}{required && <span style={{color:C.red}}> *</span>}</label>
-      <input type={type} placeholder={placeholder} value={form[k]} onChange={e => setForm({...form, [k]:e.target.value})} style={inputSt} />
-    </div>
-  );
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, padding:"40px 32px", fontFamily:"'Noto Sans KR', sans-serif" }}>
@@ -750,13 +770,13 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
         <div style={{ background:"rgba(255,255,255,0.03)", border:`2px solid ${form.color}50`, borderRadius:20, padding:28, maxWidth:900, margin:"0 auto", marginBottom:32 }}>
           <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:20 }}>{editTarget ? "병원 정보 수정" : "새 병원 추가"}</div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))", gap:14, marginBottom:18 }}>
-            <F label="병원명" k="name" placeholder="예: 강남미소피부과" required />
-            <F label="진료과" k="dept" placeholder="예: 피부과" required />
-            <F label="지역" k="region" placeholder="예: 강남" />
-            <F label="담당자" k="manager" placeholder="예: 김민지" />
-            <F label="신환 목표 (명/월)" k="target_patients" placeholder="120" type="number" />
-            <F label="매출 목표 (만원/월)" k="target_revenue" placeholder="15000" type="number" />
-            <F label="공유 링크 비밀번호" k="password" placeholder="예: lead2024" />
+            <HospitalFormField label="병원명" k="name" placeholder="예: 강남미소피부과" required form={form} setForm={setForm} />
+            <HospitalFormField label="진료과" k="dept" placeholder="예: 피부과" required form={form} setForm={setForm} />
+            <HospitalFormField label="지역" k="region" placeholder="예: 강남" form={form} setForm={setForm} />
+            <HospitalFormField label="담당자" k="manager" placeholder="예: 김민지" form={form} setForm={setForm} />
+            <HospitalFormField label="신환 목표 (명/월)" k="target_patients" placeholder="120" type="number" form={form} setForm={setForm} />
+            <HospitalFormField label="매출 목표 (만원/월)" k="target_revenue" placeholder="15000" type="number" form={form} setForm={setForm} />
+            <HospitalFormField label="공유 링크 비밀번호" k="password" placeholder="예: lead2024" form={form} setForm={setForm} />
           </div>
 
           {/* 색상 선택 */}
@@ -764,7 +784,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
             <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:10 }}>대표 색상</label>
             <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
               {PALETTE.map(col => (
-                <div key={col} onClick={() => setForm({...form, color:col})} style={{
+                <div key={col} onClick={() => setForm(prev => ({...prev, color:col}))} style={{
                   width:28, height:28, borderRadius:"50%", background:col, cursor:"pointer",
                   border: form.color === col ? `3px solid #fff` : "3px solid transparent",
                   boxShadow: form.color === col ? `0 0 0 2px ${col}` : "none",
@@ -774,7 +794,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
               {/* 직접 입력 */}
               <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:4 }}>
                 <div style={{ width:28, height:28, borderRadius:"50%", background:form.color, border:`2px solid rgba(255,255,255,0.2)` }} />
-                <input type="text" value={form.color} onChange={e => setForm({...form, color:e.target.value})}
+                <KInput type="text" value={form.color} onChange={e => setForm(prev => ({...prev, color:e.target.value}))}
                   style={{...inputSt, width:100, padding:"5px 10px", fontSize:12}} placeholder="#38BDF8" />
               </div>
             </div>
@@ -999,7 +1019,7 @@ function PerformanceInputForm({ hospital, monthlyData, onSave, onClose }) {
         {fields.map(f => (
           <div key={f.key}>
             <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>{f.label} ({f.unit})</label>
-            <input type="number" value={form[f.key]} onChange={e => setForm({...form, [f.key]: e.target.value})} style={inputSt} />
+            <input type="number" value={form[f.key]} onChange={e => setForm(prev => ({...prev, [f.key]: e.target.value}))} style={inputSt} />
           </div>
         ))}
       </div>
@@ -1071,336 +1091,6 @@ function ChannelInputForm({ hospital, channelData, onSave, onClose }) {
         <button onClick={handleSave} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#fff", borderRadius:9, padding:"10px 24px", fontSize:13, cursor:"pointer", fontWeight:700 }}>
           저장하기
         </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── 키워드 입력 폼 ───────────────────────────────────────────
-function KeywordInputForm({ hospital, kwData, onSave, onClose }) {
-  const [data, setData] = useState(kwData.length > 0 ? [...kwData] : []);
-  const [newRow, setNewRow] = useState({ keyword:"", channel:"네이버블로그", type:"일반", exposure:"", click:"", ctr:"", contribution:"중간" });
-  const [savedMsg, setSavedMsg] = useState("");
-  const [uploadMode, setUploadMode] = useState(false);
-  const [uploadMsg, setUploadMsg] = useState("");
-  const fileInputRef = useRef();
-
-  const CHANNELS = ["네이버블로그","검색광고","홈페이지SEO","네이버플레이스","네이버카페","지식인","인스타그램","유튜브","메타광고","웹사이트","강남언니","힐링페이퍼","바비톡","기타"];
-
-  const handleAdd = () => {
-    if (!newRow.keyword) return;
-    setData([...data, {...newRow, exposure:+newRow.exposure||0, click:+newRow.click||0}]);
-    setNewRow({ keyword:"", channel:"네이버블로그", type:"일반", exposure:"", click:"", ctr:"", contribution:"중간" });
-  };
-
-  const handleDelete = (idx) => setData(data.filter((_,i) => i !== idx));
-
-  const handleSave = () => {
-    onSave(data);
-    setSavedMsg("저장 완료!");
-    setTimeout(() => setSavedMsg(""), 2000);
-  };
-
-  const handleChange = (idx, key, val) => {
-    const nd = [...data];
-    nd[idx] = {...nd[idx], [key]: ["exposure","click"].includes(key) ? +val : val};
-    setData(nd);
-  };
-
-  // ── 엑셀/CSV 업로드 ──────────────────────────────────────────
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const text = ev.target.result;
-        const lines = text.split(/\r?\n/).filter(l => l.trim());
-        if (lines.length < 2) { setUploadMsg("데이터가 없어요."); return; }
-
-        // 헤더 파싱 (대소문자·공백 무시)
-        const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/\s/g,""));
-        const map = {
-          keyword:   headers.findIndex(h => h.includes("키워드")),
-          channel:   headers.findIndex(h => h.includes("채널")),
-          type:      headers.findIndex(h => h.includes("유형")),
-          exposure:  headers.findIndex(h => h.includes("노출")),
-          click:     headers.findIndex(h => h.includes("클릭")),
-          ctr:       headers.findIndex(h => h.includes("ctr")||h.includes("클릭률")),
-          contribution: headers.findIndex(h => h.includes("전환")||h.includes("기여")),
-        };
-
-        if (map.keyword === -1) { setUploadMsg("'키워드' 컬럼을 찾을 수 없어요. 헤더를 확인해 주세요."); return; }
-
-        const parsed = lines.slice(1).map(line => {
-          const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g,""));
-          const get = (idx) => idx !== -1 ? cols[idx] || "" : "";
-          return {
-            keyword:      get(map.keyword),
-            channel:      CHANNELS.includes(get(map.channel)) ? get(map.channel) : "기타",
-            type:         ["브랜드","일반","지역"].includes(get(map.type)) ? get(map.type) : "일반",
-            exposure:     +get(map.exposure).replace(/,/g,"") || 0,
-            click:        +get(map.click).replace(/,/g,"") || 0,
-            ctr:          get(map.ctr) || "0%",
-            contribution: ["높음","중간","낮음"].includes(get(map.contribution)) ? get(map.contribution) : "중간",
-          };
-        }).filter(r => r.keyword);
-
-        setData(prev => {
-          const existing = prev.map(k => k.keyword);
-          const newOnes  = parsed.filter(p => !existing.includes(p.keyword));
-          const updated  = prev.map(k => { const f = parsed.find(p => p.keyword === k.keyword); return f ? {...k,...f} : k; });
-          return [...updated, ...newOnes];
-        });
-        setUploadMsg(`${parsed.length}개 키워드 업로드 완료! (중복은 자동 업데이트)`);
-        setTimeout(() => setUploadMsg(""), 3000);
-      } catch {
-        setUploadMsg("파일 읽기 오류. CSV 형식인지 확인해 주세요.");
-      }
-    };
-    reader.readAsText(file, "UTF-8");
-    e.target.value = "";
-  };
-
-  // 템플릿 다운로드
-  const downloadTemplate = () => {
-    const csv = "키워드,채널,유형,노출수,클릭수,CTR,전환기여\n강남 성형외과,네이버블로그,일반,5000,380,7.6%,높음\n병원명 브랜드,검색광고,브랜드,3200,580,18.1%,높음";
-    const blob = new Blob(["\uFEFF" + csv], { type:"text/csv;charset=utf-8" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = "키워드_업로드_양식.csv"; a.click();
-  };
-
-  return (
-    <div style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${hospital.color}30`, borderRadius:16, padding:24, marginBottom:20 }}>
-      <Toast msg={savedMsg} />
-      {uploadMsg && <Toast msg={uploadMsg} />}
-
-      {/* 헤더 */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-        <div style={{ color:hospital.color, fontSize:14, fontWeight:700 }}>키워드 데이터 입력</div>
-        <div style={{ display:"flex", gap:8 }}>
-          <button onClick={() => setUploadMode(!uploadMode)} style={{ background: uploadMode ? `${C.green}20` : "transparent", border:`1px solid ${uploadMode ? C.green : C.border}`, color: uploadMode ? C.green : C.muted, borderRadius:7, padding:"5px 12px", fontSize:12, cursor:"pointer", fontWeight:600 }}>
-            엑셀 업로드
-          </button>
-          <button onClick={onClose} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:7, padding:"5px 12px", fontSize:12, cursor:"pointer" }}>닫기</button>
-        </div>
-      </div>
-
-      {/* 엑셀 업로드 패널 */}
-      {uploadMode && (
-        <div style={{ background:`${C.green}08`, border:`1px solid ${C.green}30`, borderRadius:12, padding:18, marginBottom:16 }}>
-          <div style={{ color:C.text, fontSize:13, fontWeight:700, marginBottom:8 }}>엑셀 / CSV 파일 업로드</div>
-          <div style={{ color:C.muted, fontSize:12, marginBottom:14, lineHeight:1.7 }}>
-            CSV 파일을 업로드하면 키워드를 한꺼번에 추가할 수 있어요.<br/>
-            헤더: <span style={{color:C.green, fontWeight:600}}>키워드, 채널, 유형, 노출수, 클릭수, CTR, 전환기여</span><br/>
-            기존 키워드와 중복되면 자동으로 업데이트돼요.
-          </div>
-          <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-            <button onClick={downloadTemplate} style={{ background:`${C.accent}15`, border:`1px solid ${C.accent}40`, color:C.accent, borderRadius:8, padding:"8px 16px", fontSize:12, cursor:"pointer", fontWeight:600 }}>
-              양식 다운로드
-            </button>
-            <button onClick={() => fileInputRef.current?.click()} style={{ background:`${C.green}20`, border:`1px solid ${C.green}`, color:C.green, borderRadius:8, padding:"8px 16px", fontSize:12, cursor:"pointer", fontWeight:700 }}>
-              CSV 파일 선택
-            </button>
-            <input ref={fileInputRef} type="file" accept=".csv,.txt" onChange={handleFileUpload} style={{ display:"none" }} />
-          </div>
-          <div style={{ color:C.muted, fontSize:11, marginTop:10 }}>
-            엑셀에서 저장 시 "CSV UTF-8" 형식으로 저장해 주세요.
-          </div>
-        </div>
-      )}
-
-      {/* 수동 입력 */}
-      <div style={{ background:"rgba(255,255,255,0.02)", borderRadius:10, padding:16, marginBottom:16 }}>
-        <div style={{ color:C.muted, fontSize:12, marginBottom:10 }}>직접 입력</div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))", gap:10, marginBottom:10 }}>
-          <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>키워드</label><input value={newRow.keyword} onChange={e=>setNewRow({...newRow,keyword:e.target.value})} style={inputSt} placeholder="예: 강남 성형외과"/></div>
-          <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>채널</label>
-            <select value={newRow.channel} onChange={e=>setNewRow({...newRow,channel:e.target.value})} style={{...inputSt,appearance:"none"}}>
-              {CHANNELS.map(o=><option key={o} style={{background:"#0F172A"}}>{o}</option>)}
-            </select>
-          </div>
-          <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>유형</label>
-            <select value={newRow.type} onChange={e=>setNewRow({...newRow,type:e.target.value})} style={{...inputSt,appearance:"none"}}>
-              {["브랜드","일반","지역"].map(o=><option key={o} style={{background:"#0F172A"}}>{o}</option>)}
-            </select>
-          </div>
-          <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>노출수</label><input type="number" value={newRow.exposure} onChange={e=>setNewRow({...newRow,exposure:e.target.value})} style={inputSt} placeholder="5000"/></div>
-          <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>클릭수</label><input type="number" value={newRow.click} onChange={e=>setNewRow({...newRow,click:e.target.value})} style={inputSt} placeholder="380"/></div>
-          <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>CTR</label><input value={newRow.ctr} onChange={e=>setNewRow({...newRow,ctr:e.target.value})} style={inputSt} placeholder="7.6%"/></div>
-          <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>전환기여</label>
-            <select value={newRow.contribution} onChange={e=>setNewRow({...newRow,contribution:e.target.value})} style={{...inputSt,appearance:"none"}}>
-              {["높음","중간","낮음"].map(o=><option key={o} style={{background:"#0F172A"}}>{o}</option>)}
-            </select>
-          </div>
-        </div>
-        <button onClick={handleAdd} style={{ background:`${hospital.color}20`, border:`1px solid ${hospital.color}`, color:hospital.color, borderRadius:8, padding:"7px 18px", fontSize:12, cursor:"pointer", fontWeight:700 }}>+ 키워드 추가</button>
-      </div>
-
-      {/* 기존 키워드 목록 */}
-      {data.length > 0 && (
-        <div style={{ overflowX:"auto", marginBottom:16 }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-            <thead>
-              <tr>{["키워드","채널","유형","노출수","클릭수","CTR","전환기여","삭제"].map(h=>(
-                <th key={h} style={{ color:C.muted, fontWeight:600, padding:"7px 10px", textAlign:"left", borderBottom:`1px solid ${C.dim}`, whiteSpace:"nowrap" }}>{h}</th>
-              ))}</tr>
-            </thead>
-            <tbody>
-              {data.map((kw,i) => (
-                <tr key={i} style={{ borderBottom:`1px solid ${C.dim}` }}>
-                  <td style={{ padding:"6px 10px", color:hospital.color, fontWeight:700 }}>
-                    <input value={kw.keyword} onChange={e=>handleChange(i,"keyword",e.target.value)} style={{...inputSt,width:130,padding:"4px 8px"}}/>
-                  </td>
-                  <td style={{ padding:"6px 10px" }}>
-                    <select value={kw.channel||"네이버블로그"} onChange={e=>handleChange(i,"channel",e.target.value)} style={{...inputSt,width:110,padding:"4px 6px",appearance:"none"}}>
-                      {CHANNELS.map(o=><option key={o} style={{background:"#0F172A"}}>{o}</option>)}
-                    </select>
-                  </td>
-                  <td style={{ padding:"6px 10px" }}>
-                    <select value={kw.type} onChange={e=>handleChange(i,"type",e.target.value)} style={{...inputSt,width:80,padding:"4px 6px",appearance:"none"}}>
-                      {["브랜드","일반","지역"].map(o=><option key={o} style={{background:"#0F172A"}}>{o}</option>)}
-                    </select>
-                  </td>
-                  <td style={{ padding:"6px 10px" }}><input type="number" value={kw.exposure} onChange={e=>handleChange(i,"exposure",e.target.value)} style={{...inputSt,width:80,padding:"4px 6px"}}/></td>
-                  <td style={{ padding:"6px 10px" }}><input type="number" value={kw.click} onChange={e=>handleChange(i,"click",e.target.value)} style={{...inputSt,width:70,padding:"4px 6px"}}/></td>
-                  <td style={{ padding:"6px 10px" }}><input value={kw.ctr} onChange={e=>handleChange(i,"ctr",e.target.value)} style={{...inputSt,width:60,padding:"4px 6px"}}/></td>
-                  <td style={{ padding:"6px 10px" }}>
-                    <select value={kw.contribution} onChange={e=>handleChange(i,"contribution",e.target.value)} style={{...inputSt,width:70,padding:"4px 6px",appearance:"none"}}>
-                      {["높음","중간","낮음"].map(o=><option key={o} style={{background:"#0F172A"}}>{o}</option>)}
-                    </select>
-                  </td>
-                  <td style={{ padding:"6px 10px" }}>
-                    <button onClick={()=>handleDelete(i)} style={{ background:`${C.red}20`, border:`1px solid ${C.red}40`, color:C.red, borderRadius:6, padding:"4px 8px", fontSize:11, cursor:"pointer" }}>삭제</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <button onClick={handleSave} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#fff", borderRadius:9, padding:"10px 24px", fontSize:13, cursor:"pointer", fontWeight:700 }}>
-        저장하기
-      </button>
-    </div>
-  );
-}
-
-const EMPTY_FORM = { channel:"네이버블로그", title:"", date:"", views:"", clicks:"", rank:"", topExposed:false, status:"발행", url:"", memo:"" };
-
-// ─── 키워드 탭 ────────────────────────────────────────────────
-function KeywordTab({ hospital, kwData, showKwInput, setShowKwInput, onUpdateHospital }) {
-  const [kwSortKey, setKwSortKey] = useState("click");
-  const [kwSortDir, setKwSortDir] = useState("asc");
-
-  const handleKwSort = (key) => {
-    if (kwSortKey === key) setKwSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setKwSortKey(key); setKwSortDir("desc"); }
-  };
-
-  const sortedKw = useMemo(() => {
-    return [...kwData].sort((a, b) => {
-      let av, bv;
-      if (kwSortKey === "exposure" || kwSortKey === "click") { av = +a[kwSortKey]||0; bv = +b[kwSortKey]||0; }
-      else if (kwSortKey === "ctr") { av = parseFloat(a.ctr)||0; bv = parseFloat(b.ctr)||0; }
-      else { av = a[kwSortKey]; bv = b[kwSortKey]; }
-      return kwSortDir === "asc" ? (av > bv ? 1 : -1) : (bv > av ? 1 : -1);
-    });
-  }, [kwData, kwSortKey, kwSortDir]);
-
-  const KwSortTh = ({ k, label }) => {
-    const active = kwSortKey === k;
-    return (
-      <th onClick={() => handleKwSort(k)} style={{ color: active ? hospital.color : C.muted, fontWeight:600, padding:"8px 12px", textAlign:"left", borderBottom:`1px solid ${C.dim}`, whiteSpace:"nowrap", cursor:"pointer", userSelect:"none" }}>
-        <span style={{ display:"flex", alignItems:"center", gap:4 }}>
-          {label}
-          <span style={{ fontSize:10, opacity: active ? 1 : 0.4 }}>{active ? (kwSortDir === "asc" ? "▲" : "▼") : "↕"}</span>
-        </span>
-      </th>
-    );
-  };
-
-  const inputBtn = (label, onClick) => (
-    <button onClick={onClick} style={{ background:`${hospital.color}20`, border:`1px solid ${hospital.color}50`, color:hospital.color, borderRadius:9, padding:"7px 16px", fontSize:12, cursor:"pointer", fontWeight:700 }}>{label}</button>
-  );
-
-  return (
-    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-      <div style={{ display:"flex", justifyContent:"flex-end" }}>
-        {inputBtn(showKwInput ? "입력 닫기" : "키워드 입력", () => setShowKwInput(!showKwInput))}
-      </div>
-      {showKwInput && (
-        <KeywordInputForm hospital={hospital} kwData={kwData}
-          onSave={(d) => onUpdateHospital({...hospital, keywordData:d})}
-          onClose={() => setShowKwInput(false)} />
-      )}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:14 }}>
-        <KPICard label="총 키워드 수" value={kwData.length} unit="개" color={hospital.color} />
-        <KPICard label="평균 CTR" value={(kwData.reduce((s,k)=>s+parseFloat(k.ctr),0)/(kwData.length||1)).toFixed(1)} unit="%" color={C.green} />
-        <KPICard label="총 클릭수" value={fmt(kwData.reduce((s,k)=>s+k.click,0))} unit="회" color={C.yellow} />
-        <KPICard label="총 노출수" value={fmt(kwData.reduce((s,k)=>s+k.exposure,0))} unit="회" color={C.accent2} />
-      </div>
-      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:22 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, flexWrap:"wrap", gap:10 }}>
-          <SectionTitle>키워드 성과 테이블</SectionTitle>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            {[
-              { k:"exposure", label:"노출수" },
-              { k:"click",    label:"클릭수" },
-              { k:"ctr",      label:"CTR" },
-            ].map(({ k, label }) => {
-              const active = kwSortKey === k;
-              return (
-                <button key={k} onClick={() => handleKwSort(k)} style={{
-                  background: active ? `${hospital.color}25` : "transparent",
-                  border: `1px solid ${active ? hospital.color : C.border}`,
-                  color: active ? hospital.color : C.muted,
-                  borderRadius:8, padding:"5px 12px", fontSize:11, cursor:"pointer", fontWeight:600,
-                  display:"flex", alignItems:"center", gap:4,
-                }}>
-                  {label} {active ? (kwSortDir === "asc" ? "▲" : "▼") : ""}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-            <thead>
-              <tr>
-                <KwSortTh k="keyword"  label="키워드" />
-                <th style={{ color:C.muted, fontWeight:600, padding:"8px 12px", textAlign:"left", borderBottom:`1px solid ${C.dim}`, whiteSpace:"nowrap" }}>채널</th>
-                <th style={{ color:C.muted, fontWeight:600, padding:"8px 12px", textAlign:"left", borderBottom:`1px solid ${C.dim}`, whiteSpace:"nowrap" }}>유형</th>
-                <KwSortTh k="exposure" label="노출수" />
-                <KwSortTh k="click"    label="클릭수" />
-                <KwSortTh k="ctr"      label="CTR" />
-                <th style={{ color:C.muted, fontWeight:600, padding:"8px 12px", textAlign:"left", borderBottom:`1px solid ${C.dim}`, whiteSpace:"nowrap" }}>전환기여</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedKw.map((kw,i) => {
-                const chMeta = CHANNEL_META[kw.channel] || { color: C.muted };
-                return (
-                  <tr key={i} style={{ borderBottom:`1px solid ${C.dim}` }}
-                    onMouseEnter={e=>e.currentTarget.style.background=`${hospital.color}08`}
-                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <td style={{ padding:"9px 12px", color:hospital.color, fontWeight:700 }}>{kw.keyword}</td>
-                    <td style={{ padding:"9px 12px" }}>
-                      {kw.channel ? <Badge color={chMeta.color}>{kw.channel}</Badge> : <span style={{ color:C.muted, fontSize:11 }}>-</span>}
-                    </td>
-                    <td style={{ padding:"9px 12px" }}><Badge color={kw.type==="브랜드"?C.accent:kw.type==="지역"?C.green:C.accent2}>{kw.type}</Badge></td>
-                    <td style={{ padding:"9px 12px", color:C.text }}>{fmt(kw.exposure)}</td>
-                    <td style={{ padding:"9px 12px", color:C.text }}>{fmt(kw.click)}</td>
-                    <td style={{ padding:"9px 12px", color:parseFloat(kw.ctr)>7?C.green:C.muted }}>{kw.ctr}</td>
-                    <td style={{ padding:"9px 12px" }}><Badge color={kw.contribution==="높음"?C.green:kw.contribution==="중간"?C.yellow:C.muted}>{kw.contribution}</Badge></td>
-                  </tr>
-                );
-              })}
-              {kwData.length===0 && <tr><td colSpan={7} style={{ padding:"32px", textAlign:"center", color:C.muted }}>키워드 데이터를 입력해 주세요.</td></tr>}
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   );
@@ -1872,39 +1562,39 @@ function MarketingTab({ hospital, chData, initialContents }) {
             <div style={{ color:hospital.color, fontSize:13, fontWeight:700, marginBottom:14 }}>{editId ? "콘텐츠 수정" : "새 콘텐츠 추가"}</div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(170px, 1fr))", gap:12, marginBottom:12 }}>
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>채널 *</label>
-                <select value={form.channel} onChange={e=>setForm({...form,channel:e.target.value})} style={{...inputSt,appearance:"none"}}>
+                <select value={form.channel} onChange={e=>setForm(prev => ({...prev, channel:e.target.value}))} style={{...inputSt,appearance:"none"}}>
                   {CHANNEL_OPTIONS.map(o=><option key={o} style={{background:"#0F172A"}}>{o}</option>)}
                 </select>
               </div>
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>발행일 *</label>
-                <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} style={inputSt}/>
+                <input type="date" value={form.date} onChange={e=>setForm(prev => ({...prev, date:e.target.value}))} style={inputSt}/>
               </div>
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>상태</label>
-                <select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} style={{...inputSt,appearance:"none"}}>
+                <select value={form.status} onChange={e=>setForm(prev => ({...prev, status:e.target.value}))} style={{...inputSt,appearance:"none"}}>
                   {STATUS_OPTIONS.map(o=><option key={o} style={{background:"#0F172A"}}>{o}</option>)}
                 </select>
               </div>
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>클릭수</label>
-                <input type="number" placeholder="320" value={form.clicks} onChange={e=>setForm({...form,clicks:e.target.value})} style={inputSt}/>
+                <input type="number" placeholder="320" value={form.clicks} onChange={e=>setForm(prev => ({...prev, clicks:e.target.value}))} style={inputSt}/>
               </div>
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>노출 순위</label>
-                <input type="number" placeholder="2" value={form.rank} onChange={e=>setForm({...form,rank:e.target.value})} style={inputSt}/>
+                <input type="number" placeholder="2" value={form.rank} onChange={e=>setForm(prev => ({...prev, rank:e.target.value}))} style={inputSt}/>
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:10, paddingTop:20 }}>
-                <div onClick={()=>setForm({...form,topExposed:!form.topExposed})} style={{ width:40, height:22, borderRadius:11, background:form.topExposed?C.green:C.dim, cursor:"pointer", position:"relative" }}>
+                <div onClick={()=>setForm(prev => ({...prev, topExposed:!form.topExposed}))} style={{ width:40, height:22, borderRadius:11, background:form.topExposed?C.green:C.dim, cursor:"pointer", position:"relative" }}>
                   <div style={{ width:18, height:18, borderRadius:"50%", background:"#fff", position:"absolute", top:2, left:form.topExposed?20:2, transition:"left 0.2s" }}/>
                 </div>
-                <label style={{ color:C.muted, fontSize:12, cursor:"pointer" }} onClick={()=>setForm({...form,topExposed:!form.topExposed})}>상위노출</label>
+                <label style={{ color:C.muted, fontSize:12, cursor:"pointer" }} onClick={()=>setForm(prev => ({...prev, topExposed:!form.topExposed}))}>상위노출</label>
               </div>
             </div>
             <div style={{ marginBottom:12 }}><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>콘텐츠 제목 *</label>
-              <input type="text" placeholder="예: 강남 눈매교정 후기" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} style={inputSt}/>
+              <KInput type="text" placeholder="예: 강남 눈매교정 후기" value={form.title} onChange={e=>setForm(prev => ({...prev, title:e.target.value}))} style={inputSt}/>
             </div>
             <div style={{ marginBottom:12 }}><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>URL</label>
-              <input type="text" placeholder="https://..." value={form.url} onChange={e=>setForm({...form,url:e.target.value})} style={inputSt}/>
+              <input type="text" placeholder="https://..." value={form.url} onChange={e=>setForm(prev => ({...prev, url:e.target.value}))} style={inputSt}/>
             </div>
             <div style={{ marginBottom:16 }}><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>메모</label>
-              <input type="text" placeholder="특이사항 등" value={form.memo} onChange={e=>setForm({...form,memo:e.target.value})} style={inputSt}/>
+              <KInput type="text" placeholder="특이사항 등" value={form.memo} onChange={e=>setForm(prev => ({...prev, memo:e.target.value}))} style={inputSt}/>
             </div>
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={editId ? handleUpdate : handleAdd} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#fff", borderRadius:10, padding:"9px 24px", fontSize:13, cursor:"pointer", fontWeight:700 }}>{editId ? "수정 완료" : "저장하기"}</button>
@@ -2087,7 +1777,7 @@ function PatientTab({ hospital }) {
           <div style={{marginBottom:20}}>
             <div style={{color:C.text,fontSize:13,fontWeight:700,marginBottom:10}}>시술/진료 항목별</div>
             <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
-              <input type="text" placeholder="시술명" value={newTreatment.item} onChange={e=>setNewTreatment({...newTreatment,item:e.target.value})} style={{...inputSt,width:180}}/>
+              <KInput type="text" placeholder="시술명" value={newTreatment.item} onChange={e=>setNewTreatment({...newTreatment,item:e.target.value})} style={{...inputSt,width:180}}/>
               <input type="number" placeholder="인원" value={newTreatment.count} onChange={e=>setNewTreatment({...newTreatment,count:e.target.value})} style={{...inputSt,width:100}}/>
               <button onClick={()=>{if(!newTreatment.item)return;setFormData({...formData,treatmentData:[...formData.treatmentData,{item:newTreatment.item,count:+newTreatment.count}]});setNewTreatment({item:"",count:""}); }} style={{background:`${hospital.color}20`,border:`1px solid ${hospital.color}`,color:hospital.color,borderRadius:8,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>추가</button>
             </div>
@@ -2203,6 +1893,243 @@ function PatientTab({ hospital }) {
           </div>
         )}
       </>)}
+    </div>
+  );
+}
+
+// ─── 키워드 현황 탭 ──────────────────────────────────────────
+function KeywordRankTab({ hospital, isAdmin }) {
+  const [keywords, setKeywords] = useState([]);
+  const [selMonth, setSelMonth] = useState("");
+  const [sortKey, setSortKey] = useState("rank");
+  const [sortDir, setSortDir] = useState("asc");
+  const [savedMsg, setSavedMsg] = useState("");
+  const fileRef = useRef(null);
+
+  const toast = (msg) => { setSavedMsg(msg); setTimeout(() => setSavedMsg(""), 2500); };
+
+  // 월 목록
+  const availMonths = [...new Set(keywords.map(k => k.month).filter(Boolean))].sort().reverse();
+
+  // 현재 월 키워드
+  const filtered = keywords.filter(k => k.month === selMonth);
+
+  // 이전 주 키워드 (전주 대비용) - week 필드 기준
+  const selWeek = selMonth; // week 필드를 month 대신 사용
+  const availWeeks = [...new Set(keywords.map(k => k.month).filter(Boolean))].sort().reverse();
+  const prevWeek = availWeeks[availWeeks.indexOf(selMonth) + 1] || null;
+  const prevKeywords = prevWeek ? keywords.filter(k => k.month === prevWeek) : [];
+
+  // 정렬
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      let av = a[sortKey], bv = b[sortKey];
+      if (sortKey === "rank" || sortKey === "searchVol") { av = +av||999999; bv = +bv||999999; }
+      else { av = av||""; bv = bv||""; }
+      return sortDir === "asc" ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir(key === "rank" ? "asc" : "desc"); }
+  };
+
+  // CSV 업로드
+  const handleCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target.result;
+      const lines = text.trim().split("\n").filter(Boolean);
+      if (lines.length < 2) { toast("데이터가 없어요"); return; }
+
+      // 헤더 파싱 (월,키워드,채널,순위,검색량)
+      const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+      const rows = lines.slice(1).map(line => {
+        const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
+        const obj = {};
+        headers.forEach((h, i) => obj[h] = cols[i] || "");
+        return obj;
+      });
+
+      // 헤더 자동 매핑
+      const map = {};
+      headers.forEach(h => {
+        const hl = h.toLowerCase();
+        if (hl.includes("주") || hl.includes("week") || hl.includes("월") || hl.includes("month")) map.month = h;
+        else if (hl.includes("키워드") || hl.includes("keyword")) map.keyword = h;
+        else if (hl.includes("채널") || hl.includes("channel")) map.channel = h;
+        else if (hl.includes("순위") || hl.includes("rank")) map.rank = h;
+        else if (hl.includes("검색") || hl.includes("search")) map.searchVol = h;
+      });
+
+      if (!map.keyword) { toast("키워드 컬럼을 찾을 수 없어요"); return; }
+
+      const parsed = rows.map((r, i) => ({
+        id: Date.now() + i,
+        month: r[map.month] || selMonth || new Date().toISOString().slice(0,7),
+        keyword: r[map.keyword] || "",
+        channel: r[map.channel] || "",
+        rank: r[map.rank] ? +r[map.rank] : null,
+        searchVol: r[map.searchVol] ? +r[map.searchVol].replace(/,/g,"") : null,
+      })).filter(r => r.keyword);
+
+      // 같은 월 데이터는 교체, 다른 월은 유지
+      const uploadedMonths = [...new Set(parsed.map(r => r.month))];
+      const kept = keywords.filter(k => !uploadedMonths.includes(k.month));
+      const newData = [...kept, ...parsed];
+      setKeywords(newData);
+      if (uploadedMonths.length > 0) setSelMonth(uploadedMonths[0]);
+      toast(`${parsed.length}개 키워드 업로드 완료!`);
+    };
+    reader.readAsText(file, "UTF-8");
+    e.target.value = "";
+  };
+
+  // 순위 변화 계산
+  const getRankChange = (kw) => {
+    if (!prevKeywords.length) return null;
+    const prev = prevKeywords.find(p => p.keyword === kw.keyword && p.channel === kw.channel);
+    if (!prev || !prev.rank || !kw.rank) return null;
+    return prev.rank - kw.rank; // 양수 = 상승
+  };
+
+  const SortBtn = ({ k, label }) => (
+    <span onClick={() => handleSort(k)} style={{ cursor:"pointer", userSelect:"none", color: sortKey===k ? hospital.color : C.muted }}>
+      {label}{sortKey===k ? (sortDir==="asc" ? " ↑" : " ↓") : ""}
+    </span>
+  );
+
+  // 요약 통계
+  const top10 = filtered.filter(k => k.rank && k.rank <= 10).length;
+  const top3 = filtered.filter(k => k.rank && k.rank <= 3).length;
+  const avgRank = filtered.length > 0 ? (filtered.reduce((s,k) => s+(k.rank||0), 0) / filtered.filter(k=>k.rank).length).toFixed(1) : "-";
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+
+      {/* 상단 - 월 선택 + 업로드 */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+          <span style={{ color:C.muted, fontSize:12, flexShrink:0 }}>조회 주차:</span>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {availMonths.length === 0
+              ? <span style={{ color:C.muted, fontSize:12 }}>데이터 없음</span>
+              : availMonths.map(w => (
+                  <button key={w} onClick={() => setSelMonth(w)} style={{
+                    background: selMonth===w ? `${hospital.color}25` : "transparent",
+                    border: `1px solid ${selMonth===w ? hospital.color : C.border}`,
+                    color: selMonth===w ? hospital.color : C.muted,
+                    borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+                  }}>{w}</button>
+                ))
+            }
+          </div>
+        </div>
+        {isAdmin && (
+          <div style={{ display:"flex", gap:8 }}>
+            <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{ display:"none" }} />
+            <button onClick={() => fileRef.current?.click()} style={{
+              background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#fff",
+              borderRadius:9, padding:"8px 18px", fontSize:12, cursor:"pointer", fontWeight:700,
+            }}>📂 CSV 업로드</button>
+          </div>
+        )}
+      </div>
+
+      {/* CSV 양식 안내 */}
+      {isAdmin && keywords.length === 0 && (
+        <div style={{ background:`${hospital.color}08`, border:`1px dashed ${hospital.color}40`, borderRadius:14, padding:20 }}>
+          <div style={{ color:hospital.color, fontSize:13, fontWeight:700, marginBottom:10 }}>📋 CSV 파일 양식 안내</div>
+          <div style={{ color:C.muted, fontSize:12, lineHeight:1.8 }}>
+            첫 번째 행은 헤더여야 해요. 아래 컬럼명을 사용해주세요.<br/>
+            <span style={{ color:C.text, fontWeight:600 }}>주차, 키워드, 채널, 순위, 검색량</span><br/>
+            예시: <span style={{ color:hospital.color }}>2025-03-W1, 강남성형외과, 네이버블로그, 5, 12000</span>
+          </div>
+        </div>
+      )}
+
+      {/* 요약 카드 */}
+      {filtered.length > 0 && (
+        <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+          {[
+            { label:"총 키워드", value:`${filtered.length}개`, color:hospital.color },
+            { label:"TOP 3 이내", value:`${top3}개`, color:C.green },
+            { label:"TOP 10 이내", value:`${top10}개`, color:C.accent },
+            { label:"평균 순위", value:`${avgRank}위`, color:C.yellow },
+          ].map((item, i) => (
+            <div key={i} style={{ background:C.surface, border:`1px solid ${item.color}25`, borderRadius:10, padding:"12px 18px", textAlign:"center", flex:"1", minWidth:100 }}>
+              <div style={{ color:C.muted, fontSize:11, marginBottom:4 }}>{item.label}</div>
+              <div style={{ color:item.color, fontSize:18, fontWeight:800 }}>{item.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 키워드 테이블 */}
+      {filtered.length > 0 ? (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden" }}>
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+              <thead>
+                <tr style={{ background:"rgba(255,255,255,0.04)", borderBottom:`1px solid ${C.border}` }}>
+                  {[
+                    { k:"keyword", label:"키워드" },
+                    { k:"channel", label:"채널" },
+                    { k:"rank",    label:"현재 순위" },
+                    { k:null,      label:"전주 대비" },
+                    { k:"searchVol", label:"검색량" },
+                  ].map((col, i) => (
+                    <th key={i} style={{ padding:"12px 16px", textAlign:"left", color:C.muted, fontWeight:600, fontSize:12, whiteSpace:"nowrap" }}>
+                      {col.k ? <SortBtn k={col.k} label={col.label} /> : col.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((kw, i) => {
+                  const change = getRankChange(kw);
+                  const rankColor = kw.rank <= 3 ? C.green : kw.rank <= 10 ? C.yellow : kw.rank <= 20 ? C.accent : C.muted;
+                  return (
+                    <tr key={kw.id} style={{ borderBottom:`1px solid ${C.border}30`, background: i%2===0 ? "transparent" : "rgba(255,255,255,0.01)" }}>
+                      <td style={{ padding:"12px 16px", color:C.text, fontWeight:600 }}>{kw.keyword}</td>
+                      <td style={{ padding:"12px 16px" }}>
+                        <span style={{ background:`${hospital.color}15`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{kw.channel || "-"}</span>
+                      </td>
+                      <td style={{ padding:"12px 16px" }}>
+                        {kw.rank ? (
+                          <span style={{ color:rankColor, fontWeight:800, fontSize:16 }}>{kw.rank}<span style={{ fontSize:11, fontWeight:400 }}>위</span></span>
+                        ) : <span style={{ color:C.muted }}>-</span>}
+                      </td>
+                      <td style={{ padding:"12px 16px" }}>
+                        {change === null
+                          ? <span style={{ color:C.muted, fontSize:12 }}>-</span>
+                          : change > 0
+                            ? <span style={{ color:C.green, fontWeight:700 }}>▲ {change}</span>
+                            : change < 0
+                              ? <span style={{ color:C.red, fontWeight:700 }}>▼ {Math.abs(change)}</span>
+                              : <span style={{ color:C.muted }}>— 유지</span>
+                        }
+                      </td>
+                      <td style={{ padding:"12px 16px", color:C.muted }}>{kw.searchVol ? kw.searchVol.toLocaleString() : "-"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div style={{ background:C.surface, border:`2px dashed ${C.border}`, borderRadius:14, padding:48, textAlign:"center" }}>
+          <div style={{ color:C.text, fontSize:15, fontWeight:700, marginBottom:8 }}>
+            {availMonths.length === 0 ? "아직 키워드 데이터가 없어요" : `${selMonth || ""} 데이터가 없어요`}
+          </div>
+          <div style={{ color:C.muted, fontSize:13 }}>CSV 파일을 업로드해서 키워드 순위를 관리해보세요</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2342,13 +2269,13 @@ function MeetingTab({ hospital }) {
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))", gap:12, marginBottom:14 }}>
             <div>
               <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>날짜 *</label>
-              <input type="date" value={form.date} onChange={e => setForm({...form, date:e.target.value})} style={inputSt} />
+              <input type="date" value={form.date} onChange={e => setForm(prev => ({...prev, date:e.target.value}))} style={inputSt} />
             </div>
             <div>
               <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>미팅 방식</label>
               <div style={{ display:"flex", gap:6 }}>
                 {MEETING_TYPES.map(t => (
-                  <button key={t} onClick={() => setForm({...form, type:t})} style={{
+                  <button key={t} onClick={() => setForm(prev => ({...prev, type:t}))} style={{
                     flex:1, background: form.type===t ? `${MEETING_TYPE_COLORS[t]}25` : "transparent",
                     border: `1px solid ${form.type===t ? MEETING_TYPE_COLORS[t] : C.dim}`,
                     color: form.type===t ? MEETING_TYPE_COLORS[t] : C.muted,
@@ -2359,18 +2286,19 @@ function MeetingTab({ hospital }) {
             </div>
             <div>
               <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>참석자</label>
-              <input value={form.attendees} onChange={e => setForm({...form, attendees:e.target.value})}
+              <KInput value={form.attendees} onChange={e => setForm(prev => ({...prev, attendees:e.target.value}))}
                 placeholder="예: 임지혜, 원장님" style={inputSt} />
             </div>
             <div>
               <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>참고 링크</label>
-              <input value={form.link} onChange={e => setForm({...form, link:e.target.value})}
+              <input value={form.link} onChange={e => setForm(prev => ({...prev, link:e.target.value}))}
                 placeholder="https://..." style={inputSt} />
             </div>
           </div>
           <div style={{ marginBottom:12 }}>
             <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>주요 논의 내용 *</label>
-            <textarea value={form.summary} onChange={e => setForm({...form, summary:e.target.value})}
+            <textarea value={form.summary}
+              onChange={e => setForm(prev => ({...prev, summary:e.target.value}))}
               placeholder="이번 미팅에서 논의한 주요 내용을 입력하세요"
               style={{ ...inputSt, height:90, resize:"vertical", lineHeight:1.7 }} />
           </div>
@@ -2404,7 +2332,7 @@ function MeetingTab({ hospital }) {
           </div>
           <div style={{ marginBottom:16 }}>
             <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>메모</label>
-            <input value={form.memo} onChange={e => setForm({...form, memo:e.target.value})}
+            <KInput value={form.memo} onChange={e => setForm(prev => ({...prev, memo:e.target.value}))}
               placeholder="기타 특이사항" style={inputSt} />
           </div>
           <div style={{ display:"flex", gap:10 }}>
@@ -2678,7 +2606,7 @@ function CostTab({ hospital, hData }) {
             </div>
             <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>금액 (만원) *</label><input type="number" placeholder="500" value={expenseForm.amount} onChange={e=>setExpenseForm({...expenseForm,amount:e.target.value})} style={inputSt}/></div>
           </div>
-          <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>메모</label><input type="text" placeholder="예: 6월 블로그 포스팅 8건" value={expenseForm.memo} onChange={e=>setExpenseForm({...expenseForm,memo:e.target.value})} style={inputSt}/></div>
+          <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>메모</label><KInput type="text" placeholder="예: 6월 블로그 포스팅 8건" value={expenseForm.memo} onChange={e=>setExpenseForm({...expenseForm,memo:e.target.value})} style={inputSt}/></div>
           <div style={{display:"flex",gap:10}}>
             <button onClick={handleSaveExpense} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#fff",borderRadius:9,padding:"9px 22px",fontSize:13,cursor:"pointer",fontWeight:700}}>{editExpId?"수정 완료":"저장하기"}</button>
             <button onClick={()=>{setShowExpenseForm(false);setEditExpId(null);}} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:9,padding:"9px 16px",fontSize:13,cursor:"pointer"}}>취소</button>
@@ -2862,6 +2790,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
     { id:"funnel",      label:"전환 분석" },
     { id:"patient",     label:"환자 유입" },
     { id:"marketing",   label:"마케팅 현황" },
+    { id:"keyword",     label:"키워드 현황" },
     { id:"cost",        label:"비용 관리" },
     { id:"meeting",     label:"미팅 로그" },
   ];
@@ -3502,6 +3431,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
         {/* 비용 관리 */}
         {tab === "cost" && <CostTab hospital={hospital} hData={hData} />}
         {tab === "meeting" && <MeetingTab hospital={hospital} />}
+        {tab === "keyword" && <KeywordRankTab hospital={hospital} isAdmin={isAdmin} />}
 
       </div>
     </div>
@@ -3566,7 +3496,6 @@ function AppInner() {
           ...h,
           monthlyData: MONTHLY_INIT[h.id] || [],
           channelData: CHANNEL_INIT[h.id] || [],
-          keywordData: KEYWORD_INIT[h.id] || [],
           contentData: CONTENT_INIT[h.id] || [],
           meetingData: [],
         }));
@@ -3579,7 +3508,6 @@ function AppInner() {
         ...h,
         monthlyData: MONTHLY_INIT[h.id] || [],
         channelData: CHANNEL_INIT[h.id] || [],
-        keywordData: KEYWORD_INIT[h.id] || [],
         contentData: CONTENT_INIT[h.id] || [],
         meetingData: [],
       })));
