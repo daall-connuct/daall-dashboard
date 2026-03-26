@@ -540,7 +540,20 @@ function AdminChecklist({ hospitals }) {
 
 // ─── 병원 목록 화면 ───────────────────────────────────────────
 const PALETTE = ["#38BDF8","#34D399","#FBBF24","#F472B6","#A78BFA","#FB923C","#2DD4BF","#60A5FA","#E879F9","#4ADE80","#FCD34D","#F87171"];
-const EMPTY_HOSPITAL_FORM = { name:"", region:"", dept:"", manager:"", target_patients:"", target_revenue:"", color:"#38BDF8", password:"" };
+const ALL_TABS = [
+  { id:"overview",    label:"통합 요약",   required:true  },
+  { id:"performance", label:"상세 성과",   required:true  },
+  { id:"channel",     label:"채널 분석",   required:false },
+  { id:"funnel",      label:"전환 분석",   required:false },
+  { id:"patient",     label:"환자 유입",   required:false },
+  { id:"marketing",   label:"마케팅 현황", required:false, defaultOn:true },
+  { id:"keyword",     label:"키워드 현황", required:false, defaultOn:true },
+  { id:"cost",        label:"비용 관리",   required:false, defaultOn:true },
+  { id:"meeting",     label:"미팅 로그",   required:false, defaultOn:true },
+];
+const DEFAULT_TABS = ALL_TABS.filter(t => t.required || t.defaultOn).map(t => t.id);
+
+const EMPTY_HOSPITAL_FORM = { name:"", region:"", dept:"", manager:"", target_patients:"", target_revenue:"", color:"#38BDF8", password:"", tabs: DEFAULT_TABS };
 
 // ─── 병원 폼 필드 컴포넌트 (외부 선언으로 리렌더링 방지) ──────
 function HospitalFormField({ label, k, placeholder, type="text", required, form, setForm }) {
@@ -611,7 +624,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   const toast = (msg) => { setSavedMsg(msg); setTimeout(() => setSavedMsg(""), 2200); };
 
   const openAdd = () => { setForm(EMPTY_HOSPITAL_FORM); setEditTarget(null); setShowForm(true); };
-  const openEdit = (e, h) => { e.stopPropagation(); setForm({ name:h.name, region:h.region, dept:h.dept, manager:h.manager, target_patients:String(h.target_patients), target_revenue:String(h.target_revenue), color:h.color, password:h.password||"" }); setEditTarget(h); setShowForm(true); };
+  const openEdit = (e, h) => { e.stopPropagation(); setForm({ name:h.name, region:h.region, dept:h.dept, manager:h.manager, target_patients:String(h.target_patients), target_revenue:String(h.target_revenue), color:h.color, password:h.password||"", tabs: h.tabs || DEFAULT_TABS }); setEditTarget(h); setShowForm(true); };
 
   const handleSave = () => {
     if (!form.name || !form.dept) return;
@@ -778,6 +791,35 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
             <HospitalFormField label="신환 목표 (명/월)" k="target_patients" placeholder="120" type="number" form={form} setForm={setForm} />
             <HospitalFormField label="매출 목표 (만원/월)" k="target_revenue" placeholder="15000" type="number" form={form} setForm={setForm} />
             <HospitalFormField label="공유 링크 비밀번호" k="password" placeholder="예: lead2024" form={form} setForm={setForm} />
+
+            {/* 탭 선택 */}
+            <div style={{ gridColumn:"1/-1" }}>
+              <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>표시할 탭 선택</label>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                {ALL_TABS.map(t => {
+                  const isOn = (form.tabs || DEFAULT_TABS).includes(t.id);
+                  return (
+                    <div key={t.id} onClick={() => {
+                      if (t.required) return;
+                      const cur = form.tabs || DEFAULT_TABS;
+                      setForm(prev => ({...prev, tabs: isOn ? cur.filter(id => id !== t.id) : [...cur, t.id]}));
+                    }} style={{
+                      display:"flex", alignItems:"center", gap:6,
+                      background: isOn ? `${form.color||C.accent}20` : "transparent",
+                      border: `1px solid ${isOn ? (form.color||C.accent) : C.dim}`,
+                      borderRadius:8, padding:"5px 12px", fontSize:12,
+                      cursor: t.required ? "not-allowed" : "pointer",
+                      color: isOn ? (form.color||C.accent) : C.muted,
+                      opacity: t.required ? 0.6 : 1,
+                    }}>
+                      <span>{isOn ? "✓" : "○"}</span>
+                      <span>{t.label}</span>
+                      {t.required && <span style={{ fontSize:10, color:C.muted }}>(필수)</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* 색상 선택 */}
@@ -2794,7 +2836,10 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
     { id:"keyword",     label:"키워드 현황" },
     { id:"cost",        label:"비용 관리" },
     { id:"meeting",     label:"미팅 로그" },
-  ];
+  ].filter(t => {
+    const enabledTabs = hospital.tabs || DEFAULT_TABS;
+    return enabledTabs.includes(t.id);
+  });
 
   const steps = [
     { name:"유입",   value:Math.round((last.inquiry||0)*3.2), color:C.accent },
