@@ -43,6 +43,7 @@ const CHANNEL_META = {
 const FIXED_CHANNELS = ["네이버블로그","인스타그램","유튜브","네이버카페","웹사이트","홈페이지SEO","메타광고","검색광고","네이버플레이스","지식인","강남언니","힐링페이퍼","바비톡"];
 const CHANNEL_OPTIONS = ["네이버블로그","인스타그램","유튜브","네이버카페","지식인","홈페이지SEO","웹사이트","메타광고","검색광고","네이버플레이스","강남언니","힐링페이퍼","바비톡","오프라인/소개"];
 const STATUS_OPTIONS = ["발행","예약발행","임시저장","수정필요"];
+const EMPTY_FORM = { channel:"네이버블로그", date:"", title:"", url:"", views:0, clicks:0, rank:"", topExposed:false, status:"발행", memo:"" };
 
 // ─── 초기 월별 성과 데이터 (샘플 없음 - 직접 입력)
 const MONTHLY_INIT = { 1:[], 2:[], 3:[], 4:[], 5:[], 6:[], 7:[] };
