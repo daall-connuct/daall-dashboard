@@ -1939,9 +1939,33 @@ function KeywordRankTab({ hospital, isAdmin }) {
   const [sortKey, setSortKey] = useState("rank");
   const [sortDir, setSortDir] = useState("asc");
   const [savedMsg, setSavedMsg] = useState("");
+  const [loading, setLoading] = useState(true);
   const fileRef = useRef(null);
 
   const toast = (msg) => { setSavedMsg(msg); setTimeout(() => setSavedMsg(""), 2500); };
+
+  // Supabase에서 불러오기
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data } = await supabase.from('keyword_data').select('*').eq('hospital_id', hospital.id).single();
+        if (data?.data?.length > 0) {
+          setKeywords(data.data);
+          const latest = [...new Set(data.data.map(k => k.month).filter(Boolean))].sort().reverse()[0];
+          if (latest) setSelMonth(latest);
+        }
+      } catch (e) {}
+      setLoading(false);
+    };
+    load();
+  }, [hospital.id]);
+
+  // Supabase에 저장
+  const saveKeywords = async (newKeywords) => {
+    try {
+      await supabase.from('keyword_data').upsert({ hospital_id: hospital.id, data: newKeywords }, { onConflict: 'hospital_id' });
+    } catch (e) { console.error('키워드 저장 실패:', e); }
+  };
 
   // 월 목록
   const availMonths = [...new Set(keywords.map(k => k.month).filter(Boolean))].sort().reverse();
@@ -2035,6 +2059,7 @@ function KeywordRankTab({ hospital, isAdmin }) {
       const kept = keywords.filter(k => !uploadedMonths.includes(k.month));
       const newData = [...kept, ...parsed];
       setKeywords(newData);
+      saveKeywords(newData);
       if (uploadedMonths.length > 0) setSelMonth(uploadedMonths[0]);
       toast(`${parsed.length}개 키워드 업로드 완료!`);
     };
@@ -2070,6 +2095,10 @@ function KeywordRankTab({ hospital, isAdmin }) {
   const top3 = filtered.filter(k => k.rank && parseRankPage(k.rank) === 1).length;
   const top10 = filtered.filter(k => k.rank && parseRankPage(k.rank) <= 2).length;
 
+
+  if (loading) return (
+    <div style={{ padding:48, textAlign:"center", color:C.muted, fontSize:13 }}>키워드 데이터 불러오는 중...</div>
+  );
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
@@ -2201,11 +2230,11 @@ function KeywordRankTab({ hospital, isAdmin }) {
 }
 
 // ─── 미팅 로그 탭 ────────────────────────────────────────────
-const MEETING_TYPES = ["대면", "전화", "화상"];
-const MEETING_TYPE_COLORS = { "대면": "#34D399", "전화": "#FBBF24", "화상": "#38BDF8" };
+const MEETING_TYPES = ["대면", "전화", "화상", "메신저"];
+const MEETING_TYPE_COLORS = { "대면": "#34D399", "전화": "#FBBF24", "화상": "#38BDF8", "메신저": "#A78BFA" };
 
 const EMPTY_MEETING = {
-  date: "", type: "대면", attendees: "", summary: "", actions: [], link: "", memo: "",
+  date: "", type: "대면", attendees: "", summary: "", actions: [], link: "", memo: "", images: [],
 };
 
 function MeetingTab({ hospital }) {
@@ -2318,6 +2347,7 @@ function MeetingTab({ hospital }) {
           { label:"대면", value:`${filteredLogs.filter(l=>l.type==="대면").length}회`, color:MEETING_TYPE_COLORS["대면"] },
           { label:"전화", value:`${filteredLogs.filter(l=>l.type==="전화").length}회`, color:MEETING_TYPE_COLORS["전화"] },
           { label:"화상", value:`${filteredLogs.filter(l=>l.type==="화상").length}회`, color:MEETING_TYPE_COLORS["화상"] },
+          { label:"메신저", value:`${filteredLogs.filter(l=>l.type==="메신저").length}회`, color:MEETING_TYPE_COLORS["메신저"] },
         ].map((item, i) => (
           <div key={i} style={{ background:C.surface, border:`1px solid ${item.color}25`, borderRadius:10, padding:"10px 16px", textAlign:"center" }}>
             <div style={{ color:C.muted, fontSize:10, marginBottom:3 }}>{item.label}</div>
@@ -2367,6 +2397,35 @@ function MeetingTab({ hospital }) {
               onChange={e => setForm(prev => ({...prev, summary:e.target.value}))}
               placeholder="이번 미팅에서 논의한 주요 내용을 입력하세요"
               style={{ ...inputSt, height:90, resize:"vertical", lineHeight:1.7 }} />
+          </div>
+
+          {/* 이미지 첨부 */}
+          <div style={{ marginBottom:12 }}>
+            <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:6 }}>이미지 첨부 <span style={{ color:C.muted, fontWeight:400 }}>(최대 3장, 각 1MB 이하)</span></label>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"flex-start" }}>
+              {(form.images||[]).map((img, idx) => (
+                <div key={idx} style={{ position:"relative", width:80, height:80 }}>
+                  <img src={img} alt="" style={{ width:80, height:80, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}` }} />
+                  <div onClick={() => setForm(prev => ({...prev, images: prev.images.filter((_,i)=>i!==idx)}))}
+                    style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", background:C.red, color:"#fff", fontSize:11, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>×</div>
+                </div>
+              ))}
+              {(form.images||[]).length < 3 && (
+                <label style={{ width:80, height:80, border:`2px dashed ${C.border}`, borderRadius:8, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"pointer", color:C.muted, fontSize:11, gap:4 }}>
+                  <span style={{ fontSize:20 }}>+</span>
+                  <span>사진 추가</span>
+                  <input type="file" accept="image/*" style={{ display:"none" }} onChange={e => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    if (file.size > 1024*1024) { alert("1MB 이하 이미지만 첨부 가능해요"); return; }
+                    const reader = new FileReader();
+                    reader.onload = ev => setForm(prev => ({...prev, images: [...(prev.images||[]), ev.target.result]}));
+                    reader.readAsDataURL(file);
+                    e.target.value = "";
+                  }} />
+                </label>
+              )}
+            </div>
           </div>
           <div style={{ marginBottom:12 }}>
             <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>결정사항 / 액션아이템</label>
@@ -2478,6 +2537,14 @@ function MeetingTab({ hospital }) {
                       <div style={{ background:"rgba(255,255,255,0.02)", borderRadius:10, padding:14 }}>
                         <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:8 }}>📋 주요 논의 내용</div>
                         <div style={{ color:C.text, fontSize:13, lineHeight:1.7, whiteSpace:"pre-wrap" }}>{log.summary}</div>
+                        {log.images && log.images.length > 0 && (
+                          <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:12 }}>
+                            {log.images.map((img, idx) => (
+                              <img key={idx} src={img} alt="" onClick={() => window.open(img, "_blank")}
+                                style={{ width:72, height:72, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}`, cursor:"pointer" }} />
+                            ))}
+                          </div>
+                        )}
                       </div>
                       {/* 결정사항 / 액션아이템 */}
                       <div style={{ background:`${hospital.color}08`, border:`1px solid ${hospital.color}20`, borderRadius:10, padding:14 }}>
