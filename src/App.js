@@ -541,8 +541,8 @@ function AdminChecklist({ hospitals }) {
 // ─── 병원 목록 화면 ───────────────────────────────────────────
 const PALETTE = ["#38BDF8","#34D399","#FBBF24","#F472B6","#A78BFA","#FB923C","#2DD4BF","#60A5FA","#E879F9","#4ADE80","#FCD34D","#F87171"];
 const ALL_TABS = [
-  { id:"overview",    label:"통합 요약",   required:true  },
-  { id:"performance", label:"상세 성과",   required:true  },
+  { id:"overview",    label:"통합 요약",   required:false },
+  { id:"performance", label:"상세 성과",   required:false },
   { id:"channel",     label:"채널 분석",   required:false },
   { id:"funnel",      label:"전환 분석",   required:false },
   { id:"patient",     label:"환자 유입",   required:false },
@@ -800,7 +800,6 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
                   const isOn = (form.tabs || DEFAULT_TABS).includes(t.id);
                   return (
                     <div key={t.id} onClick={() => {
-                      if (t.required) return;
                       const cur = form.tabs || DEFAULT_TABS;
                       setForm(prev => ({...prev, tabs: isOn ? cur.filter(id => id !== t.id) : [...cur, t.id]}));
                     }} style={{
@@ -808,13 +807,11 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
                       background: isOn ? `${form.color||C.accent}20` : "transparent",
                       border: `1px solid ${isOn ? (form.color||C.accent) : C.dim}`,
                       borderRadius:8, padding:"5px 12px", fontSize:12,
-                      cursor: t.required ? "not-allowed" : "pointer",
+                      cursor: "pointer",
                       color: isOn ? (form.color||C.accent) : C.muted,
-                      opacity: t.required ? 0.6 : 1,
                     }}>
                       <span>{isOn ? "✓" : "○"}</span>
                       <span>{t.label}</span>
-                      {t.required && <span style={{ fontSize:10, color:C.muted }}>(필수)</span>}
                     </div>
                   );
                 })}
@@ -1617,9 +1614,6 @@ function MarketingTab({ hospital, chData, initialContents }) {
                   {STATUS_OPTIONS.map(o=><option key={o} style={{background:"#0F172A"}}>{o}</option>)}
                 </select>
               </div>
-              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>클릭수</label>
-                <input type="number" placeholder="320" value={form.clicks} onChange={e=>setForm(prev => ({...prev, clicks:e.target.value}))} style={inputSt}/>
-              </div>
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>노출 순위</label>
                 <input type="number" placeholder="2" value={form.rank} onChange={e=>setForm(prev => ({...prev, rank:e.target.value}))} style={inputSt}/>
               </div>
@@ -1665,7 +1659,7 @@ function MarketingTab({ hospital, chData, initialContents }) {
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
             <thead>
               <tr>
-                {[["channel","채널"],["title","제목"],["date","발행일"],["clicks","클릭수"],["rank","순위"],["topExposed","상위노출"],["status","상태"],["","관리"]].map(([k,label])=>(
+                {[["channel","채널"],["title","제목"],["date","발행일"],["rank","순위"],["topExposed","상위노출"],["status","상태"],["","관리"]].map(([k,label])=>(
                   <th key={label} style={{ color:C.muted, fontWeight:600, padding:"8px 12px", textAlign:"left", borderBottom:`1px solid ${C.dim}`, whiteSpace:"nowrap" }}>
                     {k ? <SortBtn k={k} label={label} /> : label}
                   </th>
@@ -1686,7 +1680,6 @@ function MarketingTab({ hospital, chData, initialContents }) {
                       {item.memo && <div style={{ color:C.muted, fontSize:10, marginTop:2 }}>{item.memo}</div>}
                     </td>
                     <td style={{ padding:"10px 12px", color:C.muted, whiteSpace:"nowrap" }}>{item.date}</td>
-                    <td style={{ padding:"10px 12px", color:C.muted }}>{(item.clicks||0).toLocaleString()}</td>
                     <td style={{ padding:"10px 12px" }}>{item.rank ? <Badge color={item.rank<=3?C.green:item.rank<=10?C.yellow:C.muted}>{item.rank}위</Badge> : <span style={{color:C.muted}}>-</span>}</td>
                     <td style={{ padding:"10px 12px" }}><Badge color={item.topExposed?C.green:C.dim}>{item.topExposed?"상위":"–"}</Badge></td>
                     <td style={{ padding:"10px 12px" }}><Badge color={hospital.color}>{item.status}</Badge></td>
@@ -1712,7 +1705,6 @@ function MarketingTab({ hospital, chData, initialContents }) {
         <div style={{ display:"flex", gap:24, marginTop:16, paddingTop:16, borderTop:`1px solid ${C.dim}`, flexWrap:"wrap" }}>
           {[
             { label:"총 콘텐츠", value:`${filtered.length}건`, color:C.accent },
-            { label:"총 클릭수", value:filtered.reduce((s,i)=>s+(i.clicks||0),0).toLocaleString(), color:hospital.color },
             { label:"상위노출", value:`${filtered.filter(i=>i.topExposed).length}건`, color:C.yellow },
             { label:"3위 이내", value:`${filtered.filter(i=>i.rank&&i.rank<=3).length}건`, color:C.orange },
           ].map((item,i)=>(
@@ -1964,11 +1956,19 @@ function KeywordRankTab({ hospital, isAdmin }) {
   const prevKeywords = prevWeek ? keywords.filter(k => k.month === prevWeek) : [];
 
   // 정렬
+  const rankScore = (rank) => {
+    if (!rank) return 999999;
+    const parts = rank.toString().split('-');
+    if (parts.length === 2) return parseInt(parts[0]) * 100 + (parseInt(parts[1]) || 0);
+    return parseInt(rank) * 100 || 999999;
+  };
+
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
-      let av = a[sortKey], bv = b[sortKey];
-      if (sortKey === "rank" || sortKey === "searchVol") { av = +av||999999; bv = +bv||999999; }
-      else { av = av||""; bv = bv||""; }
+      let av, bv;
+      if (sortKey === "rank") { av = rankScore(a.rank); bv = rankScore(b.rank); }
+      else if (sortKey === "searchVol") { av = +a.searchVol||0; bv = +b.searchVol||0; }
+      else { av = a[sortKey]||""; bv = b[sortKey]||""; }
       return sortDir === "asc" ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
     });
   }, [filtered, sortKey, sortDir]);
@@ -1989,9 +1989,20 @@ function KeywordRankTab({ hospital, isAdmin }) {
       if (lines.length < 2) { toast("데이터가 없어요"); return; }
 
       // 헤더 파싱 (월,키워드,채널,순위,검색량)
-      const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+      const parseCSVLine = (line) => {
+        const cols = []; let cur = ""; let inQ = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') { inQ = !inQ; }
+          else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ""; }
+          else { cur += ch; }
+        }
+        cols.push(cur.trim());
+        return cols;
+      };
+      const headers = parseCSVLine(lines[0]).map(h => h.replace(/^"|"$/g, ""));
       const rows = lines.slice(1).map(line => {
-        const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
+        const cols = parseCSVLine(line).map(c => c.replace(/^"|"$/g, ""));
         const obj = {};
         headers.forEach((h, i) => obj[h] = cols[i] || "");
         return obj;
@@ -2015,7 +2026,7 @@ function KeywordRankTab({ hospital, isAdmin }) {
         month: r[map.month] || selMonth || new Date().toISOString().slice(0,7),
         keyword: r[map.keyword] || "",
         channel: r[map.channel] || "",
-        rank: r[map.rank] ? +r[map.rank] : null,
+        rank: r[map.rank] ? r[map.rank].trim() : null,
         searchVol: r[map.searchVol] ? +r[map.searchVol].replace(/,/g,"") : null,
       })).filter(r => r.keyword);
 
@@ -2032,11 +2043,20 @@ function KeywordRankTab({ hospital, isAdmin }) {
   };
 
   // 순위 변화 계산
+  const parseRankScore = (rank) => {
+    if (!rank) return null;
+    const parts = rank.toString().split("-");
+    if (parts.length === 2) return parseInt(parts[0]) * 10 + parseInt(parts[1]);
+    return parseInt(rank) || null;
+  };
   const getRankChange = (kw) => {
     if (!prevKeywords.length) return null;
     const prev = prevKeywords.find(p => p.keyword === kw.keyword && p.channel === kw.channel);
     if (!prev || !prev.rank || !kw.rank) return null;
-    return prev.rank - kw.rank; // 양수 = 상승
+    const prevScore = rankScore(prev.rank);
+    const curScore = rankScore(kw.rank);
+    if (!prevScore || !curScore) return null;
+    return prevScore - curScore; // 양수 = 상승
   };
 
   const SortBtn = ({ k, label }) => (
@@ -2046,9 +2066,10 @@ function KeywordRankTab({ hospital, isAdmin }) {
   );
 
   // 요약 통계
-  const top10 = filtered.filter(k => k.rank && k.rank <= 10).length;
-  const top3 = filtered.filter(k => k.rank && k.rank <= 3).length;
-  const avgRank = filtered.length > 0 ? (filtered.reduce((s,k) => s+(k.rank||0), 0) / filtered.filter(k=>k.rank).length).toFixed(1) : "-";
+  const parseRankPage = (rank) => rank ? parseInt(rank.toString().split("-")[0]) : 99;
+  const top3 = filtered.filter(k => k.rank && parseRankPage(k.rank) === 1).length;
+  const top10 = filtered.filter(k => k.rank && parseRankPage(k.rank) <= 2).length;
+
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
@@ -2090,7 +2111,8 @@ function KeywordRankTab({ hospital, isAdmin }) {
           <div style={{ color:C.muted, fontSize:12, lineHeight:1.8 }}>
             첫 번째 행은 헤더여야 해요. 아래 컬럼명을 사용해주세요.<br/>
             <span style={{ color:C.text, fontWeight:600 }}>주차, 키워드, 채널, 순위, 검색량</span><br/>
-            예시: <span style={{ color:hospital.color }}>2025-03-W1, 강남성형외과, 네이버블로그, 5, 12000</span>
+            예시: <span style={{ color:hospital.color }}>2025-03-W1, 강남성형외과, 네이버블로그, 1-3, 12000</span><br/>
+            <span style={{ color:C.muted }}>순위는 페이지-위치 형식으로 입력해주세요 (예: 1-3 = 1페이지 3번째)</span>
           </div>
         </div>
       )}
@@ -2100,9 +2122,9 @@ function KeywordRankTab({ hospital, isAdmin }) {
         <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
           {[
             { label:"총 키워드", value:`${filtered.length}개`, color:hospital.color },
-            { label:"TOP 3 이내", value:`${top3}개`, color:C.green },
-            { label:"TOP 10 이내", value:`${top10}개`, color:C.accent },
-            { label:"평균 순위", value:`${avgRank}위`, color:C.yellow },
+            { label:"1페이지", value:`${top3}개`, color:C.green },
+            { label:"2페이지 이내", value:`${top10}개`, color:C.accent },
+  
           ].map((item, i) => (
             <div key={i} style={{ background:C.surface, border:`1px solid ${item.color}25`, borderRadius:10, padding:"12px 18px", textAlign:"center", flex:"1", minWidth:100 }}>
               <div style={{ color:C.muted, fontSize:11, marginBottom:4 }}>{item.label}</div>
@@ -2122,7 +2144,7 @@ function KeywordRankTab({ hospital, isAdmin }) {
                   {[
                     { k:"keyword", label:"키워드" },
                     { k:"channel", label:"채널" },
-                    { k:"rank",    label:"현재 순위" },
+                    { k:"rank",    label:"현재 위치" },
                     { k:null,      label:"전주 대비" },
                     { k:"searchVol", label:"검색량" },
                   ].map((col, i) => (
@@ -2135,7 +2157,8 @@ function KeywordRankTab({ hospital, isAdmin }) {
               <tbody>
                 {sorted.map((kw, i) => {
                   const change = getRankChange(kw);
-                  const rankColor = kw.rank <= 3 ? C.green : kw.rank <= 10 ? C.yellow : kw.rank <= 20 ? C.accent : C.muted;
+                  const page = kw.rank ? parseInt(kw.rank.toString().split("-")[0]) : 99;
+                  const rankColor = page === 1 ? C.green : page === 2 ? C.yellow : page === 3 ? C.accent : C.muted;
                   return (
                     <tr key={kw.id} style={{ borderBottom:`1px solid ${C.border}30`, background: i%2===0 ? "transparent" : "rgba(255,255,255,0.01)" }}>
                       <td style={{ padding:"12px 16px", color:C.text, fontWeight:600 }}>{kw.keyword}</td>
@@ -2144,7 +2167,7 @@ function KeywordRankTab({ hospital, isAdmin }) {
                       </td>
                       <td style={{ padding:"12px 16px" }}>
                         {kw.rank ? (
-                          <span style={{ color:rankColor, fontWeight:800, fontSize:16 }}>{kw.rank}<span style={{ fontSize:11, fontWeight:400 }}>위</span></span>
+                          <span style={{ color:rankColor, fontWeight:800, fontSize:15 }}>{kw.rank}</span>
                         ) : <span style={{ color:C.muted }}>-</span>}
                       </td>
                       <td style={{ padding:"12px 16px" }}>
