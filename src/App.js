@@ -1974,7 +1974,6 @@ function KeywordRankTab({ hospital, isAdmin }) {
   const filtered = keywords.filter(k => k.month === selMonth);
 
   // 이전 주 키워드 (전주 대비용) - week 필드 기준
-  const selWeek = selMonth; // week 필드를 month 대신 사용
   const availWeeks = [...new Set(keywords.map(k => k.month).filter(Boolean))].sort().reverse();
   const prevWeek = availWeeks[availWeeks.indexOf(selMonth) + 1] || null;
   const prevKeywords = prevWeek ? keywords.filter(k => k.month === prevWeek) : [];
@@ -1991,6 +1990,7 @@ function KeywordRankTab({ hospital, isAdmin }) {
     return [...filtered].sort((a, b) => {
       let av, bv;
       if (sortKey === "rank") { av = rankScore(a.rank); bv = rankScore(b.rank); }
+      else if (sortKey === "totalRank") { av = +a.totalRank||999999; bv = +b.totalRank||999999; }
       else if (sortKey === "searchVol") { av = +a.searchVol||0; bv = +b.searchVol||0; }
       else { av = a[sortKey]||""; bv = b[sortKey]||""; }
       return sortDir === "asc" ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
@@ -2039,6 +2039,8 @@ function KeywordRankTab({ hospital, isAdmin }) {
         if (hl.includes("주") || hl.includes("week") || hl.includes("월") || hl.includes("month")) map.month = h;
         else if (hl.includes("키워드") || hl.includes("keyword")) map.keyword = h;
         else if (hl.includes("채널") || hl.includes("channel")) map.channel = h;
+        else if (hl.includes("현재") || hl.includes("위치") || hl.includes("position")) map.rank = h;
+        else if (hl.includes("총순위") || hl.includes("총 순위") || hl.includes("total")) map.totalRank = h;
         else if (hl.includes("순위") || hl.includes("rank")) map.rank = h;
         else if (hl.includes("검색") || hl.includes("search")) map.searchVol = h;
       });
@@ -2051,6 +2053,7 @@ function KeywordRankTab({ hospital, isAdmin }) {
         keyword: r[map.keyword] || "",
         channel: r[map.channel] || "",
         rank: r[map.rank] ? r[map.rank].trim() : null,
+        totalRank: r[map.totalRank] ? +r[map.totalRank] : null,
         searchVol: r[map.searchVol] ? +r[map.searchVol].replace(/,/g,"") : null,
       })).filter(r => r.keyword);
 
@@ -2068,20 +2071,11 @@ function KeywordRankTab({ hospital, isAdmin }) {
   };
 
   // 순위 변화 계산
-  const parseRankScore = (rank) => {
-    if (!rank) return null;
-    const parts = rank.toString().split("-");
-    if (parts.length === 2) return parseInt(parts[0]) * 10 + parseInt(parts[1]);
-    return parseInt(rank) || null;
-  };
   const getRankChange = (kw) => {
-    if (!prevKeywords.length) return null;
+    if (!prevKeywords.length || !kw.totalRank) return null;
     const prev = prevKeywords.find(p => p.keyword === kw.keyword && p.channel === kw.channel);
-    if (!prev || !prev.rank || !kw.rank) return null;
-    const prevScore = rankScore(prev.rank);
-    const curScore = rankScore(kw.rank);
-    if (!prevScore || !curScore) return null;
-    return prevScore - curScore; // 양수 = 상승
+    if (!prev || !prev.totalRank) return null;
+    return prev.totalRank - kw.totalRank; // 양수 = 상승 (낮을수록 좋음)
   };
 
   const SortBtn = ({ k, label }) => (
@@ -2139,9 +2133,9 @@ function KeywordRankTab({ hospital, isAdmin }) {
           <div style={{ color:hospital.color, fontSize:13, fontWeight:700, marginBottom:10 }}>📋 CSV 파일 양식 안내</div>
           <div style={{ color:C.muted, fontSize:12, lineHeight:1.8 }}>
             첫 번째 행은 헤더여야 해요. 아래 컬럼명을 사용해주세요.<br/>
-            <span style={{ color:C.text, fontWeight:600 }}>주차, 키워드, 채널, 순위, 검색량</span><br/>
-            예시: <span style={{ color:hospital.color }}>2025-03-W1, 강남성형외과, 네이버블로그, 1-3, 12000</span><br/>
-            <span style={{ color:C.muted }}>순위는 페이지-위치 형식으로 입력해주세요 (예: 1-3 = 1페이지 3번째)</span>
+            <span style={{ color:C.text, fontWeight:600 }}>주차, 키워드, 채널, 현재위치, 총순위, 검색량</span><br/>
+            예시: <span style={{ color:hospital.color }}>2025-03-W1, 강남성형외과, 네이버블로그, 1-3, 13, 12000</span><br/>
+            <span style={{ color:C.muted }}>현재위치: 페이지-위치 (예: 1-3 = 1페이지 3번째) / 총순위: 전체 순위 숫자</span>
           </div>
         </div>
       )}
@@ -2171,11 +2165,12 @@ function KeywordRankTab({ hospital, isAdmin }) {
               <thead>
                 <tr style={{ background:"rgba(255,255,255,0.04)", borderBottom:`1px solid ${C.border}` }}>
                   {[
-                    { k:"keyword", label:"키워드" },
-                    { k:"channel", label:"채널" },
-                    { k:"rank",    label:"현재 위치" },
-                    { k:null,      label:"전주 대비" },
-                    { k:"searchVol", label:"검색량" },
+                    { k:"keyword",    label:"키워드" },
+                    { k:"channel",    label:"채널" },
+                    { k:"rank",       label:"현재 위치" },
+                    { k:"totalRank",  label:"총 순위" },
+                    { k:null,         label:"전주 대비" },
+                    { k:"searchVol",  label:"검색량" },
                   ].map((col, i) => (
                     <th key={i} style={{ padding:"12px 16px", textAlign:"left", color:C.muted, fontWeight:600, fontSize:12, whiteSpace:"nowrap" }}>
                       {col.k ? <SortBtn k={col.k} label={col.label} /> : col.label}
@@ -2188,6 +2183,7 @@ function KeywordRankTab({ hospital, isAdmin }) {
                   const change = getRankChange(kw);
                   const page = kw.rank ? parseInt(kw.rank.toString().split("-")[0]) : 99;
                   const rankColor = page === 1 ? C.green : page === 2 ? C.yellow : page === 3 ? C.accent : C.muted;
+                  const totalRankColor = kw.totalRank ? (kw.totalRank <= 10 ? C.green : kw.totalRank <= 20 ? C.yellow : kw.totalRank <= 30 ? C.accent : C.muted) : C.muted;
                   return (
                     <tr key={kw.id} style={{ borderBottom:`1px solid ${C.border}30`, background: i%2===0 ? "transparent" : "rgba(255,255,255,0.01)" }}>
                       <td style={{ padding:"12px 16px", color:C.text, fontWeight:600 }}>{kw.keyword}</td>
@@ -2195,9 +2191,14 @@ function KeywordRankTab({ hospital, isAdmin }) {
                         <span style={{ background:`${hospital.color}15`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{kw.channel || "-"}</span>
                       </td>
                       <td style={{ padding:"12px 16px" }}>
-                        {kw.rank ? (
-                          <span style={{ color:rankColor, fontWeight:800, fontSize:15 }}>{kw.rank}</span>
-                        ) : <span style={{ color:C.muted }}>-</span>}
+                        {kw.rank
+                          ? <span style={{ color:rankColor, fontWeight:800, fontSize:15 }}>{kw.rank}</span>
+                          : <span style={{ color:C.muted }}>-</span>}
+                      </td>
+                      <td style={{ padding:"12px 16px" }}>
+                        {kw.totalRank
+                          ? <span style={{ color:totalRankColor, fontWeight:800, fontSize:15 }}>{kw.totalRank}<span style={{ fontSize:11, fontWeight:400 }}>위</span></span>
+                          : <span style={{ color:C.muted }}>-</span>}
                       </td>
                       <td style={{ padding:"12px 16px" }}>
                         {change === null
@@ -2992,7 +2993,6 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
     }).join("");
 
 
-
     const trendRows = hData.map(d => `
       <tr>
         <td>${d.month}</td>
@@ -3666,7 +3666,7 @@ function AppInner() {
   const saveHospitalToSupabase = async (h) => {
     try {
       
-      const { monthlyData, channelData, contentData, meetingData, keywordData, ...hospData } = h;
+      const { monthlyData, channelData, contentData, meetingData, ...hospData } = h;
       await supabase.from('hospitals').upsert({ id: h.id, data: hospData });
       await supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData || [] }, { onConflict: 'hospital_id' });
       await supabase.from('channel_data').upsert({ hospital_id: h.id, data: channelData || [] }, { onConflict: 'hospital_id' });
@@ -3687,7 +3687,7 @@ function AppInner() {
     const newId = Date.now();
     const newHospital = {
       ...form, id: newId,
-      monthlyData: [], channelData: [], keywordData: [], contentData: [], meetingData: [],
+      monthlyData: [], channelData: [], contentData: [], meetingData: [],
     };
     setHospitals(prev => [...prev, newHospital]);
     await saveHospitalToSupabase(newHospital);
