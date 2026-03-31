@@ -596,6 +596,23 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   const [newAccount, setNewAccount]   = useState({ name:"", password:"" });
   const [resetConfirmId, setResetConfirmId] = useState(null);
 
+  // 관리자 계정 Supabase 불러오기
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data } = await supabase.from('admin_accounts').select('*').eq('id', 1).single();
+        if (data?.data?.length > 0) setAdminAccounts(data.data);
+      } catch(e) {}
+    };
+    load();
+  }, []);
+
+  const saveAdminAccounts = async (accounts) => {
+    try {
+      await supabase.from('admin_accounts').upsert({ id: 1, data: accounts }, { onConflict: 'id' });
+    } catch(e) { console.error('관리자 계정 저장 실패:', e); }
+  };
+
   const handleAdminLogin = () => {
     const matched = adminAccounts.find(a => a.password === pwInput);
     if (matched) {
@@ -611,13 +628,17 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
 
   const handleAddAccount = () => {
     if (!newAccount.name.trim() || !newAccount.password.trim()) return;
-    setAdminAccounts(prev => [...prev, { id:Date.now(), ...newAccount }]);
+    const newAccounts = [...adminAccounts, { id:Date.now(), ...newAccount }];
+    setAdminAccounts(newAccounts);
+    saveAdminAccounts(newAccounts);
     setNewAccount({ name:"", password:"" });
     toast("계정 추가 완료!");
   };
 
   const handleDeleteAccount = (id) => {
-    setAdminAccounts(prev => prev.filter(a => a.id !== id));
+    const newAccounts = adminAccounts.filter(a => a.id !== id);
+    setAdminAccounts(newAccounts);
+    saveAdminAccounts(newAccounts);
     setResetConfirmId(null);
   };
 
@@ -1731,6 +1752,42 @@ function PatientTab({ hospital }) {
   const [newTreatment, setNewTreatment] = useState({item:"",count:""});
 
   const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2200); };
+
+  // Supabase 불러오기
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data } = await supabase.from('patient_data').select('*').eq('hospital_id', hospital.id).single();
+        if (data?.data?.length > 0) {
+          setRecords(data.data);
+          const latest = [...data.data].sort((a,b)=>b.month>a.month?1:-1)[0]?.month;
+          if (latest) setSelMonth(latest);
+        }
+      } catch(e) {}
+    };
+    load();
+  }, [hospital.id]);
+
+  // Supabase 불러오기
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data } = await supabase.from('patient_data').select('*').eq('hospital_id', hospital.id).single();
+        if (data?.data?.length > 0) {
+          setRecords(data.data);
+          const latest = [...data.data].sort((a,b)=>b.month>a.month?1:-1)[0]?.month;
+          if (latest) setSelMonth(latest);
+        }
+      } catch(e) {}
+    };
+    load();
+  }, [hospital.id]);
+
+  const saveToSupabase = async (newRecords) => {
+    try {
+      await supabase.from('patient_data').upsert({ hospital_id: hospital.id, data: newRecords }, { onConflict: 'hospital_id' });
+    } catch(e) { console.error('환자유입 저장 실패:', e); }
+  };
   const rec = records.find(r=>r.month===selMonth)||null;
   const availMonths = [...records.map(r=>r.month)].sort().reverse();
   const trendData = [...records].sort((a,b)=>a.month>b.month?1:-1).map(r=>({ month:r.month.slice(5)+"월", 신환:r.newPatient, 구환:r.returnPatient, 목표:r.targetNew }));
@@ -1755,8 +1812,11 @@ function PatientTab({ hospital }) {
   const handleSave = () => {
     if (!formData.month) return;
     const exists = records.find(r=>r.month===formData.month);
-    if (exists) setRecords(records.map(r=>r.month===formData.month?formData:r));
-    else setRecords([...records, formData].sort((a,b)=>b.month>a.month?1:-1));
+    const newRecords = exists
+      ? records.map(r=>r.month===formData.month?formData:r)
+      : [...records, formData].sort((a,b)=>b.month>a.month?1:-1);
+    setRecords(newRecords);
+    saveToSupabase(newRecords);
     setSelMonth(formData.month); setShowForm(false); toast("저장 완료!");
   };
 
@@ -1936,6 +1996,7 @@ function PatientTab({ hospital }) {
 function KeywordRankTab({ hospital, isAdmin }) {
   const [keywords, setKeywords] = useState([]);
   const [selMonth, setSelMonth] = useState("");
+  const [selChannel, setSelChannel] = useState("전체");
   const [sortKey, setSortKey] = useState("rank");
   const [sortDir, setSortDir] = useState("asc");
   const [savedMsg, setSavedMsg] = useState("");
@@ -1971,7 +2032,9 @@ function KeywordRankTab({ hospital, isAdmin }) {
   const availMonths = [...new Set(keywords.map(k => k.month).filter(Boolean))].sort().reverse();
 
   // 현재 월 키워드
-  const filtered = keywords.filter(k => k.month === selMonth);
+  const monthKeywords = keywords.filter(k => k.month === selMonth);
+  const availChannels = ["전체", ...new Set(monthKeywords.map(k => k.channel).filter(Boolean))];
+  const filtered = selChannel === "전체" ? monthKeywords : monthKeywords.filter(k => k.channel === selChannel);
 
   // 이전 주 키워드 (전주 대비용) - week 필드 기준
   const availWeeks = [...new Set(keywords.map(k => k.month).filter(Boolean))].sort().reverse();
@@ -2126,6 +2189,21 @@ function KeywordRankTab({ hospital, isAdmin }) {
           </div>
         )}
       </div>
+
+      {/* 채널 필터 */}
+      {availChannels.length > 1 && (
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+          <span style={{ color:C.muted, fontSize:12, flexShrink:0 }}>채널:</span>
+          {availChannels.map(ch => (
+            <button key={ch} onClick={() => setSelChannel(ch)} style={{
+              background: selChannel===ch ? `${hospital.color}25` : "transparent",
+              border: `1px solid ${selChannel===ch ? hospital.color : C.border}`,
+              color: selChannel===ch ? hospital.color : C.muted,
+              borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+            }}>{ch}</button>
+          ))}
+        </div>
+      )}
 
       {/* CSV 양식 안내 */}
       {isAdmin && keywords.length === 0 && (
