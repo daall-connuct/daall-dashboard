@@ -2949,13 +2949,18 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
   const [showChannelInput, setShowChannelInput] = useState(false);
 
   const hData = hospital.monthlyData || [];
-  const chData = hospital.channelData || [];
+  const _rawChData = hospital.channelData || [];
 
   // ─── 공통 월 선택 ─────────────────────────────────────────
   const availMonths = [...hData].reverse().map(d => d.month); // YYYY-MM 형식
   const availYears = [...new Set(availMonths.map(m => m.slice(0,4)))].sort().reverse();
   const [selMonth, setSelMonth] = useState(() => hData.length > 0 ? hData[hData.length-1].month : "");
   const [selYear, setSelYear] = useState(() => hData.length > 0 ? hData[hData.length-1].month.slice(0,4) : String(new Date().getFullYear()));
+
+  // channelData가 월별 객체면 selMonth 기준으로, 배열이면 그대로
+  const chData = !Array.isArray(_rawChData) && selMonth
+    ? (_rawChData[selMonth] || [])
+    : (Array.isArray(_rawChData) ? _rawChData : []);
 
   // 선택된 연도의 월 목록
   const monthsInYear = availMonths.filter(m => m.startsWith(selYear));
@@ -3514,8 +3519,19 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
               {inputBtn(showChannelInput ? "입력 닫기" : "채널 데이터 입력", () => setShowChannelInput(!showChannelInput))}
             </div>
             {showChannelInput && (
-              <ChannelInputForm hospital={hospital} channelData={chData}
-                onSave={(d) => onUpdateHospital({...hospital, channelData:d})}
+              <ChannelInputForm hospital={hospital}
+                channelData={(() => {
+                  const cd = hospital.channelData || [];
+                  if (Array.isArray(cd)) return selMonth ? (cd.find ? cd : []) : cd;
+                  return cd[selMonth] || [];
+                })()}
+                onSave={(d) => {
+                  const existing = hospital.channelData || {};
+                  const updated = Array.isArray(existing)
+                    ? { [selMonth]: d }
+                    : { ...existing, [selMonth]: d };
+                  onUpdateHospital({...hospital, channelData: updated});
+                }}
                 onClose={() => setShowChannelInput(false)} />
             )}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
