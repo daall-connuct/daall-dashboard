@@ -996,7 +996,9 @@ function PerformanceInputForm({ hospital, monthlyData, onSave, onClose }) {
     consult: existing.consult || 0,
     reservation: existing.reservation || 0,
     visit: existing.visit || 0,
+    firstVisit: existing.firstVisit || 0,
     payment: existing.payment || 0,
+    firstPayment: existing.firstPayment || 0,
     newPatient: existing.newPatient || 0,
     revenue: existing.revenue || 0,
     marketingCost: existing.marketingCost || 0,
@@ -1013,7 +1015,7 @@ function PerformanceInputForm({ hospital, monthlyData, onSave, onClose }) {
     setSelMonthNum(mn);
     const key = `${selYear}-${mn}`;
     const ex = monthlyData.find(d => d.month === key) || {};
-    setForm({ month:key, inquiry:ex.inquiry||0, consult:ex.consult||0, reservation:ex.reservation||0, visit:ex.visit||0, payment:ex.payment||0, newPatient:ex.newPatient||0, revenue:ex.revenue||0, marketingCost:ex.marketingCost||0 });
+    setForm({ month:key, inquiry:ex.inquiry||0, consult:ex.consult||0, reservation:ex.reservation||0, visit:ex.visit||0, firstVisit:ex.firstVisit||0, payment:ex.payment||0, firstPayment:ex.firstPayment||0, newPatient:ex.newPatient||0, revenue:ex.revenue||0, marketingCost:ex.marketingCost||0 });
   };
 
   const handleSave = () => {
@@ -1021,7 +1023,8 @@ function PerformanceInputForm({ hospital, monthlyData, onSave, onClose }) {
     const newData = [...updated, {
       ...form,
       inquiry:+form.inquiry, consult:+form.consult, reservation:+form.reservation,
-      visit:+form.visit, payment:+form.payment, newPatient:+form.newPatient,
+      visit:+form.visit, firstVisit:+form.firstVisit||0, payment:+form.payment,
+      firstPayment:+form.firstPayment||0, newPatient:+form.newPatient,
       revenue:+form.revenue, marketingCost:+form.marketingCost
     }].sort((a,b) => a.month > b.month ? 1 : -1);
     onSave(newData);
@@ -1030,14 +1033,16 @@ function PerformanceInputForm({ hospital, monthlyData, onSave, onClose }) {
   };
 
   const fields = [
-    { key:"inquiry", label:"문의 수", unit:"건" },
-    { key:"consult", label:"상담 수", unit:"건" },
-    { key:"reservation", label:"예약 수", unit:"건" },
-    { key:"visit", label:"내원 수", unit:"명" },
-    { key:"payment", label:"결제 수", unit:"건" },
-    { key:"newPatient", label:"신환 수", unit:"명" },
-    { key:"revenue", label:"매출", unit:"만원" },
-    { key:"marketingCost", label:"마케팅비", unit:"만원" },
+    { key:"inquiry",      label:"문의 수",    unit:"건" },
+    { key:"consult",      label:"상담 수",    unit:"건" },
+    { key:"reservation",  label:"예약 수",    unit:"건" },
+    { key:"visit",        label:"내원 수",    unit:"명" },
+    { key:"firstVisit",   label:"초진 내원",  unit:"명" },
+    { key:"payment",      label:"결제 수",    unit:"건" },
+    { key:"firstPayment", label:"초진 결제",  unit:"건" },
+    { key:"newPatient",   label:"신환 수",    unit:"명" },
+    { key:"revenue",      label:"매출",       unit:"만원" },
+    { key:"marketingCost",label:"마케팅비",   unit:"만원" },
   ];
 
   return (
@@ -1410,7 +1415,7 @@ function ChecklistTab({ hospital }) {
 }
 
 // ─── 마케팅 현황 탭 ───────────────────────────────────────────
-function MarketingTab({ hospital, chData, initialContents }) {
+function MarketingTab({ hospital, chData, initialContents, onUpdateHospital }) {
   const [contents, setContents] = useState(() => initialContents);
   const [selMonth, setSelMonth] = useState("전체");
   const [contentFilter, setContentFilter] = useState("전체");
@@ -1439,6 +1444,7 @@ function MarketingTab({ hospital, chData, initialContents }) {
 
   const saveAll = (newContents) => {
     setContents(newContents);
+    onUpdateHospital({...hospital, contentData: newContents});
     setSavedMsg("저장됐어요!");
     setTimeout(() => setSavedMsg(""), 2000);
   };
@@ -2328,6 +2334,23 @@ function MeetingTab({ hospital }) {
 
   const toast = (msg) => { setSavedMsg(msg); setTimeout(() => setSavedMsg(""), 2000); };
 
+  // Supabase 불러오기
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data } = await supabase.from('meeting_data').select('*').eq('hospital_id', hospital.id).single();
+        if (data?.data?.length > 0) setLogs(data.data);
+      } catch(e) {}
+    };
+    load();
+  }, [hospital.id]);
+
+  const saveToSupabase = async (newLogs) => {
+    try {
+      await supabase.from('meeting_data').upsert({ hospital_id: hospital.id, data: newLogs }, { onConflict: 'hospital_id' });
+    } catch(e) { console.error('미팅로그 저장 실패:', e); }
+  };
+
   // 액션아이템 추가
   const addAction = () => {
     if (!newAction.trim()) return;
@@ -2342,16 +2365,20 @@ function MeetingTab({ hospital }) {
 
   // 액션아이템 체크 토글 (저장된 로그에서 직접)
   const toggleActionDone = (logId, actionId) => {
-    setLogs(prev => prev.map(l => l.id === logId
+    const newLogs = logs.map(l => l.id === logId
       ? { ...l, actions: l.actions.map(a => a.id === actionId ? { ...a, done: !a.done } : a) }
       : l
-    ));
+    );
+    setLogs(newLogs);
+    saveToSupabase(newLogs);
   };
 
   const handleAdd = () => {
     if (!form.date || !form.summary) return;
     const newLog = { ...form, id: Date.now() };
-    setLogs(prev => [newLog, ...prev].sort((a, b) => b.date > a.date ? 1 : -1));
+    const newLogs = [newLog, ...logs].sort((a, b) => b.date > a.date ? 1 : -1);
+    setLogs(newLogs);
+    saveToSupabase(newLogs);
     setForm(EMPTY_MEETING); setNewAction(""); setShowForm(false); toast("미팅 로그 저장 완료!");
   };
 
@@ -2360,13 +2387,17 @@ function MeetingTab({ hospital }) {
   };
 
   const handleUpdate = () => {
-    setLogs(prev => prev.map(l => l.id === editId ? { ...form, id: editId } : l)
-      .sort((a, b) => b.date > a.date ? 1 : -1));
+    const newLogs = logs.map(l => l.id === editId ? { ...form, id: editId } : l)
+      .sort((a, b) => b.date > a.date ? 1 : -1);
+    setLogs(newLogs);
+    saveToSupabase(newLogs);
     setEditId(null); setForm(EMPTY_MEETING); setNewAction(""); setShowForm(false); toast("수정 완료!");
   };
 
   const handleDelete = (id) => {
-    setLogs(prev => prev.filter(l => l.id !== id));
+    const newLogs = logs.filter(l => l.id !== id);
+    setLogs(newLogs);
+    saveToSupabase(newLogs);
     setDeleteConfirm(null); toast("삭제 완료");
   };
 
@@ -2741,6 +2772,29 @@ function CostTab({ hospital, hData }) {
 
   const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2200); };
 
+  // Supabase 불러오기
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data } = await supabase.from('cost_data').select('*').eq('hospital_id', hospital.id).single();
+        if (data?.data) {
+          if (data.data.contracts) setContracts(data.data.contracts);
+          if (data.data.expenses) setExpenses(data.data.expenses);
+        }
+      } catch(e) {}
+    };
+    load();
+  }, [hospital.id]);
+
+  const saveToSupabase = async (newContracts, newExpenses) => {
+    try {
+      await supabase.from('cost_data').upsert(
+        { hospital_id: hospital.id, data: { contracts: newContracts, expenses: newExpenses } },
+        { onConflict: 'hospital_id' }
+      );
+    } catch(e) { console.error('비용관리 저장 실패:', e); }
+  };
+
   const contractAmt = contracts.find(c=>c.month===selMonth)?.amount||0;
   const monthExpenses = expenses.filter(e=>e.month===selMonth);
   const totalSpent = monthExpenses.reduce((s,e)=>s+e.amount,0);
@@ -2762,20 +2816,37 @@ function CostTab({ hospital, hData }) {
   const handleSaveContract = () => {
     if (!contractForm.month||!contractForm.amount) return;
     const exists = contracts.find(c=>c.month===contractForm.month);
-    if (exists) setContracts(contracts.map(c=>c.month===contractForm.month?{...c,amount:+contractForm.amount}:c));
-    else setContracts([...contracts,{month:contractForm.month,amount:+contractForm.amount}].sort((a,b)=>a.month>b.month?1:-1));
+    const newContracts = exists
+      ? contracts.map(c=>c.month===contractForm.month?{...c,amount:+contractForm.amount}:c)
+      : [...contracts,{month:contractForm.month,amount:+contractForm.amount}].sort((a,b)=>a.month>b.month?1:-1);
+    setContracts(newContracts);
+    saveToSupabase(newContracts, expenses);
     setShowContractForm(false); toast("계약금 저장 완료!");
   };
 
   const handleSaveExpense = () => {
     if (!expenseForm.month||!expenseForm.amount||!expenseForm.category) return;
-    if (editExpId) { setExpenses(expenses.map(e=>e.id===editExpId?{...expenseForm,id:editExpId,amount:+expenseForm.amount}:e)); setEditExpId(null); toast("수정 완료!"); }
-    else { setExpenses([{...expenseForm,id:Date.now(),amount:+expenseForm.amount},...expenses]); toast("저장 완료!"); }
+    let newExpenses;
+    if (editExpId) {
+      newExpenses = expenses.map(e=>e.id===editExpId?{...expenseForm,id:editExpId,amount:+expenseForm.amount}:e);
+      setEditExpId(null); toast("수정 완료!");
+    } else {
+      newExpenses = [{...expenseForm,id:Date.now(),amount:+expenseForm.amount},...expenses];
+      toast("저장 완료!");
+    }
+    setExpenses(newExpenses);
+    saveToSupabase(contracts, newExpenses);
     setExpenseForm({month:selMonth,category:"marketing_blog",amount:"",memo:"",date:""}); setShowExpenseForm(false);
   };
 
   const handleEditExp = (e) => { setEditExpId(e.id); setExpenseForm({...e,amount:String(e.amount)}); setShowExpenseForm(true); };
-  const handleDeleteExp = (id) => { setExpenses(expenses.filter(e=>e.id!==id)); setDeleteConfirm(null); toast("삭제 완료"); };
+
+  const handleDeleteExp = (id) => {
+    const newExpenses = expenses.filter(e=>e.id!==id);
+    setExpenses(newExpenses);
+    saveToSupabase(contracts, newExpenses);
+    setDeleteConfirm(null); toast("삭제 완료");
+  };
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:22}}>
@@ -3016,13 +3087,13 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
   });
 
   const steps = [
-    { name:"유입",   value:Math.round((last.inquiry||0)*3.2), color:C.accent },
-    { name:"문의",   value:last.inquiry||0,      color:"#60A5FA" },
-    { name:"상담",   value:last.consult||0,       color:C.accent2 },
-    { name:"예약",   value:last.reservation||0,   color:C.green },
-    { name:"내원",   value:last.visit||0,         color:C.yellow },
-    { name:"결제",   value:last.payment||0,       color:C.orange },
-    { name:"재내원", value:Math.round((last.payment||0)*0.38), color:C.red },
+    { name:"유입",   value:Math.round((last.inquiry||0)*3.2), color:C.accent,   prevValue:Math.round((prev?.inquiry||0)*3.2) },
+    { name:"문의",   value:last.inquiry||0,      color:"#60A5FA", prevValue:prev?.inquiry||0 },
+    { name:"상담",   value:last.consult||0,       color:C.accent2, prevValue:prev?.consult||0 },
+    { name:"예약",   value:last.reservation||0,   color:C.green,   prevValue:prev?.reservation||0 },
+    { name:"내원",   value:last.visit||0,         color:C.yellow,  prevValue:prev?.visit||0 },
+    { name:"결제",   value:last.payment||0,       color:C.orange,  prevValue:prev?.payment||0 },
+    { name:"재내원", value:Math.round((last.payment||0)*0.38), color:C.red, prevValue:Math.round((prev?.payment||0)*0.38) },
   ];
 
   // ─── 리포트 HTML 생성 & 다운로드 ───────────────────────────
@@ -3508,7 +3579,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
         {/* 키워드/SEO */}
         {/* 마케팅 현황 */}
         {tab === "marketing" && (
-          <MarketingTab hospital={hospital} chData={chData} initialContents={hospital.contentData || []} />
+          <MarketingTab hospital={hospital} chData={chData} initialContents={hospital.contentData || []} onUpdateHospital={onUpdateHospital} />
         )}
 
         {/* 채널 분석 */}
@@ -3618,39 +3689,86 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
                 onSave={(d) => onUpdateHospital({...hospital, monthlyData:d})}
                 onClose={() => setShowPerfInput(false)} />
             )}
-            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:28 }}>
-              <SectionTitle sub="유입 → 문의 → 상담 → 예약 → 내원 → 결제 → 재내원">전환 퍼널 현황</SectionTitle>
-              <div style={{ display:"flex", flexDirection:"column", gap:10, maxWidth:680, margin:"0 auto" }}>
-                {steps.map((step,i) => {
-                  const prevStep = i>0?steps[i-1].value:step.value;
-                  const drop = i>0?(100-Math.round((step.value/prevStep)*100)):0;
-                  const width = Math.max((step.value/steps[0].value)*100,6);
-                  return (
-                    <div key={i} style={{ display:"flex", alignItems:"center", gap:12 }}>
-                      <div style={{ width:56, color:step.color, fontSize:12, fontWeight:700, textAlign:"right" }}>{step.name}</div>
-                      <div style={{ flex:1, height:40, background:C.dim, borderRadius:8, overflow:"hidden" }}>
-                        <div style={{ width:`${width}%`, height:"100%", background:`linear-gradient(90deg,${step.color}88,${step.color}44)`, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"flex-end", paddingRight:12 }}>
-                          <span style={{ color:"#fff", fontSize:13, fontWeight:800 }}>{fmt(step.value)}명</span>
-                        </div>
-                      </div>
-                      {i>0?(<div style={{ width:80 }}><span style={{ color:drop<30?C.green:drop<60?C.yellow:C.red, fontSize:11, fontWeight:700 }}>▼ {drop}% 이탈</span></div>):<div style={{ width:80 }}/>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:14 }}>
+
+            {/* 🔷 1. 상단 결과 KPI */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14 }}>
               {[
-                { label:"문의→상담", a:last.consult, b:last.inquiry, tip:"낮으면 첫 응대 개선" },
-                { label:"상담→예약", a:last.reservation, b:last.consult, tip:"낮으면 상담 스크립트 점검" },
-                { label:"예약→내원", a:last.visit, b:last.reservation, tip:"낮으면 리마인드 강화" },
-                { label:"내원→결제", a:last.payment, b:last.visit, tip:"낮으면 현장 상담 개선" },
-                { label:"결제→재내원", a:Math.round((last.payment||0)*0.38), b:last.payment, tip:"낮으면 CRM 강화" },
-                { label:"전체 전환율", a:last.payment, b:Math.round((last.inquiry||0)*3.2), tip:"전체 퍼널 효율" },
+                { label:"총 매출",      value:`${fmt(last.revenue||0)}만원`,  color:C.yellow },
+                { label:"총 환자수",    value:`${fmt((last.visit||0)+(last.newPatient||0))}명`, color:hospital.color },
+                { label:"환자당 매출",  value: last.revenue && (last.visit||last.newPatient) ? `${fmt(Math.round(last.revenue/((last.visit||0)+(last.newPatient||0)||1)))}만원` : "-", color:C.green },
+                { label:"재방문율",     value: last.visit && last.newPatient ? `${(((last.visit-last.newPatient)/last.visit)*100).toFixed(1)}%` : "-", color:C.accent2 },
+              ].map((item,i) => (
+                <div key={i} style={{ background:C.surface, border:`1px solid ${item.color}25`, borderRadius:14, padding:"18px 20px" }}>
+                  <div style={{ color:C.muted, fontSize:11, marginBottom:6 }}>{item.label}</div>
+                  <div style={{ color:item.color, fontSize:24, fontWeight:900 }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* 🔷 2. 중앙 퍼널 */}
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:28 }}>
+              <SectionTitle>전환 퍼널 현황</SectionTitle>
+              {(() => {
+                const funnelSteps = [
+                  { name:"유입",     value:Math.round((last.inquiry||0)*3.2), color:C.accent,   prevValue:Math.round((prev?.inquiry||0)*3.2) },
+                  { name:"문의",     value:last.inquiry||0,                   color:"#60A5FA",  prevValue:prev?.inquiry||0 },
+                  { name:"상담",     value:last.consult||0,                   color:C.accent2,  prevValue:prev?.consult||0 },
+                  { name:"예약",     value:last.reservation||0,               color:C.green,    prevValue:prev?.reservation||0 },
+                  { name:"초진내원", value:last.firstVisit||0,                color:C.yellow,   prevValue:prev?.firstVisit||0 },
+                  { name:"초진결제", value:last.firstPayment||0,              color:C.orange,   prevValue:prev?.firstPayment||0 },
+                  { name:"재내원",   value:last.visit ? Math.max(0,(last.visit||0)-(last.firstVisit||0)) : 0, color:C.red, prevValue: prev?.visit ? Math.max(0,(prev.visit||0)-(prev.firstVisit||0)) : 0 },
+                ];
+                const maxVal = Math.max(...funnelSteps.map(s=>s.value), 1);
+                return (
+                  <div style={{ display:"flex", flexDirection:"column", gap:8, maxWidth:720, margin:"0 auto" }}>
+                    {funnelSteps.map((step, i) => {
+                      const width = Math.max((step.value/maxVal)*100, 3);
+                      const pctOfPrev = i > 0 && funnelSteps[i-1].value > 0
+                        ? Math.round((step.value/funnelSteps[i-1].value)*100) : null;
+                      const diff = prev ? step.value - step.prevValue : null;
+                      return (
+                        <div key={i}>
+                          {i > 0 && (
+                            <div style={{ display:"flex", alignItems:"center", gap:8, paddingLeft:68, marginBottom:2 }}>
+                              <span style={{ color:C.dim, fontSize:11 }}>↓</span>
+                            </div>
+                          )}
+                          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                            <div style={{ width:56, color:step.color, fontSize:12, fontWeight:700, textAlign:"right", flexShrink:0 }}>{step.name}</div>
+                            <div style={{ flex:1, height:36, background:C.dim, borderRadius:8, position:"relative" }}>
+                              <div style={{ width:`${width}%`, height:"100%", background:`linear-gradient(90deg,${step.color}88,${step.color}44)`, borderRadius:8 }} />
+                              <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#fff", fontSize:13, fontWeight:800 }}>{fmt(step.value)}명</span>
+                            </div>
+                            <div style={{ width:90, flexShrink:0 }}>
+                              {diff !== null
+                                ? diff > 0 ? <span style={{ color:C.green, fontSize:11, fontWeight:700 }}>▲ {fmt(diff)}명</span>
+                                : diff < 0 ? <span style={{ color:C.red, fontSize:11, fontWeight:700 }}>▼ {fmt(Math.abs(diff))}명</span>
+                                : <span style={{ color:C.muted, fontSize:11 }}>— 동일</span>
+                                : <span style={{ color:C.muted, fontSize:11 }}>전월 없음</span>
+                              }
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* 🔷 3. 하단 핵심 KPI */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+              {[
+                { label:"유입 → 초진 전환율",  value: last.firstVisit && last.inquiry ? `${((last.firstVisit/Math.round(last.inquiry*3.2))*100).toFixed(1)}%` : "-", color:hospital.color, tip:"유입 대비 초진 내원 비율" },
+                { label:"상담 → 결제 전환율",  value: last.firstPayment && last.consult ? `${((last.firstPayment/last.consult)*100).toFixed(1)}%` : "-", color:C.accent2, tip:"상담 후 초진 결제 전환" },
+                { label:"예약 → 내원율",       value: last.firstVisit && last.reservation ? `${((last.firstVisit/last.reservation)*100).toFixed(1)}%` : "-", color:C.green, tip:"예약 후 실제 초진 내원율" },
+                { label:"신규 환자당 매출",     value: last.revenue && last.firstPayment ? `${fmt(Math.round(last.revenue/last.firstPayment))}만원` : "-", color:C.yellow, tip:"초진 결제 1건당 평균 매출" },
+                { label:"광고비 대비 매출",     value: last.revenue && last.marketingCost ? `${(last.revenue/last.marketingCost).toFixed(1)}배` : "-", color:C.orange, tip:"마케팅비 1만원당 매출" },
+                { label:"재방문율",             value: last.visit && last.firstVisit ? `${(((last.visit-last.firstVisit)/last.visit)*100).toFixed(1)}%` : "-", color:C.red, tip:"전체 내원 중 재내원 비율" },
               ].map((item,i) => (
                 <div key={i} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:18 }}>
-                  <div style={{ color:C.muted, fontSize:11, marginBottom:8 }}>{item.label} 전환율</div>
-                  <div style={{ color:hospital.color, fontSize:26, fontWeight:900 }}>{pct(item.a, item.b)}</div>
+                  <div style={{ color:C.muted, fontSize:11, marginBottom:8 }}>{item.label}</div>
+                  <div style={{ color:item.color, fontSize:26, fontWeight:900 }}>{item.value}</div>
                   <div style={{ color:C.muted, fontSize:11, marginTop:8, paddingTop:8, borderTop:`1px solid ${C.dim}` }}>💡 {item.tip}</div>
                 </div>
               ))}
