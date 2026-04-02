@@ -1774,21 +1774,6 @@ function PatientTab({ hospital }) {
     load();
   }, [hospital.id]);
 
-  // Supabase 불러오기
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const { data } = await supabase.from('patient_data').select('*').eq('hospital_id', hospital.id).single();
-        if (data?.data?.length > 0) {
-          setRecords(data.data);
-          const latest = [...data.data].sort((a,b)=>b.month>a.month?1:-1)[0]?.month;
-          if (latest) setSelMonth(latest);
-        }
-      } catch(e) {}
-    };
-    load();
-  }, [hospital.id]);
-
   const saveToSupabase = async (newRecords) => {
     try {
       await supabase.from('patient_data').upsert({ hospital_id: hospital.id, data: newRecords }, { onConflict: 'hospital_id' });
@@ -2757,7 +2742,7 @@ const COST_CATEGORIES = [
   { id:"cs",               label:"CS 경영지원",          group:"CS",     color:"#FB923C" },
 ];
 
-function CostTab({ hospital, hData }) {
+function CostTab({ hospital, hData, onDataLoad }) {
   const [contracts, setContracts] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const currentYm = new Date().toISOString().slice(0,7);
@@ -2780,6 +2765,7 @@ function CostTab({ hospital, hData }) {
         if (data?.data) {
           if (data.data.contracts) setContracts(data.data.contracts);
           if (data.data.expenses) setExpenses(data.data.expenses);
+          if (onDataLoad) onDataLoad({ contracts: data.data.contracts||[], expenses: data.data.expenses||[] });
         }
       } catch(e) {}
     };
@@ -3019,6 +3005,11 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
   const [showPerfInput, setShowPerfInput] = useState(false);
   const [showChannelInput, setShowChannelInput] = useState(false);
 
+  // 리포트용 공유 데이터 state
+  const [sharedPatientData, setSharedPatientData] = useState([]);
+  const [sharedCostData, setSharedCostData] = useState({ contracts:[], expenses:[] });
+  const [sharedKeywordData, setSharedKeywordData] = useState([]);
+
   const hData = hospital.monthlyData || [];
   const _rawChData = hospital.channelData || [];
 
@@ -3097,42 +3088,86 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
   ];
 
   // ─── 리포트 HTML 생성 & 다운로드 ───────────────────────────
-  const exportReport = () => {
+  const exportReport = async () => {
     const today = new Date().toLocaleDateString("ko-KR", { year:"numeric", month:"long", day:"numeric" });
-    const reportData = last; // selMonth 기준 데이터 (HospitalDashboard의 last는 이미 selMonth 기준)
+    const reportData = last;
     const lastMonth = reportData.month || selMonth || "-";
     const fmtN = (n) => (n || 0).toLocaleString();
     const pctN = (a, b) => b > 0 ? ((a / b) * 100).toFixed(1) + "%" : "-";
     const roi2 = reportData.marketingCost ? Math.round(((reportData.revenue - reportData.marketingCost) / reportData.marketingCost) * 100) : 0;
 
+    // Supabase에서 데이터 직접 가져오기
+    let costContracts = [], costExpenses = [], patientRecords = [], kwKeywords = [];
+    try {
+      const [costRes, patientRes, kwRes] = await Promise.all([
+        supabase.from('cost_data').select('*').eq('hospital_id', hospital.id).single(),
+        supabase.from('patient_data').select('*').eq('hospital_id', hospital.id).single(),
+        supabase.from('keyword_data').select('*').eq('hospital_id', hospital.id).single(),
+      ]);
+      if (costRes.data?.data) { costContracts = costRes.data.data.contracts||[]; costExpenses = costRes.data.data.expenses||[]; }
+      if (patientRes.data?.data) patientRecords = patientRes.data.data;
+      if (kwRes.data?.data) kwKeywords = kwRes.data.data;
+    } catch(e) {}
+
+    // 1. 통합 요약 KPI
     const kpiCards = [
-      { label:"문의",     value:fmtN(reportData.inquiry),     unit:"건",  color:"#38BDF8" },
-      { label:"상담",     value:fmtN(reportData.consult),      unit:"건",  color:"#818CF8" },
-      { label:"예약",     value:fmtN(reportData.reservation),  unit:"건",  color:"#34D399" },
-      { label:"내원",     value:fmtN(reportData.visit),        unit:"명",  color:"#FBBF24" },
-      { label:"결제",     value:fmtN(reportData.payment),      unit:"건",  color:"#FB923C" },
-      { label:"신환",     value:fmtN(reportData.newPatient),   unit:"명",  color:hospital.color },
-      { label:"매출",     value:fmtN(reportData.revenue),      unit:"만원",color:"#FBBF24" },
-      { label:"마케팅비", value:fmtN(reportData.marketingCost),unit:"만원",color:"#FB923C" },
+      { label:"문의",     value:fmtN(reportData.inquiry),      unit:"건",  color:"#38BDF8" },
+      { label:"상담",     value:fmtN(reportData.consult),       unit:"건",  color:"#818CF8" },
+      { label:"예약",     value:fmtN(reportData.reservation),   unit:"건",  color:"#34D399" },
+      { label:"초진내원", value:fmtN(reportData.firstVisit),    unit:"명",  color:"#FBBF24" },
+      { label:"초진결제", value:fmtN(reportData.firstPayment),  unit:"건",  color:"#FB923C" },
+      { label:"신환",     value:fmtN(reportData.newPatient),    unit:"명",  color:hospital.color },
+      { label:"매출",     value:fmtN(reportData.revenue),       unit:"만원",color:"#FBBF24" },
+      { label:"마케팅비", value:fmtN(reportData.marketingCost), unit:"만원",color:"#FB923C" },
     ].map(k => `
       <div class="kpi-card">
         <div class="kpi-label">${k.label}</div>
         <div class="kpi-value" style="color:${k.color}">${k.value}<span class="kpi-unit">${k.unit}</span></div>
       </div>`).join("");
 
-    const funnelRows = [
-      { name:"문의",   val:reportData.inquiry,      prev:null },
-      { name:"상담",   val:reportData.consult,      prev:reportData.inquiry },
-      { name:"예약",   val:reportData.reservation,  prev:reportData.consult },
-      { name:"내원",   val:reportData.visit,        prev:reportData.reservation },
-      { name:"결제",   val:reportData.payment,      prev:reportData.visit },
-      { name:"신환",   val:reportData.newPatient,   prev:reportData.payment },
-    ].map(r => {
-      const conv = r.prev ? pctN(r.val, r.prev) : "-";
-      return `<tr><td>${r.name}</td><td class="num">${fmtN(r.val)}</td><td class="conv">${conv}</td></tr>`;
+    // 2. 상세 성과 - 월별 추이
+    const trendRows = hData.map(d => `
+      <tr>
+        <td>${d.month}</td>
+        <td class="num">${fmtN(d.inquiry)}</td>
+        <td class="num">${fmtN(d.firstVisit||d.visit)}</td>
+        <td class="num">${fmtN(d.firstPayment||d.payment)}</td>
+        <td class="num">${fmtN(d.newPatient)}</td>
+        <td class="num">${fmtN(d.revenue)}</td>
+        <td class="num">${fmtN(d.marketingCost)}</td>
+        <td class="num" style="color:${d.marketingCost?(((d.revenue-d.marketingCost)/d.marketingCost*100)|0)>200?"#34D399":"#FBBF24":"#64748B"}">
+          ${d.marketingCost ? Math.round(((d.revenue - d.marketingCost) / d.marketingCost) * 100) + "%" : "-"}
+        </td>
+      </tr>`).join("");
+
+    // 3. 전환 분석 - 퍼널
+    const funnelStepsReport = [
+      { name:"유입",     val:Math.round((reportData.inquiry||0)*3.2) },
+      { name:"문의",     val:reportData.inquiry||0 },
+      { name:"상담",     val:reportData.consult||0 },
+      { name:"예약",     val:reportData.reservation||0 },
+      { name:"초진내원", val:reportData.firstVisit||0 },
+      { name:"초진결제", val:reportData.firstPayment||0 },
+      { name:"재내원",   val:Math.max(0,(reportData.visit||0)-(reportData.firstVisit||0)) },
+    ];
+    const funnelRows = funnelStepsReport.map((r,i) => {
+      const p = i > 0 ? funnelStepsReport[i-1].val : null;
+      const conv = p && p > 0 ? pctN(r.val, p) : "-";
+      return `<tr><td>${r.name}</td><td class="num">${fmtN(r.val)}명</td><td class="conv">${conv}</td></tr>`;
     }).join("");
 
-    const channelRows = chData.map((c,i) => {
+    // 전환 KPI
+    const convKpis = [
+      { label:"유입→초진 전환율", val: reportData.firstVisit && reportData.inquiry ? pctN(reportData.firstVisit, Math.round(reportData.inquiry*3.2)) : "-" },
+      { label:"상담→결제 전환율", val: reportData.firstPayment && reportData.consult ? pctN(reportData.firstPayment, reportData.consult) : "-" },
+      { label:"예약→내원율",      val: reportData.firstVisit && reportData.reservation ? pctN(reportData.firstVisit, reportData.reservation) : "-" },
+      { label:"광고비 대비 매출", val: reportData.revenue && reportData.marketingCost ? `${(reportData.revenue/reportData.marketingCost).toFixed(1)}배` : "-" },
+      { label:"재방문율",          val: reportData.visit && reportData.firstVisit ? pctN(reportData.visit-reportData.firstVisit, reportData.visit) : "-" },
+      { label:"환자당 매출",       val: reportData.revenue && reportData.firstPayment ? `${fmtN(Math.round(reportData.revenue/(reportData.firstPayment||1)))}만원` : "-" },
+    ].map(i => `<div class="roi-item"><div class="val">${i.val}</div><div class="lbl">${i.label}</div></div>`).join("");
+
+    // 4. 채널 분석
+    const channelRows = chData.map(c => {
       const r = c.cost > 0 ? Math.round(((c.revenue - c.cost) / c.cost) * 100) : "-";
       const rColor = +r > 300 ? "#34D399" : +r > 100 ? "#FBBF24" : "#F87171";
       return `<tr>
@@ -3146,17 +3181,42 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
       </tr>`;
     }).join("");
 
+    // 5. 환자 유입
+    const patientRec = patientRecords.find ? patientRecords.find(r => r.month === selMonth) : null;
+    const patientRows = patientRec ? patientRec.channelData
+      .filter(c => c.count > 0).sort((a,b) => b.count - a.count)
+      .map(c => `<tr><td>${c.channel}</td><td class="num">${fmtN(c.count)}명</td></tr>`).join("") : "";
 
-    const trendRows = hData.map(d => `
+    // 6. 마케팅 현황
+    const contents = hospital.contentData || [];
+    const monthContents = Array.isArray(contents)
+      ? contents.filter(c => c.date && c.date.startsWith(selMonth.slice(0,7))) : [];
+    const contentRows = monthContents.slice(0,20).map(c => `
       <tr>
-        <td>${d.month}</td>
-        <td class="num">${fmtN(d.inquiry)}</td>
-        <td class="num">${fmtN(d.newPatient)}</td>
-        <td class="num">${fmtN(d.revenue)}</td>
-        <td class="num">${fmtN(d.marketingCost)}</td>
-        <td class="num" style="color:${d.marketingCost?(((d.revenue-d.marketingCost)/d.marketingCost*100)|0)>200?"#34D399":"#FBBF24":"#64748B"}">
-          ${d.marketingCost ? Math.round(((d.revenue - d.marketingCost) / d.marketingCost) * 100) + "%" : "-"}
-        </td>
+        <td style="font-weight:600;color:#38BDF8">${c.channel}</td>
+        <td>${c.title}</td><td>${c.date}</td>
+        <td>${c.topExposed ? '✓' : '-'}</td><td>${c.status||'-'}</td>
+      </tr>`).join("");
+
+    // 7. 비용 관리
+    const monthContract = costContracts.find(c => c.month === selMonth)?.amount || 0;
+    const monthExpenses = costExpenses.filter(e => e.month === selMonth);
+    const totalExpense = monthExpenses.reduce((s,e) => s+e.amount, 0);
+    const expenseRows = monthExpenses.map(e => `
+      <tr>
+        <td>${e.date||'-'}</td><td>${e.category||'-'}</td>
+        <td>${e.memo||'-'}</td><td class="num">${fmtN(e.amount)}만원</td>
+      </tr>`).join("");
+
+    // 8. 키워드 현황
+    const monthKw = kwKeywords.filter ? kwKeywords.filter(k => k.month === selMonth) : [];
+    const kwRows = monthKw.slice(0,30).map(k => `
+      <tr>
+        <td style="font-weight:600">${k.keyword}</td>
+        <td>${k.channel||'-'}</td>
+        <td class="num" style="font-weight:700;color:#34D399">${k.rank||'-'}</td>
+        <td class="num">${k.totalRank ? k.totalRank+'위' : '-'}</td>
+        <td class="num">${k.searchVol ? fmtN(k.searchVol) : '-'}</td>
       </tr>`).join("");
 
     const html = `<!DOCTYPE html>
@@ -3183,8 +3243,8 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
   .kpi-value { font-size: 26px; font-weight: 900; line-height: 1; }
   .kpi-unit { font-size: 13px; margin-left: 4px; font-weight: 600; }
   .roi-box { background: rgba(255,255,255,0.04); border: 1px solid ${hospital.color}30; border-radius: 12px; padding: 20px 24px; display: flex; gap: 32px; margin-bottom: 24px; flex-wrap: wrap; }
-  .roi-item { text-align: center; }
-  .roi-item .val { font-size: 24px; font-weight: 900; color: ${hospital.color}; }
+  .roi-item { text-align: center; min-width: 100px; }
+  .roi-item .val { font-size: 22px; font-weight: 900; color: ${hospital.color}; }
   .roi-item .lbl { font-size: 11px; color: #64748B; margin-top: 4px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th { color: #64748B; font-weight: 600; padding: 10px 14px; text-align: left; border-bottom: 1px solid #1E293B; white-space: nowrap; background: rgba(255,255,255,0.02); }
@@ -3200,11 +3260,9 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
     .kpi-card, .roi-box, .table-wrap { border: 1px solid #ddd !important; background: #f8f9fa !important; }
     .kpi-card { break-inside: avoid; }
     .kpi-grid { grid-template-columns: repeat(4, 1fr) !important; }
-    .roi-box { flex-wrap: wrap !important; }
     th { background: #f0f0f0 !important; color: #333 !important; }
     td { color: #222 !important; border-bottom: 1px solid #eee !important; }
-    .hospital-name { color: #111 !important; }
-    .section-title { color: #111 !important; border-left: 4px solid ${hospital.color} !important; padding-left: 8px; }
+    .hospital-name, .section-title { color: #111 !important; }
     .kpi-label, .report-date, .footer { color: #555 !important; }
     .kpi-value { font-size: 20px !important; }
     .section { page-break-inside: avoid; margin-bottom: 24px !important; }
@@ -3226,30 +3284,37 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
     </div>
   </div>
 
-  <div class="roi-box">
-    ${[
-      { label:"신환 수",    val:`${fmtN(reportData.newPatient)}명`,  },
-      { label:"매출",       val:`${fmtN(reportData.revenue)}만원`,   },
-      { label:"마케팅비",   val:`${fmtN(reportData.marketingCost)}만원`, },
-      { label:"ROI",        val:`${roi2}%`,                    },
-      { label:"CPA",        val:`${reportData.newPatient ? fmtN(Math.round((reportData.marketingCost||0)/reportData.newPatient)) : "-"}만원/명`, },
-      { label:"목표 달성률",val:`${hospital.target_patients ? Math.round((reportData.newPatient||0)/hospital.target_patients*100) : "-"}%`, },
-    ].map(i => `<div class="roi-item"><div class="val">${i.val}</div><div class="lbl">${i.label}</div></div>`).join("")}
+  <!-- 1. 통합 요약 -->
+  <div class="section">
+    <div class="section-title"><span class="accent-bar"></span>통합 요약</div>
+    <div class="roi-box">
+      ${[
+        { label:"신환 수",    val:`${fmtN(reportData.newPatient)}명` },
+        { label:"매출",       val:`${fmtN(reportData.revenue)}만원` },
+        { label:"마케팅비",   val:`${fmtN(reportData.marketingCost)}만원` },
+        { label:"ROI",        val:`${roi2}%` },
+        { label:"CPA",        val:`${reportData.newPatient ? fmtN(Math.round((reportData.marketingCost||0)/reportData.newPatient)) : "-"}만원` },
+        { label:"목표 달성률",val:`${hospital.target_patients ? Math.round((reportData.newPatient||0)/hospital.target_patients*100) : "-"}%` },
+      ].map(i => `<div class="roi-item"><div class="val">${i.val}</div><div class="lbl">${i.label}</div></div>`).join("")}
+    </div>
+    <div class="kpi-grid">${kpiCards}</div>
   </div>
 
+  <!-- 2. 상세 성과 -->
   <div class="section">
-    <div class="section-title"><span class="accent-bar"></span>월별 성과 추이</div>
+    <div class="section-title"><span class="accent-bar"></span>상세 성과 · 월별 추이</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>월</th><th>문의</th><th>신환</th><th>매출(만)</th><th>마케팅비(만)</th><th>ROI</th></tr></thead>
+        <thead><tr><th>월</th><th>문의</th><th>초진내원</th><th>초진결제</th><th>신환</th><th>매출(만)</th><th>마케팅비(만)</th><th>ROI</th></tr></thead>
         <tbody>${trendRows}</tbody>
       </table>
     </div>
   </div>
 
+  <!-- 3. 전환 분석 -->
   <div class="section">
-    <div class="section-title"><span class="accent-bar"></span>${lastMonth} 퍼널 전환 현황</div>
-    <div class="kpi-grid">${kpiCards}</div>
+    <div class="section-title"><span class="accent-bar"></span>전환 분석</div>
+    <div class="roi-box">${convKpis}</div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>단계</th><th>수치</th><th>전환율</th></tr></thead>
@@ -3258,6 +3323,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
     </div>
   </div>
 
+  <!-- 4. 채널 분석 -->
   ${chData.length > 0 ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>채널별 성과</div>
@@ -3269,6 +3335,56 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
     </div>
   </div>` : ""}
 
+  <!-- 5. 환자 유입 -->
+  ${patientRec ? `
+  <div class="section">
+    <div class="section-title"><span class="accent-bar"></span>환자 유입 현황</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div class="roi-box" style="margin-bottom:0">
+        <div class="roi-item"><div class="val">${fmtN(patientRec.newPatient)}명</div><div class="lbl">신환</div></div>
+        <div class="roi-item"><div class="val">${fmtN(patientRec.returnPatient)}명</div><div class="lbl">구환</div></div>
+        <div class="roi-item"><div class="val">${patientRec.targetNew ? Math.round(patientRec.newPatient/patientRec.targetNew*100)+'%' : '-'}</div><div class="lbl">목표 달성률</div></div>
+      </div>
+    </div>
+    ${patientRows ? `<div class="table-wrap"><table><thead><tr><th>유입 채널</th><th>환자 수</th></tr></thead><tbody>${patientRows}</tbody></table></div>` : ""}
+  </div>` : ""}
+
+  <!-- 6. 마케팅 현황 -->
+  ${monthContents.length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="accent-bar"></span>마케팅 현황 · 콘텐츠 목록</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>채널</th><th>제목</th><th>발행일</th><th>상위노출</th><th>상태</th></tr></thead>
+        <tbody>${contentRows}</tbody>
+      </table>
+    </div>
+  </div>` : ""}
+
+  <!-- 7. 비용 관리 -->
+  ${(monthContract > 0 || monthExpenses.length > 0) ? `
+  <div class="section">
+    <div class="section-title"><span class="accent-bar"></span>비용 관리</div>
+    <div class="roi-box" style="margin-bottom:16px">
+      <div class="roi-item"><div class="val">${fmtN(monthContract)}만원</div><div class="lbl">월 계약금</div></div>
+      <div class="roi-item"><div class="val">${fmtN(totalExpense)}만원</div><div class="lbl">소진액</div></div>
+      <div class="roi-item"><div class="val">${fmtN(monthContract-totalExpense)}만원</div><div class="lbl">잔액</div></div>
+      <div class="roi-item"><div class="val">${monthContract > 0 ? Math.round(totalExpense/monthContract*100)+'%' : '-'}</div><div class="lbl">소진율</div></div>
+    </div>
+    ${expenseRows ? `<div class="table-wrap"><table><thead><tr><th>날짜</th><th>항목</th><th>메모</th><th>금액</th></tr></thead><tbody>${expenseRows}</tbody></table></div>` : ""}
+  </div>` : ""}
+
+  <!-- 8. 키워드 현황 -->
+  ${monthKw.length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="accent-bar"></span>키워드 현황</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>키워드</th><th>채널</th><th>현재 위치</th><th>총 순위</th><th>검색량</th></tr></thead>
+        <tbody>${kwRows}</tbody>
+      </table>
+    </div>
+  </div>` : ""}
 
   <div class="footer">
     <span>${hospital.name} · 다올 마케팅 리포트</span>
@@ -3321,7 +3437,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
           </div>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button onClick={exportReport} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#fff", borderRadius:9, padding:"8px 16px", fontSize:12, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
+          <button onClick={() => exportReport()} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#fff", borderRadius:9, padding:"8px 16px", fontSize:12, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
             리포트 출력
           </button>
           <Badge color={hospital.color}>{hospital.dept}</Badge>
@@ -3574,7 +3690,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
         )}
 
         {/* 환자 유입 */}
-        {tab === "patient" && <PatientTab hospital={hospital} />}
+        {tab === "patient" && <PatientTab hospital={hospital} onDataLoad={setSharedPatientData} />}
 
         {/* 키워드/SEO */}
         {/* 마케팅 현황 */}
@@ -3777,9 +3893,9 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
         )}
 
         {/* 비용 관리 */}
-        {tab === "cost" && <CostTab hospital={hospital} hData={hData} />}
+        {tab === "cost" && <CostTab hospital={hospital} hData={hData} onDataLoad={setSharedCostData} />}
         {tab === "meeting" && <MeetingTab hospital={hospital} />}
-        {tab === "keyword" && <KeywordRankTab hospital={hospital} isAdmin={isAdmin} />}
+        {tab === "keyword" && <KeywordRankTab hospital={hospital} isAdmin={isAdmin} onDataLoad={setSharedKeywordData} />}
 
       </div>
     </div>
@@ -4032,3 +4148,4 @@ function HospitalRoute({ hospitals, onUpdateHospital, isAdmin }) {
     />
   );
 }
+
