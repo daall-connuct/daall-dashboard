@@ -2754,6 +2754,7 @@ function CostTab({ hospital, hData, onDataLoad }) {
   const [editExpId, setEditExpId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [savedMsg, setSavedMsg] = useState("");
+  const [selGroup, setSelGroup] = useState("전체");
 
   const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2200); };
 
@@ -2955,36 +2956,53 @@ function CostTab({ hospital, hData, onDataLoad }) {
       </div>
 
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:22}}>
-        <SectionTitle>{selMonth.slice(5)}월 소진 내역</SectionTitle>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:16}}>
+          <SectionTitle>{selMonth.slice(5)}월 소진 내역</SectionTitle>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {["전체","마케팅","디자인","CS"].map(g => (
+              <button key={g} onClick={()=>setSelGroup(g)} style={{
+                background: selGroup===g ? `${hospital.color}25` : "transparent",
+                border: `1px solid ${selGroup===g ? hospital.color : C.border}`,
+                color: selGroup===g ? hospital.color : C.muted,
+                borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+              }}>{g}</button>
+            ))}
+          </div>
+        </div>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead><tr>{["날짜","항목","그룹","금액(만원)","메모","관리"].map(h=>(
               <th key={h} style={{color:C.muted,fontWeight:600,padding:"8px 12px",textAlign:"left",borderBottom:`1px solid ${C.dim}`,whiteSpace:"nowrap"}}>{h}</th>
             ))}</tr></thead>
             <tbody>
-              {monthExpenses.length===0&&<tr><td colSpan={6} style={{padding:"32px",textAlign:"center",color:C.muted}}>소진 내역이 없어요. 추가 버튼을 눌러 입력해 주세요.</td></tr>}
-              {[...monthExpenses].sort((a,b)=>a.date>b.date?-1:1).map(e=>{
-                const cat=COST_CATEGORIES.find(c=>c.id===e.category)||{label:e.category,color:C.muted,group:"-"};
-                return (<tr key={e.id} style={{borderBottom:`1px solid ${C.dim}`}}
-                  onMouseEnter={ev=>ev.currentTarget.style.background=`${hospital.color}08`}
-                  onMouseLeave={ev=>ev.currentTarget.style.background="transparent"}>
-                  <td style={{padding:"9px 12px",color:C.muted,whiteSpace:"nowrap"}}>{e.date||"-"}</td>
-                  <td style={{padding:"9px 12px",color:cat.color,fontWeight:700}}>{cat.label}</td>
-                  <td style={{padding:"9px 12px"}}><Badge color={cat.group==="마케팅"?hospital.color:cat.group==="디자인"?C.yellow:C.orange}>{cat.group}</Badge></td>
-                  <td style={{padding:"9px 12px",color:C.yellow,fontWeight:700}}>{fmt(e.amount)}</td>
-                  <td style={{padding:"9px 12px",color:C.muted}}>{e.memo||"-"}</td>
-                  <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
-                    <div style={{display:"flex",gap:6}}>
-                      <button onClick={()=>handleEditExp(e)} style={{background:`${hospital.color}20`,border:`1px solid ${hospital.color}40`,color:hospital.color,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>수정</button>
-                      {deleteConfirm===e.id?(
-                        <button onClick={()=>handleDeleteExp(e.id)} style={{background:`${C.red}20`,border:`1px solid ${C.red}`,color:C.red,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>확인</button>
-                      ):(
-                        <button onClick={()=>setDeleteConfirm(e.id)} style={{background:"transparent",border:`1px solid ${C.dim}`,color:C.muted,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>삭제</button>
-                      )}
-                    </div>
-                  </td>
-                </tr>);
-              })}
+              {(() => {
+                const filtered = [...monthExpenses]
+                  .filter(e => selGroup === "전체" || (COST_CATEGORIES.find(c=>c.id===e.category)?.group === selGroup))
+                  .sort((a,b)=>a.date>b.date?-1:1);
+                if (filtered.length === 0) return <tr><td colSpan={6} style={{padding:"32px",textAlign:"center",color:C.muted}}>소진 내역이 없어요.</td></tr>;
+                return filtered.map(e => {
+                  const cat=COST_CATEGORIES.find(c=>c.id===e.category)||{label:e.category,color:C.muted,group:"-"};
+                  return (<tr key={e.id} style={{borderBottom:`1px solid ${C.dim}`}}
+                    onMouseEnter={ev=>ev.currentTarget.style.background=`${hospital.color}08`}
+                    onMouseLeave={ev=>ev.currentTarget.style.background="transparent"}>
+                    <td style={{padding:"9px 12px",color:C.muted,whiteSpace:"nowrap"}}>{e.date||"-"}</td>
+                    <td style={{padding:"9px 12px",color:cat.color,fontWeight:700}}>{cat.label}</td>
+                    <td style={{padding:"9px 12px"}}><Badge color={cat.group==="마케팅"?hospital.color:cat.group==="디자인"?C.yellow:C.orange}>{cat.group}</Badge></td>
+                    <td style={{padding:"9px 12px",color:C.yellow,fontWeight:700}}>{fmt(e.amount)}</td>
+                    <td style={{padding:"9px 12px",color:C.muted}}>{e.memo||"-"}</td>
+                    <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
+                      <div style={{display:"flex",gap:6}}>
+                        <button onClick={()=>handleEditExp(e)} style={{background:`${hospital.color}20`,border:`1px solid ${hospital.color}40`,color:hospital.color,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>수정</button>
+                        {deleteConfirm===e.id?(
+                          <button onClick={()=>handleDeleteExp(e.id)} style={{background:`${C.red}20`,border:`1px solid ${C.red}`,color:C.red,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>확인</button>
+                        ):(
+                          <button onClick={()=>setDeleteConfirm(e.id)} style={{background:"transparent",border:`1px solid ${C.dim}`,color:C.muted,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>삭제</button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>);
+                });
+              })()}
             </tbody>
           </table>
         </div>
