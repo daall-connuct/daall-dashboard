@@ -1,6 +1,6 @@
 /* eslint-disable */
 import { useState, useMemo, useRef, useEffect } from "react";
-import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(
   'https://jfausjwfxpturkkmmyrd.supabase.co',
@@ -4060,6 +4060,7 @@ function AppInner() {
   };
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   const selected = hospitals.find(h => h.id === selectedId);
 
@@ -4070,8 +4071,11 @@ function AppInner() {
     </div>
   );
 
-  // 로그인 화면
-  if (!isLoggedIn) return (
+  // 병원 공유 링크(/hospital/:id)로 직접 접속 시 로그인 스킵
+  const isHospitalRoute = location.pathname.startsWith('/hospital/');
+
+  // 로그인 화면 (메인 접속 시에만)
+  if (!isLoggedIn && !isHospitalRoute) return (
     <LoginScreen onLogin={(name, isSuperAdminFlag) => {
       setIsLoggedIn(true);
       setIsAdmin(true);
