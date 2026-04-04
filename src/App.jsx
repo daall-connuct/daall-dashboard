@@ -573,7 +573,7 @@ function HospitalFormField({ label, k, placeholder, type="text", required, form,
   );
 }
 
-function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospital, onDeleteHospital, isAdmin, onAdminLogin, onAdminLogout }) {
+function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospital, onDeleteHospital, isAdmin, isSuperAdmin, loginName, onAdminLogin, onAdminLogout }) {
   const [showForm, setShowForm]     = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [form, setForm]             = useState(EMPTY_HOSPITAL_FORM);
@@ -711,7 +711,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
           <div style={{ color:C.muted, fontSize:14 }}>병원을 선택하면 상세 대시보드로 이동해요</div>
         </div>
         <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-          {isAdmin ? (
+          {isAdmin && (
             <>
               <button onClick={() => setShowChecklist(!showChecklist)} style={{
                 background: showChecklist ? `${C.accent}20` : "transparent",
@@ -722,27 +722,24 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
               <button onClick={openAdd} style={{ background:`linear-gradient(135deg,${C.accent},${C.accent2})`, border:"none", color:"#fff", borderRadius:12, padding:"11px 22px", fontSize:14, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
                 + 새 병원 추가
               </button>
-              <button onClick={() => { onAdminLogout(); setAdminName(""); setShowChecklist(false); setShowAccountMgmt(false); toast("관리자 모드 해제"); }} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer" }}>
+              <button onClick={() => { onAdminLogout(); setAdminName(""); setShowChecklist(false); setShowAccountMgmt(false); toast("로그아웃 완료"); }} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer" }}>
                 로그아웃
               </button>
-              <button onClick={() => setShowAccountMgmt(!showAccountMgmt)} style={{
-                background: showAccountMgmt ? `${C.accent2}20` : "transparent",
-                border: `1px solid ${showAccountMgmt ? C.accent2 : C.dim}`,
-                color: showAccountMgmt ? C.accent2 : C.muted,
-                borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer", fontWeight:600,
-              }}>👤 계정 관리</button>
+              {isSuperAdmin && (
+                <button onClick={() => setShowAccountMgmt(!showAccountMgmt)} style={{
+                  background: showAccountMgmt ? `${C.accent2}20` : "transparent",
+                  border: `1px solid ${showAccountMgmt ? C.accent2 : C.dim}`,
+                  color: showAccountMgmt ? C.accent2 : C.muted,
+                  borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer", fontWeight:600,
+                }}>👤 계정 관리</button>
+              )}
             </>
-          ) : (
-            <button onClick={() => setShowPwModal(true)} style={{
-              background:"transparent", border:`1px solid ${C.border}`, color:C.muted,
-              borderRadius:10, padding:"9px 16px", fontSize:13, cursor:"pointer", fontWeight:600,
-            }}>🔒 관리자 모드</button>
           )}
         </div>
       </div>
 
       {/* 관리자 전용 - 계정 관리 */}
-      {isAdmin && showAccountMgmt && (
+      {isAdmin && isSuperAdmin && showAccountMgmt && (
         <div style={{ marginBottom:24, background:"rgba(255,255,255,0.02)", border:`1px solid ${C.accent2}30`, borderRadius:20, padding:24 }}>
           <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:16, display:"flex", alignItems:"center", gap:8 }}>
             <div style={{ width:3, height:18, background:`linear-gradient(180deg,${C.accent2},${C.accent})`, borderRadius:2 }} />
@@ -3938,6 +3935,9 @@ function AppInner() {
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [loginName, setLoginName] = useState("");
 
   // ─── Supabase에서 데이터 불러오기 ────────────────────────────
   useEffect(() => {
@@ -4070,6 +4070,16 @@ function AppInner() {
     </div>
   );
 
+  // 로그인 화면
+  if (!isLoggedIn) return (
+    <LoginScreen onLogin={(name, isSuperAdminFlag) => {
+      setIsLoggedIn(true);
+      setIsAdmin(true);
+      setIsSuperAdmin(isSuperAdminFlag);
+      setLoginName(name);
+    }} />
+  );
+
   return (
     <Routes>
       <Route path="/" element={
@@ -4080,8 +4090,10 @@ function AppInner() {
           onEditHospital={handleEditHospital}
           onDeleteHospital={handleDeleteHospital}
           isAdmin={isAdmin}
+          isSuperAdmin={isSuperAdmin}
+          loginName={loginName}
           onAdminLogin={(name) => setIsAdmin(true)}
-          onAdminLogout={() => setIsAdmin(false)}
+          onAdminLogout={() => { setIsAdmin(false); setIsLoggedIn(false); setIsSuperAdmin(false); setLoginName(""); }}
         />
       } />
       <Route path="/hospital/:hospitalId" element={
@@ -4092,6 +4104,58 @@ function AppInner() {
         />
       } />
     </Routes>
+  );
+}
+
+function LoginScreen({ onLogin }) {
+  const [pw, setPw] = useState("");
+  const [error, setError] = useState(false);
+  const [accounts, setAccounts] = useState([]);
+  const pwRef = useRef(null);
+  const SUPER_ADMIN_PW = "Daall";
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data } = await supabase.from('admin_accounts').select('*').eq('id', 1).single();
+        if (data?.data?.length > 0) setAccounts(data.data);
+        else setAccounts([{ id:1, name:"임지혜", password:"Daall" }]);
+      } catch(e) { setAccounts([{ id:1, name:"임지혜", password:"Daall" }]); }
+    };
+    load();
+  }, []);
+
+  const handleLogin = () => {
+    const matched = accounts.find(a => a.password === pw);
+    if (matched) {
+      onLogin(matched.name, matched.password === SUPER_ADMIN_PW);
+    } else {
+      setError(true); setPw("");
+      setTimeout(() => pwRef.current?.focus(), 0);
+    }
+  };
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#070D18", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Noto Sans KR', sans-serif" }}>
+      <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:20, padding:"48px 40px", width:360, textAlign:"center" }}>
+        <div style={{ fontSize:28, fontWeight:900, color:"#fff", marginBottom:8 }}>다올 마케팅</div>
+        <div style={{ color:"#64748B", fontSize:13, marginBottom:32 }}>대시보드에 접근하려면 로그인하세요</div>
+        <input
+          ref={pwRef}
+          type="password"
+          value={pw}
+          onChange={e => { setPw(e.target.value); setError(false); }}
+          onKeyDown={e => e.key === "Enter" && handleLogin()}
+          placeholder="비밀번호 입력"
+          autoFocus
+          style={{ width:"100%", background:"rgba(255,255,255,0.05)", border:`1px solid ${error?"#F87171":"rgba(255,255,255,0.1)"}`, borderRadius:10, color:"#E2E8F0", padding:"12px 16px", fontSize:15, fontFamily:"'Noto Sans KR', sans-serif", outline:"none", letterSpacing:4, marginBottom:8, boxSizing:"border-box" }}
+        />
+        {error && <div style={{ color:"#F87171", fontSize:12, marginBottom:12 }}>비밀번호가 틀렸어요</div>}
+        <button onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg,#38BDF8,#818CF8)", border:"none", color:"#fff", borderRadius:10, padding:"13px 0", fontSize:15, cursor:"pointer", fontWeight:700, marginTop:8 }}>
+          로그인
+        </button>
+      </div>
+    </div>
   );
 }
 
