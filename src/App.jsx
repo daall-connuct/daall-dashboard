@@ -595,6 +595,8 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   const [showAccountMgmt, setShowAccountMgmt] = useState(false);
   const [newAccount, setNewAccount]   = useState({ name:"", password:"" });
   const [resetConfirmId, setResetConfirmId] = useState(null);
+  const [showActivityLog, setShowActivityLog] = useState(false);
+  const [activityLogs, setActivityLogs] = useState([]);
 
   // 관리자 계정 Supabase 불러오기
   useEffect(() => {
@@ -726,12 +728,28 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
                 로그아웃
               </button>
               {isSuperAdmin && (
-                <button onClick={() => setShowAccountMgmt(!showAccountMgmt)} style={{
-                  background: showAccountMgmt ? `${C.accent2}20` : "transparent",
-                  border: `1px solid ${showAccountMgmt ? C.accent2 : C.dim}`,
-                  color: showAccountMgmt ? C.accent2 : C.muted,
-                  borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer", fontWeight:600,
-                }}>👤 계정 관리</button>
+                <>
+                  <button onClick={() => setShowAccountMgmt(!showAccountMgmt)} style={{
+                    background: showAccountMgmt ? `${C.accent2}20` : "transparent",
+                    border: `1px solid ${showAccountMgmt ? C.accent2 : C.dim}`,
+                    color: showAccountMgmt ? C.accent2 : C.muted,
+                    borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer", fontWeight:600,
+                  }}>👤 계정 관리</button>
+                  <button onClick={async () => {
+                    if (!showActivityLog) {
+                      try {
+                        const { data } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(100);
+                        setActivityLogs(data || []);
+                      } catch(e) {}
+                    }
+                    setShowActivityLog(!showActivityLog);
+                  }} style={{
+                    background: showActivityLog ? `${C.green}20` : "transparent",
+                    border: `1px solid ${showActivityLog ? C.green : C.dim}`,
+                    color: showActivityLog ? C.green : C.muted,
+                    borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer", fontWeight:600,
+                  }}>📋 활동 로그</button>
+                </>
               )}
             </>
           )}
@@ -786,6 +804,55 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
               }}>+ 추가</button>
             </div>
             <div style={{ color:C.muted, fontSize:11, marginTop:8 }}>추가된 계정은 동일하게 모든 관리자 기능을 사용할 수 있어요.</div>
+          </div>
+        </div>
+      )}
+
+      {/* 슈퍼관리자 전용 - 활동 로그 */}
+      {isAdmin && isSuperAdmin && showActivityLog && (
+        <div style={{ marginBottom:24, background:"rgba(255,255,255,0.02)", border:`1px solid ${C.green}30`, borderRadius:20, padding:24 }}>
+          <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <div style={{ width:3, height:18, background:`linear-gradient(180deg,${C.green},${C.accent})`, borderRadius:2 }} />
+              활동 로그 (최근 100건)
+            </div>
+            <button onClick={async () => {
+              try {
+                const { data } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(100);
+                setActivityLogs(data || []);
+              } catch(e) {}
+            }} style={{ background:`${C.green}20`, border:`1px solid ${C.green}40`, color:C.green, borderRadius:8, padding:"4px 12px", fontSize:11, cursor:"pointer", fontWeight:600 }}>새로고침</button>
+          </div>
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+              <thead>
+                <tr style={{ borderBottom:`1px solid ${C.dim}` }}>
+                  {["시간","담당자","병원","액션","상세"].map(h => (
+                    <th key={h} style={{ color:C.muted, fontWeight:600, padding:"8px 12px", textAlign:"left", whiteSpace:"nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {activityLogs.length === 0
+                  ? <tr><td colSpan={5} style={{ padding:"24px", textAlign:"center", color:C.muted }}>활동 로그가 없어요</td></tr>
+                  : activityLogs.map(log => (
+                    <tr key={log.id} style={{ borderBottom:`1px solid ${C.dim}30` }}
+                      onMouseEnter={e=>e.currentTarget.style.background=`${C.green}08`}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <td style={{ padding:"8px 12px", color:C.muted, whiteSpace:"nowrap", fontSize:11 }}>
+                        {new Date(log.created_at).toLocaleString("ko-KR", { month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })}
+                      </td>
+                      <td style={{ padding:"8px 12px", color:C.accent, fontWeight:700 }}>{log.actor}</td>
+                      <td style={{ padding:"8px 12px", color:C.text }}>{log.hospital_name || "-"}</td>
+                      <td style={{ padding:"8px 12px" }}>
+                        <span style={{ background:`${C.green}15`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{log.action}</span>
+                      </td>
+                      <td style={{ padding:"8px 12px", color:C.muted }}>{log.detail || "-"}</td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -4023,10 +4090,22 @@ function AppInner() {
     }
   };
 
+  const logActivity = async (action, hospitalName = "", detail = "") => {
+    try {
+      await supabase.from('activity_log').insert({
+        actor: loginName || "알 수 없음",
+        hospital_name: hospitalName,
+        action,
+        detail,
+      });
+    } catch(e) {}
+  };
+
   const handleUpdateHospital = async (updated) => {
     setHospitals(prev => prev.map(h => h.id === updated.id ? updated : h));
     setSelectedId(updated.id);
     await saveHospitalToSupabase(updated);
+    await logActivity("데이터 수정", updated.name, "병원 데이터 업데이트");
   };
 
   const handleAddHospital = async (form) => {
@@ -4037,23 +4116,26 @@ function AppInner() {
     };
     setHospitals(prev => [...prev, newHospital]);
     await saveHospitalToSupabase(newHospital);
+    await logActivity("병원 추가", form.name, "새 병원 등록");
   };
 
   const handleEditHospital = async (updated) => {
     setHospitals(prev => prev.map(h => h.id === updated.id ? { ...h, ...updated } : h));
     const full = hospitals.find(h => h.id === updated.id);
     if (full) await saveHospitalToSupabase({ ...full, ...updated });
+    await logActivity("병원 정보 수정", updated.name, "병원 기본 정보 변경");
   };
 
   const handleDeleteHospital = async (id) => {
+    const hospital = hospitals.find(h => h.id === id);
     setHospitals(prev => prev.filter(h => h.id !== id));
     try {
-      
       await supabase.from('hospitals').delete().eq('id', id);
       await supabase.from('monthly_data').delete().eq('hospital_id', id);
       await supabase.from('channel_data').delete().eq('hospital_id', id);
       await supabase.from('content_data').delete().eq('hospital_id', id);
       await supabase.from('meeting_data').delete().eq('hospital_id', id);
+      await logActivity("병원 삭제", hospital?.name || "", "병원 완전 삭제");
     } catch (err) {
       console.error('삭제 실패:', err);
     }
