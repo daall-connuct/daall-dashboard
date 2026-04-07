@@ -1872,6 +1872,7 @@ function PatientTab({ hospital }) {
       : [...records, formData].sort((a,b)=>b.month>a.month?1:-1);
     setRecords(newRecords);
     saveToSupabase(newRecords);
+    logActivity("환자유입 저장", hospital.name, formData.month);
     setSelMonth(formData.month); setShowForm(false); toast("저장 완료!");
   };
 
@@ -2047,7 +2048,14 @@ function PatientTab({ hospital }) {
   );
 }
 
-// ─── 키워드 현황 탭 ──────────────────────────────────────────
+// ─── 전역 활동 로그 함수 ──────────────────────────────────────
+const logActivity = async (action, hospitalName = "", detail = "") => {
+  try {
+    const actor = sessionStorage.getItem("daall_actor") || "알 수 없음";
+    await supabase.from('activity_log').insert({ actor, hospital_name: hospitalName, action, detail });
+  } catch(e) {}
+};
+
 function KeywordRankTab({ hospital, isAdmin }) {
   const [keywords, setKeywords] = useState([]);
   const [selMonth, setSelMonth] = useState("");
@@ -2181,6 +2189,7 @@ function KeywordRankTab({ hospital, isAdmin }) {
       const newData = [...kept, ...parsed];
       setKeywords(newData);
       saveKeywords(newData);
+      logActivity("키워드 업로드", hospital.name, `${parsed.length}개 키워드`);
       if (uploadedMonths.length > 0) setSelMonth(uploadedMonths[0]);
       toast(`${parsed.length}개 키워드 업로드 완료!`);
     };
@@ -2428,6 +2437,7 @@ function MeetingTab({ hospital }) {
     const newLogs = [newLog, ...logs].sort((a, b) => b.date > a.date ? 1 : -1);
     setLogs(newLogs);
     saveToSupabase(newLogs);
+    logActivity("미팅 로그 추가", hospital.name, `${form.date} ${form.type} 미팅`);
     setForm(EMPTY_MEETING); setNewAction(""); setShowForm(false); toast("미팅 로그 저장 완료!");
   };
 
@@ -2440,6 +2450,7 @@ function MeetingTab({ hospital }) {
       .sort((a, b) => b.date > a.date ? 1 : -1);
     setLogs(newLogs);
     saveToSupabase(newLogs);
+    logActivity("미팅 로그 수정", hospital.name);
     setEditId(null); setForm(EMPTY_MEETING); setNewAction(""); setShowForm(false); toast("수정 완료!");
   };
 
@@ -2872,6 +2883,7 @@ function CostTab({ hospital, hData, onDataLoad }) {
       : [...contracts,{month:contractForm.month,amount:+contractForm.amount}].sort((a,b)=>a.month>b.month?1:-1);
     setContracts(newContracts);
     saveToSupabase(newContracts, expenses);
+    logActivity("계약금 저장", hospital.name, `${contractForm.month} ${contractForm.amount}만원`);
     setShowContractForm(false); toast("계약금 저장 완료!");
   };
 
@@ -4090,17 +4102,6 @@ function AppInner() {
     }
   };
 
-  const logActivity = async (action, hospitalName = "", detail = "") => {
-    try {
-      await supabase.from('activity_log').insert({
-        actor: loginName || "알 수 없음",
-        hospital_name: hospitalName,
-        action,
-        detail,
-      });
-    } catch(e) {}
-  };
-
   const handleUpdateHospital = async (updated) => {
     setHospitals(prev => prev.map(h => h.id === updated.id ? updated : h));
     setSelectedId(updated.id);
@@ -4163,6 +4164,7 @@ function AppInner() {
       setIsAdmin(true);
       setIsSuperAdmin(isSuperAdminFlag);
       setLoginName(name);
+      sessionStorage.setItem("daall_actor", name);
     }} />
   );
 
@@ -4179,7 +4181,7 @@ function AppInner() {
           isSuperAdmin={isSuperAdmin}
           loginName={loginName}
           onAdminLogin={(name) => setIsAdmin(true)}
-          onAdminLogout={() => { setIsAdmin(false); setIsLoggedIn(false); setIsSuperAdmin(false); setLoginName(""); }}
+          onAdminLogout={() => { setIsAdmin(false); setIsLoggedIn(false); setIsSuperAdmin(false); setLoginName(""); sessionStorage.removeItem("daall_actor"); }}
         />
       } />
       <Route path="/hospital/:hospitalId" element={
