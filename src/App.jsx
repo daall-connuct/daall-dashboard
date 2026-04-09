@@ -2183,9 +2183,14 @@ function KeywordRankTab({ hospital, isAdmin }) {
         searchVol: r[map.searchVol] ? +r[map.searchVol].replace(/,/g,"") : null,
       })).filter(r => r.keyword);
 
-      // 같은 월 데이터는 교체, 다른 월은 유지
+      // 같은 월 + 같은 채널 조합만 교체, 나머지는 유지
       const uploadedMonths = [...new Set(parsed.map(r => r.month))];
-      const kept = keywords.filter(k => !uploadedMonths.includes(k.month));
+      const uploadedChannels = [...new Set(parsed.map(r => r.channel).filter(Boolean))];
+      const kept = keywords.filter(k => {
+        if (!uploadedMonths.includes(k.month)) return true; // 다른 월은 유지
+        if (uploadedChannels.length > 0 && !uploadedChannels.includes(k.channel)) return true; // 같은 월이라도 다른 채널은 유지
+        return false;
+      });
       const newData = [...kept, ...parsed];
       setKeywords(newData);
       saveKeywords(newData);
@@ -2807,14 +2812,15 @@ function MeetingTab({ hospital }) {
 
 // ─── 비용 관리 탭 ─────────────────────────────────────────────
 const COST_CATEGORIES = [
-  { id:"marketing_blog",   label:"마케팅 - 블로그",     group:"마케팅", color:"#03C75A" },
-  { id:"marketing_insta",  label:"마케팅 - 인스타그램", group:"마케팅", color:"#E1306C" },
-  { id:"marketing_youtube",label:"마케팅 - 유튜브",     group:"마케팅", color:"#FF0000" },
-  { id:"marketing_cafe",   label:"마케팅 - 네이버카페", group:"마케팅", color:"#0088FE" },
-  { id:"marketing_search", label:"마케팅 - 검색광고",   group:"마케팅", color:"#A78BFA" },
-  { id:"marketing_meta",   label:"마케팅 - 메타광고",   group:"마케팅", color:"#4ECDC4" },
-  { id:"design",           label:"디자인물",             group:"디자인", color:"#FBBF24" },
-  { id:"cs",               label:"CS 경영지원",          group:"CS",     color:"#FB923C" },
+  { id:"marketing_blog",    label:"마케팅 - 블로그",     group:"마케팅", color:"#03C75A" },
+  { id:"marketing_insta",   label:"마케팅 - 인스타그램", group:"마케팅", color:"#E1306C" },
+  { id:"marketing_youtube", label:"마케팅 - 유튜브",     group:"마케팅", color:"#FF0000" },
+  { id:"marketing_cafe",    label:"마케팅 - 네이버카페", group:"마케팅", color:"#0088FE" },
+  { id:"marketing_jisik",   label:"마케팅 - 지식인",     group:"마케팅", color:"#00C73C" },
+  { id:"marketing_search",  label:"마케팅 - 검색광고",   group:"마케팅", color:"#A78BFA" },
+  { id:"marketing_meta",    label:"마케팅 - 메타광고",   group:"마케팅", color:"#4ECDC4" },
+  { id:"design",            label:"디자인물",             group:"디자인", color:"#FBBF24" },
+  { id:"cs",                label:"CS 경영지원",          group:"CS",     color:"#FB923C" },
 ];
 
 function CostTab({ hospital, hData, onDataLoad }) {
