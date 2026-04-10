@@ -573,7 +573,7 @@ function HospitalFormField({ label, k, placeholder, type="text", required, form,
   );
 }
 
-function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospital, onDeleteHospital, isAdmin, isSuperAdmin, loginName, onAdminLogin, onAdminLogout }) {
+function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospital, onDeleteHospital, isAdmin, isSuperAdmin, loginName, onAdminLogout }) {
   const [showForm, setShowForm]     = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [form, setForm]             = useState(EMPTY_HOSPITAL_FORM);
@@ -584,12 +584,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   const [adminAccounts, setAdminAccounts] = useState([
     { id:1, name:"임지혜", password:"Daall" },
   ]);
-  const [adminName, setAdminName]     = useState("");
-  const [showPwModal, setShowPwModal] = useState(false);
-  const [pwInput, setPwInput]         = useState("");
-  const [pwError, setPwError]         = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
-  const pwInputRef = useRef(null);
 
   // 관리자 계정 관리 UI
   const [showAccountMgmt, setShowAccountMgmt] = useState(false);
@@ -613,19 +608,6 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
     try {
       await supabase.from('admin_accounts').upsert({ id: 1, data: accounts }, { onConflict: 'id' });
     } catch(e) { console.error('관리자 계정 저장 실패:', e); }
-  };
-
-  const handleAdminLogin = () => {
-    const matched = adminAccounts.find(a => a.password === pwInput);
-    if (matched) {
-      setAdminName(matched.name);
-      setShowPwModal(false); setPwInput(""); setPwError(false);
-      onAdminLogin(matched.name);
-      toast(`${matched.name}님, 관리자 모드 활성화!`);
-    } else {
-      setPwError(true); setPwInput("");
-      setTimeout(() => pwInputRef.current?.focus(), 0);
-    }
   };
 
   const handleAddAccount = () => {
@@ -676,39 +658,13 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
     <div style={{ minHeight:"100vh", background:C.bg, padding:"40px 32px", fontFamily:"'Noto Sans KR', sans-serif" }}>
       <Toast msg={savedMsg} />
 
-      {/* 비밀번호 모달 */}
-      {showPwModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}
-          onClick={() => { setShowPwModal(false); setPwInput(""); setPwError(false); }}>
-          <div style={{ background:"#0F172A", border:`1px solid ${C.border}`, borderRadius:20, padding:32, width:340, boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ color:C.text, fontSize:17, fontWeight:800, marginBottom:6 }}>관리자 모드</div>
-            <div style={{ color:C.muted, fontSize:13, marginBottom:24 }}>비밀번호를 입력해 주세요</div>
-            <input
-              ref={pwInputRef}
-              type="password"
-              value={pwInput}
-              onChange={e => { setPwInput(e.target.value); setPwError(false); }}
-              onKeyDown={e => e.key === "Enter" && handleAdminLogin()}
-              placeholder="비밀번호"
-              autoFocus
-              style={{ ...inputSt, marginBottom:8, fontSize:15, letterSpacing:4 }}
-            />
-            {pwError && <div style={{ color:C.red, fontSize:12, marginBottom:12 }}>비밀번호가 틀렸어요</div>}
-            <div style={{ display:"flex", gap:10, marginTop:16 }}>
-              <button onClick={handleAdminLogin} style={{ flex:1, background:`linear-gradient(135deg,${C.accent},${C.accent2})`, border:"none", color:"#fff", borderRadius:10, padding:"11px 0", fontSize:14, cursor:"pointer", fontWeight:700 }}>확인</button>
-              <button onClick={() => { setShowPwModal(false); setPwInput(""); setPwError(false); }} style={{ flex:1, background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:10, padding:"11px 0", fontSize:14, cursor:"pointer" }}>취소</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 헤더 */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:40, flexWrap:"wrap", gap:16 }}>
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <div style={{ color:C.text, fontSize:26, fontWeight:900, marginBottom:4 }}>다올 마케팅 대시보드</div>
-            {isAdmin && <Badge color={C.accent}>관리자 · {adminName}</Badge>}
+            {isAdmin && <Badge color={C.accent}>관리자 · {loginName}</Badge>}
           </div>
           <div style={{ color:C.muted, fontSize:14 }}>병원을 선택하면 상세 대시보드로 이동해요</div>
         </div>
@@ -724,7 +680,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
               <button onClick={openAdd} style={{ background:`linear-gradient(135deg,${C.accent},${C.accent2})`, border:"none", color:"#fff", borderRadius:12, padding:"11px 22px", fontSize:14, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
                 + 새 병원 추가
               </button>
-              <button onClick={() => { onAdminLogout(); setAdminName(""); setShowChecklist(false); setShowAccountMgmt(false); toast("로그아웃 완료"); }} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer" }}>
+              <button onClick={() => { onAdminLogout(); setShowChecklist(false); setShowAccountMgmt(false); toast("로그아웃 완료"); }} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer" }}>
                 로그아웃
               </button>
               {isSuperAdmin && (
@@ -1490,7 +1446,6 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
   const [savedMsg, setSavedMsg] = useState("");
   const [sortKey, setSortKey] = useState("date");
   const [sortDir, setSortDir] = useState("desc");
-  const [channelRevenue, setChannelRevenue] = useState({});
   const [showInflowInput, setShowInflowInput] = useState(false);
   const [inflowForm, setInflowForm] = useState({});
   const [inflowMonth, setInflowMonth] = useState("");
@@ -1551,10 +1506,10 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
       const items = monthFiltered.filter(c => c.channel === ch);
       const meta = CHANNEL_META[ch] || { color: C.muted };
       const perf = chData.find(c => c.channel === ch) || {};
-      const revenue = channelRevenue[ch] || 0;
+      const revenue = 0;
       return { channel: ch, color: meta.color, posts: items.length, totalClicks: items.reduce((s,i) => s+(i.clicks||0), 0), inflow: perf.inflow || 0, revenue };
     });
-  }, [monthFiltered, chData, channelRevenue]);
+  }, [monthFiltered, chData]);
 
   const SortBtn = ({ k, label }) => (
     <span onClick={() => handleSort(k)} style={{ cursor:"pointer", userSelect:"none", color: sortKey===k ? hospital.color : C.muted }}>
@@ -4255,7 +4210,6 @@ function AppInner() {
           isAdmin={isAdmin}
           isSuperAdmin={isSuperAdmin}
           loginName={loginName}
-          onAdminLogin={(name) => setIsAdmin(true)}
           onAdminLogout={() => { setIsAdmin(false); setIsLoggedIn(false); setIsSuperAdmin(false); setLoginName(""); sessionStorage.removeItem("daall_actor"); }}
         />
       } />
