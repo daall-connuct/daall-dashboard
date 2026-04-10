@@ -1479,7 +1479,7 @@ function ChecklistTab({ hospital }) {
 }
 
 // ─── 마케팅 현황 탭 ───────────────────────────────────────────
-function MarketingTab({ hospital, chData, initialContents, onUpdateHospital }) {
+function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isAdmin }) {
   const [contents, setContents] = useState(() => initialContents);
   const [selMonth, setSelMonth] = useState("전체");
   const [contentFilter, setContentFilter] = useState("전체");
@@ -1491,7 +1491,9 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital }) {
   const [sortKey, setSortKey] = useState("date");
   const [sortDir, setSortDir] = useState("desc");
   const [channelRevenue, setChannelRevenue] = useState({});
-  const [showRevenueInput, setShowRevenueInput] = useState(false);
+  const [showInflowInput, setShowInflowInput] = useState(false);
+  const [inflowForm, setInflowForm] = useState({});
+  const [inflowMonth, setInflowMonth] = useState("");
 
   // 월 목록 (콘텐츠에서 추출 + 전체)
   const monthList = useMemo(() => {
@@ -1581,95 +1583,162 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital }) {
         />
       </div>
 
-      {/* 채널별 요약 카드 */}
-      <div>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-          <div style={{ color:C.muted, fontSize:12 }}>
-            {selMonth === "전체" ? "전체" : `${+selMonth.slice(5)}월`} · 콘텐츠가 등록된 채널 <span style={{ color:hospital.color, fontWeight:700 }}>{channelStats.length}개</span>
-          </div>
-          <button onClick={() => setShowRevenueInput(!showRevenueInput)} style={{
-            background: showRevenueInput ? `${hospital.color}20` : "transparent",
-            border:`1px solid ${showRevenueInput ? hospital.color : C.border}`,
-            color: showRevenueInput ? hospital.color : C.muted,
-            borderRadius:8, padding:"5px 14px", fontSize:12, cursor:"pointer", fontWeight:600,
-          }}>채널별 매출 입력</button>
-        </div>
+      {/* 채널별 유입 KPI */}
+      {(() => {
+        const inflowChannels = [
+          { key:"네이버블로그", label:"블로그",  color:"#03C75A" },
+          { key:"네이버카페",   label:"카페",    color:"#0088FE" },
+          { key:"네이버플레이스",label:"플레이스",color:"#FF6B35" },
+          { key:"인스타그램",   label:"인스타",  color:"#E1306C" },
+          { key:"유튜브",       label:"유튜브",  color:"#FF0000" },
+          { key:"검색광고",     label:"검색광고",color:"#A78BFA" },
+        ];
+        const total = inflowChannels.reduce((s, ch) => s + (chData.find(c=>c.channel===ch.key)?.inflow||0), 0);
 
-        {/* 매출 입력 패널 */}
-        {showRevenueInput && (
-          <div style={{ background:`${hospital.color}06`, border:`1px solid ${hospital.color}25`, borderRadius:14, padding:18, marginBottom:14 }}>
-            <div style={{ color:C.text, fontSize:13, fontWeight:700, marginBottom:12 }}>채널별 이번달 매출 입력 (만원)</div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))", gap:10 }}>
-              {[...new Set(contents.map(c => c.channel))].map(ch => {
-                const meta = CHANNEL_META[ch] || { color: C.muted };
+        // 최근 12개월 추이 데이터
+        const rawChData = hospital.channelData || {};
+        const months12 = Array.isArray(rawChData) ? [] :
+          Object.keys(rawChData).sort().slice(-12).map(m => {
+            const mData = rawChData[m] || [];
+            const entry = { month: m.slice(5) + "월" };
+            inflowChannels.forEach(ch => {
+              entry[ch.label] = mData.find(c=>c.channel===ch.key)?.inflow || 0;
+            });
+            return entry;
+          });
+
+        const handleSaveInflow = () => {
+          const curMonth = inflowMonth || (selMonth !== "전체" ? selMonth : new Date().toISOString().slice(0,7));
+          const rawCh = hospital.channelData || {};
+          const monthData = Array.isArray(rawCh) ? [] : (rawCh[curMonth] || []);
+          const updated = [...monthData];
+          inflowChannels.forEach(ch => {
+            if (inflowForm[ch.key] !== undefined) {
+              const idx = updated.findIndex(c => c.channel === ch.key);
+              if (idx >= 0) updated[idx] = { ...updated[idx], inflow: +inflowForm[ch.key] || 0 };
+              else updated.push({ channel: ch.key, inflow: +inflowForm[ch.key] || 0, visit:0, payment:0, revenue:0, cost:0 });
+            }
+          });
+          const newChData = Array.isArray(rawCh) ? { [curMonth]: updated } : { ...rawCh, [curMonth]: updated };
+          onUpdateHospital({ ...hospital, channelData: newChData });
+          setShowInflowInput(false);
+          setInflowForm({});
+          setInflowMonth("");
+        };
+
+        return (
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            {/* 헤더 */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ color:C.muted, fontSize:12 }}>채널별 유입 현황</div>
+              {isAdmin && (
+                <button onClick={() => {
+                  const m = selMonth !== "전체" ? selMonth : new Date().toISOString().slice(0,7);
+                  setInflowMonth(m);
+                  const rawCh = hospital.channelData || {};
+                  const mData = Array.isArray(rawCh) ? [] : (rawCh[m] || []);
+                  const init = {};
+                  inflowChannels.forEach(ch => { init[ch.key] = mData.find(c=>c.channel===ch.key)?.inflow || 0; });
+                  setInflowForm(init);
+                  setShowInflowInput(!showInflowInput);
+                }} style={{
+                  background: showInflowInput ? `${hospital.color}20` : "transparent",
+                  border:`1px solid ${showInflowInput ? hospital.color : C.border}`,
+                  color: showInflowInput ? hospital.color : C.muted,
+                  borderRadius:8, padding:"5px 14px", fontSize:12, cursor:"pointer", fontWeight:600,
+                }}>✏️ 유입 입력</button>
+              )}
+            </div>
+
+            {showInflowInput && (
+              <div style={{ background:`${hospital.color}06`, border:`1px solid ${hospital.color}25`, borderRadius:14, padding:18 }}>
+                <div style={{ color:C.text, fontSize:13, fontWeight:700, marginBottom:14 }}>채널별 유입 수 입력</div>
+                {/* 월 선택 */}
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+                  <label style={{ color:C.muted, fontSize:12, flexShrink:0 }}>입력 월:</label>
+                  <input type="month" value={inflowMonth || (selMonth !== "전체" ? selMonth : new Date().toISOString().slice(0,7))}
+                    onChange={e => {
+                      setInflowMonth(e.target.value);
+                      // 해당 월 기존 데이터 로드
+                      const rawCh = hospital.channelData || {};
+                      const mData = Array.isArray(rawCh) ? [] : (rawCh[e.target.value] || []);
+                      const init = {};
+                      inflowChannels.forEach(ch => { init[ch.key] = mData.find(c=>c.channel===ch.key)?.inflow || 0; });
+                      setInflowForm(init);
+                    }}
+                    style={{ ...inputSt, width:160, padding:"6px 10px", fontSize:13 }} />
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:14 }}>
+                  {inflowChannels.map(ch => (
+                    <div key={ch.key} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <div style={{ width:8, height:8, borderRadius:"50%", background:ch.color, flexShrink:0 }} />
+                      <label style={{ color:C.muted, fontSize:12, width:60, flexShrink:0 }}>{ch.label}</label>
+                      <input type="number" value={inflowForm[ch.key] ?? ""} onChange={e => setInflowForm(prev=>({...prev,[ch.key]:e.target.value}))}
+                        placeholder="0" style={{ ...inputSt, flex:1, padding:"6px 10px", fontSize:12 }} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={handleSaveInflow} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#fff", borderRadius:8, padding:"8px 20px", fontSize:12, cursor:"pointer", fontWeight:700 }}>저장</button>
+                  <button onClick={() => { setShowInflowInput(false); setInflowForm({}); setInflowMonth(""); }} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer" }}>취소</button>
+                </div>
+              </div>
+            )}
+
+            {/* KPI 카드 */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:10 }}>
+              {inflowChannels.map(ch => {
+                const val = chData.find(c=>c.channel===ch.key)?.inflow || 0;
+                const pct = total > 0 ? Math.round((val/total)*100) : 0;
                 return (
-                  <div key={ch} style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <div style={{ width:8, height:8, borderRadius:"50%", background:meta.color, flexShrink:0 }} />
-                    <label style={{ color:C.muted, fontSize:12, width:90, flexShrink:0 }}>{ch}</label>
-                    <input
-                      type="number"
-                      value={channelRevenue[ch] || ""}
-                      onChange={e => setChannelRevenue(prev => ({ ...prev, [ch]: +e.target.value || 0 }))}
-                      placeholder="0"
-                      style={{ ...inputSt, width:80, padding:"5px 8px", fontSize:12 }}
-                    />
+                  <div key={ch.key} style={{ background:C.surface, border:`1px solid ${ch.color}25`, borderRadius:12, padding:"14px 16px" }}>
+                    <div style={{ color:C.muted, fontSize:11, marginBottom:6 }}>{ch.label} 유입</div>
+                    <div style={{ color:ch.color, fontSize:20, fontWeight:900 }}>{val.toLocaleString()}<span style={{ fontSize:11, fontWeight:400, marginLeft:2 }}>명</span></div>
+                    <div style={{ color:C.muted, fontSize:11, marginTop:4 }}>{total > 0 ? `${pct}%` : "-"}</div>
                   </div>
                 );
               })}
             </div>
-            {contents.length === 0 && (
-              <div style={{ color:C.muted, fontSize:12, marginTop:8 }}>콘텐츠를 먼저 등록하면 채널이 표시돼요.</div>
+
+            {/* 12개월 추이 그래프 */}
+            {months12.length > 0 && (
+              <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"20px 22px" }}>
+                <div style={{ color:C.text, fontSize:13, fontWeight:700, marginBottom:16 }}>채널별 유입 월간 추이 (최근 {months12.length}개월)</div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={months12} margin={{ top:5, right:20, left:0, bottom:5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={C.dim} />
+                    <XAxis dataKey="month" stroke={C.muted} tick={{ fill:C.muted, fontSize:11 }} />
+                    <YAxis stroke={C.muted} tick={{ fill:C.muted, fontSize:11 }} />
+                    <TT />
+                    <Legend wrapperStyle={{ color:C.muted, fontSize:11 }} />
+                    {inflowChannels.map(ch => (
+                      <Line key={ch.key} type="monotone" dataKey={ch.label} stroke={ch.color} strokeWidth={2} dot={{ r:3, fill:ch.color }} activeDot={{ r:5 }} />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </div>
-        )}
+        );
+      })()}
 
-        {/* 채널 카드 */}
-        {channelStats.length === 0
-          ? <div style={{ background:C.surface, border:`2px dashed ${C.border}`, borderRadius:14, padding:"32px", textAlign:"center", color:C.muted, fontSize:13 }}>
-              아래 콘텐츠 관리에서 콘텐츠를 추가하면 채널 요약이 자동으로 나타나요
+      {/* 채널별 요약 카드 */}
+      {channelStats.length > 0 && (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+          {channelStats.map((ch, i) => (
+            <div key={i} style={{
+              background:C.surface, border:`1px solid ${contentFilter===ch.channel ? ch.color : ch.color+"30"}`,
+              borderRadius:12, padding:"8px 16px", cursor:"pointer",
+              boxShadow: contentFilter===ch.channel ? `0 0 0 2px ${ch.color}40` : "none",
+              display:"flex", alignItems:"center", gap:10,
+            }} onClick={() => setContentFilter(prev => prev === ch.channel ? "전체" : ch.channel)}>
+              <div style={{ width:7, height:7, borderRadius:"50%", background:ch.color, flexShrink:0 }} />
+              <div style={{ color:ch.color, fontWeight:700, fontSize:13 }}>{ch.channel}</div>
+              <div style={{ color:C.muted, fontSize:12 }}>발행 <span style={{ color:C.text, fontWeight:700 }}>{ch.posts}건</span></div>
             </div>
-          : <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))", gap:14 }}>
-              {channelStats.map((ch, i) => (
-                <div key={i} style={{ background:C.surface, border:`1px solid ${contentFilter===ch.channel ? ch.color : ch.color+"30"}`, borderRadius:14, padding:"16px 18px", cursor:"pointer", transition:"all 0.15s",
-                  boxShadow: contentFilter===ch.channel ? `0 0 0 2px ${ch.color}40` : "none" }}
-                  onClick={() => setContentFilter(prev => prev === ch.channel ? "전체" : ch.channel)}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                    <div style={{ color:ch.color, fontWeight:800, fontSize:13 }}>{ch.channel}</div>
-                    {contentFilter === ch.channel && <div style={{ width:6, height:6, borderRadius:"50%", background:ch.color }} />}
-                  </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
-                    {[
-                      { label:"발행",  value:`${ch.posts}건` },
-                      { label:"클릭",  value: ch.totalClicks >= 1000 ? `${(ch.totalClicks/1000).toFixed(1)}K` : String(ch.totalClicks) },
-                      { label:"유입",  value: ch.inflow ? String(ch.inflow) : "-" },
-                      { label:"매출",  value: ch.revenue > 0 ? `${ch.revenue}만` : "-" },
-                    ].map((it,j) => (
-                      <div key={j} style={{ background:"rgba(255,255,255,0.03)", borderRadius:7, padding:"6px 8px" }}>
-                        <div style={{ color:C.muted, fontSize:10, marginBottom:2 }}>{it.label}</div>
-                        <div style={{ color: it.label==="매출" && ch.revenue>0 ? C.yellow : C.text, fontSize:13, fontWeight:700 }}>{it.value}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-        }
-      </div>
-
-      {/* 차트 */}
-      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:22 }}>
-        <SectionTitle>채널 성과 비교</SectionTitle>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={channelStats} margin={{ top:5, right:20, left:0, bottom:20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={C.dim} />
-            <XAxis dataKey="channel" stroke={C.muted} tick={{ fill:C.muted, fontSize:11, angle:-15, textAnchor:"end" }} />
-            <YAxis stroke={C.muted} tick={{ fill:C.muted, fontSize:11 }} />
-            <TT />
-            <Legend wrapperStyle={{ color:C.muted, fontSize:12 }} />
-            <Bar dataKey="totalClicks" name="총 클릭수" fill={hospital.color} radius={[4,4,0,0]} opacity={0.75} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* 콘텐츠 목록 */}
       <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:22 }}>
@@ -3795,7 +3864,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
         {/* 키워드/SEO */}
         {/* 마케팅 현황 */}
         {tab === "marketing" && (
-          <MarketingTab hospital={hospital} chData={chData} initialContents={hospital.contentData || []} onUpdateHospital={onUpdateHospital} />
+          <MarketingTab hospital={hospital} chData={chData} initialContents={hospital.contentData || []} onUpdateHospital={onUpdateHospital} isAdmin={isAdmin} />
         )}
 
         {/* 채널 분석 */}
