@@ -10,9 +10,9 @@ import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Cart
 
 // ─── 색상 ─────────────────────────────────────────────────────
 const C = {
-  bg: "#070D18", surface: "rgba(255,255,255,0.03)", border: "rgba(255,255,255,0.07)",
-  accent: "#38BDF8", accent2: "#818CF8", green: "#34D399", yellow: "#FBBF24",
-  red: "#F87171", orange: "#FB923C", text: "#E2E8F0", muted: "#64748B", dim: "#1E293B",
+  bg: "#F1F5F9", surface: "#FFFFFF", border: "#E2E8F0",
+  accent: "#0EA5E9", accent2: "#6366F1", green: "#10B981", yellow: "#F59E0B",
+  red: "#EF4444", orange: "#F97316", text: "#1E293B", muted: "#64748B", dim: "#E2E8F0",
 };
 
 // ─── 병원 목록 ────────────────────────────────────────────────
@@ -84,15 +84,15 @@ function YearMonthSelector({ availMonths, selMonth, setSelMonth, color }) {
   return (
     <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
       <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelMonth(""); }}
-        style={{ background:"rgba(255,255,255,0.05)", border:`1px solid #1E293B`, borderRadius:8, color:"#E2E8F0", padding:"4px 10px", fontSize:12, fontFamily:"'Noto Sans KR', sans-serif", outline:"none", cursor:"pointer" }}>
-        {years.map(y => <option key={y} value={y} style={{background:"#0F172A"}}>{y}년</option>)}
+        style={{ background:"#F1F5F9", border:`1px solid #1E293B`, borderRadius:8, color:"#0F172A", padding:"4px 10px", fontSize:12, fontFamily:"'Noto Sans KR', sans-serif", outline:"none", cursor:"pointer" }}>
+        {years.map(y => <option key={y} value={y} style={{background:"#F8FAFC"}}>{y}년</option>)}
       </select>
       {monthsInYear.length === 0
         ? <span style={{ color:"#64748B", fontSize:12 }}>{selYear}년 데이터 없음</span>
         : monthsInYear.map(m => (
             <button key={m} onClick={() => setSelMonth(m)} style={{
               background: selMonth===m ? `${accentColor}25` : "transparent",
-              border: `1px solid ${selMonth===m ? accentColor : "#1E293B"}`,
+              border: `1px solid ${selMonth===m ? accentColor : "#0F172A"}`,
               color: selMonth===m ? accentColor : "#64748B",
               borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
             }}>{+m.slice(5)}월</button>
@@ -133,10 +133,10 @@ const Badge = ({ children, color = C.accent }) => (
 );
 
 const TT = (props) => (
-  <Tooltip contentStyle={{ background: "#0F172A", border: `1px solid ${C.dim}`, borderRadius: 10, color: C.text, fontSize: 12 }} {...props} />
+  <Tooltip contentStyle={{ background: "#F8FAFC", border: `1px solid ${C.dim}`, borderRadius: 10, color: C.text, fontSize: 12 }} {...props} />
 );
 
-const inputSt = { background: "rgba(255,255,255,0.05)", border: `1px solid ${C.dim}`, borderRadius: 8, color: C.text, padding: "8px 12px", fontSize: 13, fontFamily: "'Noto Sans KR', sans-serif", width: "100%", outline: "none" };
+const inputSt = { background: "#F1F5F9", border: `1px solid ${C.dim}`, borderRadius: 8, color: C.text, padding: "8px 12px", fontSize: 13, fontFamily: "'Noto Sans KR', sans-serif", width: "100%", outline: "none" };
 
 // ─── 한글 입력 버그 방지 Input 컴포넌트 ──────────────────────
 function KInput({ value, onChange, style, type="text", placeholder, onKeyDown, autoFocus, ...rest }) {
@@ -290,7 +290,7 @@ function AdminChecklist({ hospitals }) {
   const overallRate = Math.round(hospitalStats.reduce((s,h) => s+h.rate, 0) / (hospitals.length||1));
 
   return (
-    <div style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${C.accent}30`, borderRadius:20, padding:28 }}>
+    <div style={{ background:"#F8FAFC", border:`1px solid ${C.accent}30`, borderRadius:20, padding:28 }}>
       {/* 헤더 */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20, flexWrap:"wrap", gap:12 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -326,7 +326,7 @@ function AdminChecklist({ hospitals }) {
           {/* 기존 항목 목록 */}
           <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
             {items.map(item => (
-              <div key={item.id} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${C.dim}`, borderRadius:10, padding:"10px 14px" }}>
+              <div key={item.id} style={{ background:"#F8FAFC", border:`1px solid ${C.dim}`, borderRadius:10, padding:"10px 14px" }}>
                 {editItemId === item.id ? (
                   // 수정 모드
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
@@ -336,7 +336,7 @@ function AdminChecklist({ hospitals }) {
                       style={{ ...inputSt, flex:1, minWidth:160, padding:"5px 10px", fontSize:12 }} placeholder="항목명" />
                     <select value={editItemForm.group} onChange={e => setEditItemForm({...editItemForm, group:e.target.value})}
                       style={{ ...inputSt, width:80, padding:"5px 8px", fontSize:12, appearance:"none" }}>
-                      {CL_GROUPS.map(g => <option key={g} style={{background:"#0F172A"}}>{g}</option>)}
+                      {CL_GROUPS.map(g => <option key={g} style={{background:"#F8FAFC"}}>{g}</option>)}
                     </select>
                     <label style={{ display:"flex", alignItems:"center", gap:4, color:C.muted, fontSize:12, cursor:"pointer" }}>
                       <input type="checkbox" checked={editItemForm.hasCount} onChange={e => setEditItemForm({...editItemForm, hasCount:e.target.checked})} />
@@ -371,7 +371,7 @@ function AdminChecklist({ hospitals }) {
                 style={{ ...inputSt, flex:1, minWidth:160, padding:"5px 10px", fontSize:12 }} placeholder="항목명을 입력하세요" />
               <select value={newItem.group} onChange={e => setNewItem({...newItem, group:e.target.value})}
                 style={{ ...inputSt, width:80, padding:"5px 8px", fontSize:12, appearance:"none" }}>
-                {CL_GROUPS.map(g => <option key={g} style={{background:"#0F172A"}}>{g}</option>)}
+                {CL_GROUPS.map(g => <option key={g} style={{background:"#F8FAFC"}}>{g}</option>)}
               </select>
               <label style={{ display:"flex", alignItems:"center", gap:4, color:C.muted, fontSize:12, cursor:"pointer", flexShrink:0 }}>
                 <input type="checkbox" checked={newItem.hasCount} onChange={e => setNewItem({...newItem, hasCount:e.target.checked})} />
@@ -449,7 +449,7 @@ function AdminChecklist({ hospitals }) {
                                 border: `2px solid ${active ? groupColor : C.dim}`,
                                 display:"flex", alignItems:"center", justifyContent:"center",
                               }}>
-                                {active && <span style={{ color:"#fff", fontSize:11, fontWeight:900 }}>✓</span>}
+                                {active && <span style={{ color:"#0F172A", fontSize:11, fontWeight:900 }}>✓</span>}
                               </div>
                               <span style={{ fontSize:12 }}>{item.icon}</span>
                               <span style={{ color: active ? C.text : C.muted, fontSize:12 }}>{item.label}</span>
@@ -478,7 +478,7 @@ function AdminChecklist({ hospitals }) {
                             display:"flex", alignItems:"center", justifyContent:"center",
                             transition:"all 0.15s",
                           }}>
-                            {done && <span style={{ color:"#fff", fontSize:12, fontWeight:900 }}>✓</span>}
+                            {done && <span style={{ color:"#0F172A", fontSize:12, fontWeight:900 }}>✓</span>}
                           </div>
                           <span style={{ color:done?C.text:C.muted, fontSize:12, flex:1, fontWeight:done?600:400 }}>
                             {item.icon} {item.label}
@@ -677,7 +677,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
                 color: showChecklist ? C.accent : C.muted,
                 borderRadius:10, padding:"9px 18px", fontSize:13, cursor:"pointer", fontWeight:700,
               }}>📋 월간 체크리스트</button>
-              <button onClick={openAdd} style={{ background:`linear-gradient(135deg,${C.accent},${C.accent2})`, border:"none", color:"#fff", borderRadius:12, padding:"11px 22px", fontSize:14, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
+              <button onClick={openAdd} style={{ background:`linear-gradient(135deg,${C.accent},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:12, padding:"11px 22px", fontSize:14, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
                 + 새 병원 추가
               </button>
               <button onClick={() => { onAdminLogout(); setShowChecklist(false); setShowAccountMgmt(false); toast("로그아웃 완료"); }} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer" }}>
@@ -714,7 +714,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
 
       {/* 관리자 전용 - 계정 관리 */}
       {isAdmin && isSuperAdmin && showAccountMgmt && (
-        <div style={{ marginBottom:24, background:"rgba(255,255,255,0.02)", border:`1px solid ${C.accent2}30`, borderRadius:20, padding:24 }}>
+        <div style={{ marginBottom:24, background:"#F8FAFC", border:`1px solid ${C.accent2}30`, borderRadius:20, padding:24 }}>
           <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:16, display:"flex", alignItems:"center", gap:8 }}>
             <div style={{ width:3, height:18, background:`linear-gradient(180deg,${C.accent2},${C.accent})`, borderRadius:2 }} />
             관리자 계정 관리
@@ -724,7 +724,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
           <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
             {adminAccounts.map(acc => (
               <div key={acc.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 16px", display:"flex", alignItems:"center", gap:12 }}>
-                <div style={{ width:32, height:32, borderRadius:"50%", background:`linear-gradient(135deg,${C.accent2},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, fontWeight:800, flexShrink:0 }}>
+                <div style={{ width:32, height:32, borderRadius:"50%", background:`linear-gradient(135deg,${C.accent2},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#0F172A", fontSize:13, fontWeight:800, flexShrink:0 }}>
                   {acc.name[0]}
                 </div>
                 <div style={{ flex:1 }}>
@@ -756,7 +756,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
                 placeholder="비밀번호" style={{ ...inputSt, width:140, padding:"7px 10px", fontSize:12 }} />
               <button onClick={handleAddAccount} disabled={!newAccount.name || !newAccount.password} style={{
                 background: newAccount.name && newAccount.password ? `linear-gradient(135deg,${C.accent2},${C.accent})` : C.dim,
-                border:"none", color:"#fff", borderRadius:9, padding:"7px 18px", fontSize:12, cursor: newAccount.name && newAccount.password ? "pointer" : "not-allowed", fontWeight:700,
+                border:"none", color:"#0F172A", borderRadius:9, padding:"7px 18px", fontSize:12, cursor: newAccount.name && newAccount.password ? "pointer" : "not-allowed", fontWeight:700,
               }}>+ 추가</button>
             </div>
             <div style={{ color:C.muted, fontSize:11, marginTop:8 }}>추가된 계정은 동일하게 모든 관리자 기능을 사용할 수 있어요.</div>
@@ -766,7 +766,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
 
       {/* 슈퍼관리자 전용 - 활동 로그 */}
       {isAdmin && isSuperAdmin && showActivityLog && (
-        <div style={{ marginBottom:24, background:"rgba(255,255,255,0.02)", border:`1px solid ${C.green}30`, borderRadius:20, padding:24 }}>
+        <div style={{ marginBottom:24, background:"#F8FAFC", border:`1px solid ${C.green}30`, borderRadius:20, padding:24 }}>
           <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               <div style={{ width:3, height:18, background:`linear-gradient(180deg,${C.green},${C.accent})`, borderRadius:2 }} />
@@ -822,7 +822,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
 
       {/* 병원 추가 / 수정 폼 */}
       {showForm && (
-        <div style={{ background:"rgba(255,255,255,0.03)", border:`2px solid ${form.color}50`, borderRadius:20, padding:28, maxWidth:900, margin:"0 auto", marginBottom:32 }}>
+        <div style={{ background:"#F8FAFC", border:`2px solid ${form.color}50`, borderRadius:20, padding:28, maxWidth:900, margin:"0 auto", marginBottom:32 }}>
           <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:20 }}>{editTarget ? "병원 정보 수정" : "새 병원 추가"}</div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))", gap:14, marginBottom:18 }}>
             <HospitalFormField label="병원명" k="name" placeholder="예: 강남미소피부과" required form={form} setForm={setForm} />
@@ -897,7 +897,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
           <div style={{ display:"flex", gap:10 }}>
             <button onClick={handleSave} disabled={!form.name || !form.dept} style={{
               background: form.name && form.dept ? `linear-gradient(135deg,${form.color},${C.accent2})` : C.dim,
-              border:"none", color:"#fff", borderRadius:10, padding:"10px 26px", fontSize:13, cursor: form.name && form.dept ? "pointer" : "not-allowed", fontWeight:700,
+              border:"none", color:"#0F172A", borderRadius:10, padding:"10px 26px", fontSize:13, cursor: form.name && form.dept ? "pointer" : "not-allowed", fontWeight:700,
             }}>{editTarget ? "수정 완료" : "병원 추가"}</button>
             <button onClick={() => { setShowForm(false); setEditTarget(null); setForm(EMPTY_HOSPITAL_FORM); }} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:10, padding:"10px 18px", fontSize:13, cursor:"pointer" }}>취소</button>
           </div>
@@ -958,7 +958,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
                 { label:"매출", value:fmt(h.last.revenue||0), unit:"만" },
                 { label:"마케팅비", value:fmt(h.last.marketingCost||0), unit:"만" },
               ].map((item,i) => (
-                <div key={i} style={{ background:"rgba(255,255,255,0.03)", borderRadius:8, padding:"8px 10px" }}>
+                <div key={i} style={{ background:"#F8FAFC", borderRadius:8, padding:"8px 10px" }}>
                   <div style={{ color:C.muted, fontSize:10, marginBottom:2 }}>{item.label}</div>
                   <div style={{ color:C.text, fontSize:13, fontWeight:700 }}>{item.value}<span style={{ fontSize:10, marginLeft:2, color:C.muted }}>{item.unit}</span></div>
                 </div>
@@ -1066,7 +1066,7 @@ function PerformanceInputForm({ hospital, monthlyData, onSave, onClose }) {
   ];
 
   return (
-    <div style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${hospital.color}30`, borderRadius:16, padding:24, marginBottom:20 }}>
+    <div style={{ background:"#F8FAFC", border:`1px solid ${hospital.color}30`, borderRadius:16, padding:24, marginBottom:20 }}>
       <Toast msg={savedMsg} />
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
         <div style={{ color:hospital.color, fontSize:14, fontWeight:700 }}>월별 성과 데이터 입력</div>
@@ -1078,7 +1078,7 @@ function PerformanceInputForm({ hospital, monthlyData, onSave, onClose }) {
         <label style={{ color:C.muted, fontSize:12, flexShrink:0 }}>연도:</label>
         <select value={selYear} onChange={e => handleYearChange(e.target.value)}
           style={{ ...inputSt, width:100, padding:"6px 10px", fontSize:13, appearance:"none" }}>
-          {YEARS.map(y => <option key={y} value={y} style={{background:"#0F172A"}}>{y}년</option>)}
+          {YEARS.map(y => <option key={y} value={y} style={{background:"#F8FAFC"}}>{y}년</option>)}
         </select>
       </div>
 
@@ -1109,7 +1109,7 @@ function PerformanceInputForm({ hospital, monthlyData, onSave, onClose }) {
           </div>
         ))}
       </div>
-      <button onClick={handleSave} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#fff", borderRadius:9, padding:"10px 24px", fontSize:13, cursor:"pointer", fontWeight:700 }}>
+      <button onClick={handleSave} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:9, padding:"10px 24px", fontSize:13, cursor:"pointer", fontWeight:700 }}>
         저장하기
       </button>
     </div>
@@ -1141,7 +1141,7 @@ function ChannelInputForm({ hospital, channelData, onSave, onClose }) {
   const colLabels = ["유입","내원","결제","매출(만)","광고비(만)"];
 
   return (
-    <div style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${hospital.color}30`, borderRadius:16, padding:24, marginBottom:20 }}>
+    <div style={{ background:"#F8FAFC", border:`1px solid ${hospital.color}30`, borderRadius:16, padding:24, marginBottom:20 }}>
       <Toast msg={savedMsg} />
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
         <div style={{ color:hospital.color, fontSize:14, fontWeight:700 }}>채널별 성과 데이터 입력</div>
@@ -1174,7 +1174,7 @@ function ChannelInputForm({ hospital, channelData, onSave, onClose }) {
         </table>
       </div>
       <div style={{ marginTop:16 }}>
-        <button onClick={handleSave} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#fff", borderRadius:9, padding:"10px 24px", fontSize:13, cursor:"pointer", fontWeight:700 }}>
+        <button onClick={handleSave} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:9, padding:"10px 24px", fontSize:13, cursor:"pointer", fontWeight:700 }}>
           저장하기
         </button>
       </div>
@@ -1333,7 +1333,7 @@ function ChecklistTab({ hospital }) {
                   const countRate = target > 0 ? Math.min(Math.round((count/target)*100), 100) : null;
                   return (
                     <div key={item.id} style={{
-                      background: done ? `${groupColor}10` : "rgba(255,255,255,0.02)",
+                      background: done ? `${groupColor}10` : "#F8FAFC",
                       border: `1px solid ${done ? groupColor+"40" : C.dim}`,
                       borderRadius:10, padding:"12px 14px", transition:"all 0.15s",
                     }}>
@@ -1345,7 +1345,7 @@ function ChecklistTab({ hospital }) {
                           display:"flex", alignItems:"center", justifyContent:"center",
                           transition:"all 0.15s",
                         }}>
-                          {done && <span style={{ color:"#fff", fontSize:14, fontWeight:900, lineHeight:1 }}>✓</span>}
+                          {done && <span style={{ color:"#0F172A", fontSize:14, fontWeight:900, lineHeight:1 }}>✓</span>}
                         </div>
                         <span style={{ fontSize:13, color:done?C.text:C.muted, fontWeight:done?700:400, flex:1 }}>
                           {item.icon} {item.label}
@@ -1634,7 +1634,7 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
                   ))}
                 </div>
                 <div style={{ display:"flex", gap:8 }}>
-                  <button onClick={handleSaveInflow} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#fff", borderRadius:8, padding:"8px 20px", fontSize:12, cursor:"pointer", fontWeight:700 }}>저장</button>
+                  <button onClick={handleSaveInflow} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"8px 20px", fontSize:12, cursor:"pointer", fontWeight:700 }}>저장</button>
                   <button onClick={() => { setShowInflowInput(false); setInflowForm({}); setInflowMonth(""); }} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer" }}>취소</button>
                 </div>
               </div>
@@ -1661,7 +1661,7 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
                 <div style={{ color:C.text, fontSize:13, fontWeight:700, marginBottom:16 }}>채널별 유입 월간 추이 (최근 {months12.length}개월)</div>
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={months12} margin={{ top:5, right:20, left:0, bottom:5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={C.dim} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                     <XAxis dataKey="month" stroke={C.muted} tick={{ fill:C.muted, fontSize:11 }} />
                     <YAxis stroke={C.muted} tick={{ fill:C.muted, fontSize:11 }} />
                     <TT />
@@ -1707,18 +1707,18 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
           <button onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowForm(!showForm); }} style={{
             background: showForm && !editId ? "rgba(248,113,113,0.15)" : `linear-gradient(135deg,${hospital.color},${C.accent2})`,
             border: showForm && !editId ? `1px solid ${C.red}` : "none",
-            color: showForm && !editId ? C.red : "#fff",
+            color: showForm && !editId ? C.red : "#0F172A",
             borderRadius:10, padding:"9px 18px", fontSize:13, cursor:"pointer", fontWeight:700,
           }}>{showForm && !editId ? "닫기" : editId ? "취소" : "+ 콘텐츠 추가"}</button>
         </div>
 
         {showForm && (
-          <div style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${hospital.color}30`, borderRadius:14, padding:20, marginBottom:20 }}>
+          <div style={{ background:"#F8FAFC", border:`1px solid ${hospital.color}30`, borderRadius:14, padding:20, marginBottom:20 }}>
             <div style={{ color:hospital.color, fontSize:13, fontWeight:700, marginBottom:14 }}>{editId ? "콘텐츠 수정" : "새 콘텐츠 추가"}</div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(170px, 1fr))", gap:12, marginBottom:12 }}>
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>채널 *</label>
                 <select value={form.channel} onChange={e=>setForm(prev => ({...prev, channel:e.target.value}))} style={{...inputSt,appearance:"none"}}>
-                  {CHANNEL_OPTIONS.map(o=><option key={o} style={{background:"#0F172A"}}>{o}</option>)}
+                  {CHANNEL_OPTIONS.map(o=><option key={o} style={{background:"#F8FAFC"}}>{o}</option>)}
                 </select>
               </div>
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>발행일 *</label>
@@ -1726,7 +1726,7 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
               </div>
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>상태</label>
                 <select value={form.status} onChange={e=>setForm(prev => ({...prev, status:e.target.value}))} style={{...inputSt,appearance:"none"}}>
-                  {STATUS_OPTIONS.map(o=><option key={o} style={{background:"#0F172A"}}>{o}</option>)}
+                  {STATUS_OPTIONS.map(o=><option key={o} style={{background:"#F8FAFC"}}>{o}</option>)}
                 </select>
               </div>
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>노출 순위</label>
@@ -1734,7 +1734,7 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:10, paddingTop:20 }}>
                 <div onClick={()=>setForm(prev => ({...prev, topExposed:!form.topExposed}))} style={{ width:40, height:22, borderRadius:11, background:form.topExposed?C.green:C.dim, cursor:"pointer", position:"relative" }}>
-                  <div style={{ width:18, height:18, borderRadius:"50%", background:"#fff", position:"absolute", top:2, left:form.topExposed?20:2, transition:"left 0.2s" }}/>
+                  <div style={{ width:18, height:18, borderRadius:"50%", background:"#E2E8F0", position:"absolute", top:2, left:form.topExposed?20:2, transition:"left 0.2s" }}/>
                 </div>
                 <label style={{ color:C.muted, fontSize:12, cursor:"pointer" }} onClick={()=>setForm(prev => ({...prev, topExposed:!form.topExposed}))}>상위노출</label>
               </div>
@@ -1749,7 +1749,7 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
               <KInput type="text" placeholder="특이사항 등" value={form.memo} onChange={e=>setForm(prev => ({...prev, memo:e.target.value}))} style={inputSt}/>
             </div>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={editId ? handleUpdate : handleAdd} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#fff", borderRadius:10, padding:"9px 24px", fontSize:13, cursor:"pointer", fontWeight:700 }}>{editId ? "수정 완료" : "저장하기"}</button>
+              <button onClick={editId ? handleUpdate : handleAdd} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:10, padding:"9px 24px", fontSize:13, cursor:"pointer", fontWeight:700 }}>{editId ? "수정 완료" : "저장하기"}</button>
               <button onClick={()=>{setShowForm(false);setEditId(null);setForm(EMPTY_FORM);}} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:10, padding:"9px 18px", fontSize:13, cursor:"pointer" }}>취소</button>
             </div>
           </div>
@@ -1910,12 +1910,12 @@ function PatientTab({ hospital }) {
         </div>
         <div style={{display:"flex",gap:8}}>
           {rec && <button onClick={openEdit} style={{background:`${hospital.color}20`,border:`1px solid ${hospital.color}50`,color:hospital.color,borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>수정</button>}
-          <button onClick={openAdd} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#fff",borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 월 데이터 추가</button>
+          <button onClick={openAdd} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 월 데이터 추가</button>
         </div>
       </div>
 
       {showForm && formData && (
-        <div style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${hospital.color}30`,borderRadius:16,padding:24}}>
+        <div style={{background:"#F8FAFC",border:`1px solid ${hospital.color}30`,borderRadius:16,padding:24}}>
           <div style={{color:hospital.color,fontSize:14,fontWeight:700,marginBottom:18}}>{editMode?"데이터 수정":"월 데이터 입력"}</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginBottom:20}}>
             <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>월 *</label><input type="month" value={formData.month} onChange={e=>setFormData({...formData,month:e.target.value})} style={inputSt}/></div>
@@ -1966,7 +1966,7 @@ function PatientTab({ hospital }) {
             </div>
           </div>
           <div style={{display:"flex",gap:10}}>
-            <button onClick={handleSave} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#fff",borderRadius:9,padding:"10px 24px",fontSize:13,cursor:"pointer",fontWeight:700}}>저장하기</button>
+            <button onClick={handleSave} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:9,padding:"10px 24px",fontSize:13,cursor:"pointer",fontWeight:700}}>저장하기</button>
             <button onClick={()=>setShowForm(false)} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:9,padding:"10px 16px",fontSize:13,cursor:"pointer"}}>취소</button>
           </div>
         </div>
@@ -1976,7 +1976,7 @@ function PatientTab({ hospital }) {
         <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:48,textAlign:"center"}}>
           <div style={{color:C.text,fontSize:15,fontWeight:700,marginBottom:8}}>이 달의 환자 데이터가 없어요</div>
           <div style={{color:C.muted,fontSize:13,marginBottom:20}}>월 데이터 추가 버튼을 눌러 입력해 보세요</div>
-          <button onClick={openAdd} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#fff",borderRadius:10,padding:"10px 24px",fontSize:13,cursor:"pointer",fontWeight:700}}>데이터 입력하기</button>
+          <button onClick={openAdd} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:10,padding:"10px 24px",fontSize:13,cursor:"pointer",fontWeight:700}}>데이터 입력하기</button>
         </div>
       )}
 
@@ -1995,7 +1995,7 @@ function PatientTab({ hospital }) {
           </div>
           <div style={{background:C.dim,borderRadius:8,height:22,overflow:"hidden"}}>
             <div style={{width:`${Math.min(achieveRate,100)}%`,height:"100%",background:`linear-gradient(90deg,${hospital.color},${C.accent2})`,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:12}}>
-              {achieveRate>10&&<span style={{color:"#fff",fontSize:12,fontWeight:700}}>{totalNew}명</span>}
+              {achieveRate>10&&<span style={{color:"#0F172A",fontSize:12,fontWeight:700}}>{totalNew}명</span>}
             </div>
           </div>
         </div>
@@ -2003,13 +2003,13 @@ function PatientTab({ hospital }) {
           <SectionTitle>환자 유입 추이</SectionTitle>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.dim}/>
-              <XAxis dataKey="month" stroke={C.muted} tick={{fill:C.muted,fontSize:11}}/>
-              <YAxis stroke={C.muted} tick={{fill:C.muted,fontSize:11}}/>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0"/>
+              <XAxis dataKey="month" stroke={C.muted} tick={{fill:"#64748B",fontSize:11}}/>
+              <YAxis stroke={C.muted} tick={{fill:"#64748B",fontSize:11}}/>
               <TT/><Legend wrapperStyle={{color:C.muted,fontSize:12}}/>
               <Line type="monotone" dataKey="신환" stroke={hospital.color} strokeWidth={2.5} dot={{r:4,fill:hospital.color}}/>
               <Line type="monotone" dataKey="구환" stroke={C.accent2} strokeWidth={2} dot={{r:4,fill:C.accent2}}/>
-              <Line type="monotone" dataKey="목표" stroke={C.dim} strokeWidth={1.5} strokeDasharray="5 5" dot={false}/>
+              <Line type="monotone" dataKey="목표" stroke="#E2E8F0" strokeWidth={1.5} strokeDasharray="5 5" dot={false}/>
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -2056,9 +2056,9 @@ function PatientTab({ hospital }) {
             <SectionTitle>시술 · 진료 항목별 현황</SectionTitle>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={[...rec.treatmentData].sort((a,b)=>b.count-a.count)} margin={{top:5,right:20,left:0,bottom:20}}>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.dim}/>
-                <XAxis dataKey="item" stroke={C.muted} tick={{fill:C.muted,fontSize:11,angle:-15,textAnchor:"end"}}/>
-                <YAxis stroke={C.muted} tick={{fill:C.muted,fontSize:11}}/>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0"/>
+                <XAxis dataKey="item" stroke={C.muted} tick={{fill:"#64748B",fontSize:11,angle:-15,textAnchor:"end"}}/>
+                <YAxis stroke={C.muted} tick={{fill:"#64748B",fontSize:11}}/>
                 <TT/>
                 <Bar dataKey="count" name="환자 수" radius={[6,6,0,0]}>
                   {rec.treatmentData.map((_,i)=><Cell key={i} fill={AGE_COLORS[i%AGE_COLORS.length]}/>)}
@@ -2276,7 +2276,7 @@ function KeywordRankTab({ hospital, isAdmin }) {
           <div style={{ display:"flex", gap:8 }}>
             <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{ display:"none" }} />
             <button onClick={() => fileRef.current?.click()} style={{
-              background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#fff",
+              background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A",
               borderRadius:9, padding:"8px 18px", fontSize:12, cursor:"pointer", fontWeight:700,
             }}>📂 CSV 업로드</button>
           </div>
@@ -2334,7 +2334,7 @@ function KeywordRankTab({ hospital, isAdmin }) {
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
               <thead>
-                <tr style={{ background:"rgba(255,255,255,0.04)", borderBottom:`1px solid ${C.border}` }}>
+                <tr style={{ background:"#F8FAFC", borderBottom:`1px solid ${C.border}` }}>
                   {[
                     { k:"keyword",    label:"키워드" },
                     { k:"channel",    label:"채널" },
@@ -2533,7 +2533,7 @@ function MeetingTab({ hospital }) {
         <button onClick={() => { cancelForm(); setShowForm(!showForm); }} style={{
           background: showForm && !editId ? "rgba(248,113,113,0.15)" : `linear-gradient(135deg,${hospital.color},${C.accent2})`,
           border: showForm && !editId ? `1px solid ${C.red}` : "none",
-          color: showForm && !editId ? C.red : "#fff",
+          color: showForm && !editId ? C.red : "#0F172A",
           borderRadius:10, padding:"9px 20px", fontSize:13, cursor:"pointer", fontWeight:700,
         }}>{showForm && !editId ? "닫기" : "+ 미팅 로그 추가"}</button>
       </div>
@@ -2557,7 +2557,7 @@ function MeetingTab({ hospital }) {
 
       {/* 입력 폼 */}
       {showForm && (
-        <div style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${hospital.color}30`, borderRadius:16, padding:24 }}>
+        <div style={{ background:"#F8FAFC", border:`1px solid ${hospital.color}30`, borderRadius:16, padding:24 }}>
           <div style={{ color:hospital.color, fontSize:14, fontWeight:700, marginBottom:16 }}>
             {editId ? "미팅 로그 수정" : "새 미팅 로그"}
           </div>
@@ -2606,7 +2606,7 @@ function MeetingTab({ hospital }) {
                 <div key={idx} style={{ position:"relative", width:80, height:80 }}>
                   <img src={img} alt="" style={{ width:80, height:80, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}` }} />
                   <div onClick={() => setForm(prev => ({...prev, images: prev.images.filter((_,i)=>i!==idx)}))}
-                    style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", background:C.red, color:"#fff", fontSize:11, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>×</div>
+                    style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", background:C.red, color:"#0F172A", fontSize:11, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>×</div>
                 </div>
               ))}
               {(form.images||[]).length < 3 && (
@@ -2632,9 +2632,9 @@ function MeetingTab({ hospital }) {
             {form.actions.length > 0 && (
               <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:8 }}>
                 {form.actions.map(action => (
-                  <div key={action.id} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.03)", borderRadius:8, padding:"8px 12px" }}>
+                  <div key={action.id} style={{ display:"flex", alignItems:"center", gap:8, background:"#F8FAFC", borderRadius:8, padding:"8px 12px" }}>
                     <div style={{ width:18, height:18, borderRadius:5, flexShrink:0, background:action.done?C.green:"transparent", border:`2px solid ${action.done?C.green:C.dim}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      {action.done && <span style={{ color:"#fff", fontSize:11, fontWeight:900 }}>✓</span>}
+                      {action.done && <span style={{ color:"#0F172A", fontSize:11, fontWeight:900 }}>✓</span>}
                     </div>
                     <span style={{ flex:1, color:C.text, fontSize:12 }}>{action.text}</span>
                     <span onClick={() => removeAction(action.id)} style={{ color:C.dim, cursor:"pointer", fontSize:16, fontWeight:700, lineHeight:1 }}>×</span>
@@ -2664,7 +2664,7 @@ function MeetingTab({ hospital }) {
               disabled={!form.date || !form.summary}
               style={{
                 background: form.date && form.summary ? `linear-gradient(135deg,${hospital.color},${C.accent2})` : C.dim,
-                border:"none", color:"#fff", borderRadius:9, padding:"10px 24px",
+                border:"none", color:"#0F172A", borderRadius:9, padding:"10px 24px",
                 fontSize:13, cursor: form.date && form.summary ? "pointer" : "not-allowed", fontWeight:700,
               }}>{editId ? "수정 완료" : "저장하기"}</button>
             <button onClick={cancelForm} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:9, padding:"10px 16px", fontSize:13, cursor:"pointer" }}>취소</button>
@@ -2733,7 +2733,7 @@ function MeetingTab({ hospital }) {
                   <div style={{ padding:"0 20px 20px", borderTop:`1px solid ${C.dim}` }}>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginTop:16 }}>
                       {/* 주요 논의 내용 */}
-                      <div style={{ background:"rgba(255,255,255,0.02)", borderRadius:10, padding:14 }}>
+                      <div style={{ background:"#F8FAFC", borderRadius:10, padding:14 }}>
                         <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:8 }}>📋 주요 논의 내용</div>
                         <div style={{ color:C.text, fontSize:13, lineHeight:1.7, whiteSpace:"pre-wrap" }}>{log.summary}</div>
                         {log.images && log.images.length > 0 && (
@@ -2774,7 +2774,7 @@ function MeetingTab({ hospital }) {
                                   display:"flex", alignItems:"center", justifyContent:"center",
                                   transition:"all 0.15s",
                                 }}>
-                                  {action.done && <span style={{ color:"#fff", fontSize:12, fontWeight:900 }}>✓</span>}
+                                  {action.done && <span style={{ color:"#0F172A", fontSize:12, fontWeight:900 }}>✓</span>}
                                 </div>
                                 <span style={{
                                   flex:1, fontSize:13, lineHeight:1.5,
@@ -2951,40 +2951,40 @@ function CostTab({ hospital, hData, onDataLoad }) {
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setShowContractForm(!showContractForm)} style={{background:`${C.accent2}20`,border:`1px solid ${C.accent2}50`,color:C.accent2,borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>계약금 등록</button>
-          <button onClick={()=>{setEditExpId(null);setExpenseForm({month:selMonth,category:"marketing_blog",amount:"",memo:"",date:""});setShowExpenseForm(!showExpenseForm);}} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#fff",borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 소진 내역 추가</button>
+          <button onClick={()=>{setEditExpId(null);setExpenseForm({month:selMonth,category:"marketing_blog",amount:"",memo:"",date:""});setShowExpenseForm(!showExpenseForm);}} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 소진 내역 추가</button>
         </div>
       </div>
 
       {showContractForm && (
-        <div style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${C.accent2}30`,borderRadius:14,padding:20}}>
+        <div style={{background:"#F8FAFC",border:`1px solid ${C.accent2}30`,borderRadius:14,padding:20}}>
           <div style={{color:C.accent2,fontSize:13,fontWeight:700,marginBottom:14}}>월 계약금 등록</div>
           <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
             <div style={{flex:1,minWidth:140}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>월 *</label><input type="month" value={contractForm.month} onChange={e=>setContractForm({...contractForm,month:e.target.value})} style={inputSt}/></div>
             <div style={{flex:2,minWidth:180}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>계약금 (만원) *</label><input type="number" placeholder="3500" value={contractForm.amount} onChange={e=>setContractForm({...contractForm,amount:e.target.value})} style={inputSt}/></div>
           </div>
           <div style={{display:"flex",gap:10,marginTop:14}}>
-            <button onClick={handleSaveContract} style={{background:`linear-gradient(135deg,${C.accent2},${C.accent})`,border:"none",color:"#fff",borderRadius:9,padding:"9px 22px",fontSize:13,cursor:"pointer",fontWeight:700}}>저장</button>
+            <button onClick={handleSaveContract} style={{background:`linear-gradient(135deg,${C.accent2},${C.accent})`,border:"none",color:"#0F172A",borderRadius:9,padding:"9px 22px",fontSize:13,cursor:"pointer",fontWeight:700}}>저장</button>
             <button onClick={()=>setShowContractForm(false)} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:9,padding:"9px 16px",fontSize:13,cursor:"pointer"}}>취소</button>
           </div>
         </div>
       )}
 
       {showExpenseForm && (
-        <div style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${hospital.color}30`,borderRadius:14,padding:20}}>
+        <div style={{background:"#F8FAFC",border:`1px solid ${hospital.color}30`,borderRadius:14,padding:20}}>
           <div style={{color:hospital.color,fontSize:13,fontWeight:700,marginBottom:14}}>{editExpId?"소진 내역 수정":"소진 내역 추가"}</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))",gap:12,marginBottom:14}}>
             <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>월 *</label><input type="month" value={expenseForm.month} onChange={e=>setExpenseForm({...expenseForm,month:e.target.value})} style={inputSt}/></div>
             <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>날짜</label><input type="date" value={expenseForm.date} onChange={e=>setExpenseForm({...expenseForm,date:e.target.value})} style={inputSt}/></div>
             <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>항목 *</label>
               <select value={expenseForm.category} onChange={e=>setExpenseForm({...expenseForm,category:e.target.value})} style={{...inputSt,appearance:"none"}}>
-                {COST_CATEGORIES.map(c=><option key={c.id} value={c.id} style={{background:"#0F172A"}}>{c.label}</option>)}
+                {COST_CATEGORIES.map(c=><option key={c.id} value={c.id} style={{background:"#F8FAFC"}}>{c.label}</option>)}
               </select>
             </div>
             <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>금액 (만원) *</label><input type="number" placeholder="500" value={expenseForm.amount} onChange={e=>setExpenseForm({...expenseForm,amount:e.target.value})} style={inputSt}/></div>
           </div>
           <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>메모</label><KInput type="text" placeholder="예: 6월 블로그 포스팅 8건" value={expenseForm.memo} onChange={e=>setExpenseForm({...expenseForm,memo:e.target.value})} style={inputSt}/></div>
           <div style={{display:"flex",gap:10}}>
-            <button onClick={handleSaveExpense} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#fff",borderRadius:9,padding:"9px 22px",fontSize:13,cursor:"pointer",fontWeight:700}}>{editExpId?"수정 완료":"저장하기"}</button>
+            <button onClick={handleSaveExpense} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:9,padding:"9px 22px",fontSize:13,cursor:"pointer",fontWeight:700}}>{editExpId?"수정 완료":"저장하기"}</button>
             <button onClick={()=>{setShowExpenseForm(false);setEditExpId(null);}} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:9,padding:"9px 16px",fontSize:13,cursor:"pointer"}}>취소</button>
           </div>
         </div>
@@ -3005,7 +3005,7 @@ function CostTab({ hospital, hData, onDataLoad }) {
         </div>
         <div style={{background:C.dim,borderRadius:8,height:20,overflow:"hidden"}}>
           <div style={{width:`${Math.min(spentRate,100)}%`,height:"100%",background:`linear-gradient(90deg,${hospital.color},${C.accent2})`,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:10}}>
-            {spentRate>15&&<span style={{color:"#fff",fontSize:11,fontWeight:700}}>{spentRate}%</span>}
+            {spentRate>15&&<span style={{color:"#0F172A",fontSize:11,fontWeight:700}}>{spentRate}%</span>}
           </div>
         </div>
         <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
@@ -3049,9 +3049,9 @@ function CostTab({ hospital, hData, onDataLoad }) {
           <SectionTitle>월별 소진 추이</SectionTitle>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={trendData} margin={{top:5,right:10,left:0,bottom:5}}>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.dim}/>
-              <XAxis dataKey="month" stroke={C.muted} tick={{fill:C.muted,fontSize:11}}/>
-              <YAxis stroke={C.muted} tick={{fill:C.muted,fontSize:11}}/>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0"/>
+              <XAxis dataKey="month" stroke={C.muted} tick={{fill:"#64748B",fontSize:11}}/>
+              <YAxis stroke={C.muted} tick={{fill:"#64748B",fontSize:11}}/>
               <TT formatter={(v)=>[`${fmt(v)}만원`]}/>
               <Legend wrapperStyle={{color:C.muted,fontSize:12}}/>
               <Bar dataKey="계약금" fill={C.dim} radius={[4,4,0,0]}/>
@@ -3170,7 +3170,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
         : <>
             <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelMonth(""); }}
               style={{ ...inputSt, width:90, padding:"4px 8px", fontSize:12, appearance:"none" }}>
-              {availYears.map(y => <option key={y} value={y} style={{background:"#0F172A"}}>{y}년</option>)}
+              {availYears.map(y => <option key={y} value={y} style={{background:"#F8FAFC"}}>{y}년</option>)}
             </select>
             {monthsInYear.map(m => (
               <button key={m} onClick={() => setSelMonth(m)} style={{
@@ -3352,9 +3352,9 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #070D18; color: #E2E8F0; font-family: 'Noto Sans KR', sans-serif; padding: 40px 32px; line-height: 1.6; }
+  body { background: #F1F5F9; color: #1E293B; font-family: 'Noto Sans KR', sans-serif; padding: 40px 32px; line-height: 1.6; }
   .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 36px; padding-bottom: 24px; border-bottom: 2px solid ${hospital.color}40; }
-  .hospital-name { font-size: 28px; font-weight: 900; color: #fff; margin-bottom: 6px; }
+  .hospital-name { font-size: 28px; font-weight: 900; color: #1E293B; margin-bottom: 6px; }
   .hospital-meta { color: #64748B; font-size: 13px; }
   .report-date { color: #64748B; font-size: 12px; text-align: right; }
   .report-month { color: ${hospital.color}; font-size: 22px; font-weight: 800; }
@@ -3362,21 +3362,21 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
   .section { margin-bottom: 36px; }
   .section-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; }
   .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
-  .kpi-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 18px 20px; }
+  .kpi-card { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px 20px; }
   .kpi-label { font-size: 12px; color: #64748B; font-weight: 600; margin-bottom: 8px; }
   .kpi-value { font-size: 26px; font-weight: 900; line-height: 1; }
   .kpi-unit { font-size: 13px; margin-left: 4px; font-weight: 600; }
-  .roi-box { background: rgba(255,255,255,0.04); border: 1px solid ${hospital.color}30; border-radius: 12px; padding: 20px 24px; display: flex; gap: 32px; margin-bottom: 24px; flex-wrap: wrap; }
+  .roi-box { background: #FFFFFF; border: 1px solid ${hospital.color}30; border-radius: 12px; padding: 20px 24px; display: flex; gap: 32px; margin-bottom: 24px; flex-wrap: wrap; }
   .roi-item { text-align: center; min-width: 100px; }
   .roi-item .val { font-size: 22px; font-weight: 900; color: ${hospital.color}; }
   .roi-item .lbl { font-size: 11px; color: #64748B; margin-top: 4px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { color: #64748B; font-weight: 600; padding: 10px 14px; text-align: left; border-bottom: 1px solid #1E293B; white-space: nowrap; background: rgba(255,255,255,0.02); }
+  th { color: #64748B; font-weight: 600; padding: 10px 14px; text-align: left; border-bottom: 1px solid #1E293B; white-space: nowrap; background: "#F8FAFC"; }
   td { padding: 10px 14px; border-bottom: 1px solid #1E293B; }
   tr:hover td { background: ${hospital.color}08; }
   .num { text-align: right; }
   .conv { text-align: center; color: #34D399; font-weight: 700; }
-  .table-wrap { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; overflow: hidden; margin-bottom: 24px; }
+  .table-wrap { background: "#F8FAFC"; border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; overflow: hidden; margin-bottom: 24px; }
   .footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid #1E293B; color: #64748B; font-size: 11px; display: flex; justify-content: space-between; }
   @media print {
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -3547,7 +3547,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"'Noto Sans KR', sans-serif" }}>
 
       {/* 헤더 */}
-      <div style={{ background:"rgba(255,255,255,0.02)", borderBottom:`1px solid ${C.border}`, padding:"16px 28px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 }}>
+      <div style={{ background:"#F8FAFC", borderBottom:`1px solid ${C.border}`, padding:"16px 28px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 }}>
         <div style={{ display:"flex", alignItems:"center", gap:16 }}>
           {onBack && (
             <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:9, padding:"7px 14px", fontSize:13, cursor:"pointer", fontWeight:600 }}>
@@ -3561,7 +3561,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
           </div>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button onClick={() => exportReport()} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#fff", borderRadius:9, padding:"8px 16px", fontSize:12, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
+          <button onClick={() => exportReport()} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:9, padding:"8px 16px", fontSize:12, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
             리포트 출력
           </button>
           <Badge color={hospital.color}>{hospital.dept}</Badge>
@@ -3643,7 +3643,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
                         <linearGradient id="gp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={hospital.color} stopOpacity={0.25}/><stop offset="100%" stopColor={hospital.color} stopOpacity={0}/></linearGradient>
                         <linearGradient id="gy" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.yellow} stopOpacity={0.2}/><stop offset="100%" stopColor={C.yellow} stopOpacity={0}/></linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke={C.dim} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                       <XAxis dataKey="month" stroke={C.muted} tick={{ fill:C.muted, fontSize:10 }} />
                       <YAxis yAxisId="left"  stroke={hospital.color} tick={{ fill:hospital.color, fontSize:10 }} width={32} tickFormatter={v => v} />
                       <YAxis yAxisId="right" orientation="right" stroke={C.yellow} tick={{ fill:C.yellow, fontSize:10 }} width={40} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}K` : v} />
@@ -3706,7 +3706,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
                       </span>
                     </div>
                     {/* 퍼널 미니 요약 */}
-                    <div style={{ background:"rgba(255,255,255,0.02)", borderRadius:10, padding:"10px 14px" }}>
+                    <div style={{ background:"#F8FAFC", borderRadius:10, padding:"10px 14px" }}>
                       <div style={{ color:C.muted, fontSize:11, marginBottom:8 }}>이번달 전환 흐름</div>
                       {[
                         { label:"문의", val:last.inquiry, color:C.accent },
@@ -3732,7 +3732,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
                       { label:"총 클릭", val:`${fmt(contents.reduce((s,c)=>s+(c.clicks||0),0))}`, color:C.yellow },
                       { label:"채널 수", val:`${new Set(contents.map(c=>c.channel)).size}개`, color:C.accent2 },
                     ].map((item,i) => (
-                      <div key={i} style={{ background:"rgba(255,255,255,0.03)", borderRadius:8, padding:"8px 10px" }}>
+                      <div key={i} style={{ background:"#F8FAFC", borderRadius:8, padding:"8px 10px" }}>
                         <div style={{ color:C.muted, fontSize:10, marginBottom:3 }}>{item.label}</div>
                         <div style={{ color:item.color, fontSize:15, fontWeight:800 }}>{item.val}</div>
                       </div>
@@ -3787,7 +3787,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
                 <SectionTitle>월별 신환 & 결제 추이</SectionTitle>
                 <ResponsiveContainer width="100%" height={210}>
                   <LineChart data={hData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={C.dim} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                     <XAxis dataKey="month" stroke={C.muted} tick={{ fill:C.muted, fontSize:11 }} />
                     <YAxis stroke={C.muted} tick={{ fill:C.muted, fontSize:11 }} />
                     <TT /><Legend wrapperStyle={{ color:C.muted, fontSize:12 }} />
@@ -3800,7 +3800,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
                 <SectionTitle>매출 vs 마케팅비</SectionTitle>
                 <ResponsiveContainer width="100%" height={210}>
                   <BarChart data={hData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={C.dim} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                     <XAxis dataKey="month" stroke={C.muted} tick={{ fill:C.muted, fontSize:11 }} />
                     <YAxis stroke={C.muted} tick={{ fill:C.muted, fontSize:11 }} />
                     <TT /><Legend wrapperStyle={{ color:C.muted, fontSize:12 }} />
@@ -3977,7 +3977,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
                             <div style={{ width:56, color:step.color, fontSize:12, fontWeight:700, textAlign:"right", flexShrink:0 }}>{step.name}</div>
                             <div style={{ flex:1, height:36, background:C.dim, borderRadius:8, position:"relative" }}>
                               <div style={{ width:`${width}%`, height:"100%", background:`linear-gradient(90deg,${step.color}88,${step.color}44)`, borderRadius:8 }} />
-                              <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#fff", fontSize:13, fontWeight:800 }}>{fmt(step.value)}명</span>
+                              <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#0F172A", fontSize:13, fontWeight:800 }}>{fmt(step.value)}명</span>
                             </div>
                             <div style={{ width:90, flexShrink:0 }}>
                               {diff !== null
@@ -4178,7 +4178,7 @@ function AppInner() {
   const selected = hospitals.find(h => h.id === selectedId);
 
   if (loading) return (
-    <div style={{ minHeight:"100vh", background:"#070D18", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, fontFamily:"'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, fontFamily:"'Noto Sans KR', sans-serif" }}>
       <div style={{ color:"#38BDF8", fontSize:18, fontWeight:700 }}>다올 마케팅 대시보드</div>
       <div style={{ color:"#64748B", fontSize:13 }}>데이터를 불러오는 중이에요...</div>
     </div>
@@ -4253,9 +4253,9 @@ function LoginScreen({ onLogin }) {
   };
 
   return (
-    <div style={{ minHeight:"100vh", background:"#070D18", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Noto Sans KR', sans-serif" }}>
-      <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:20, padding:"48px 40px", width:360, textAlign:"center" }}>
-        <div style={{ fontSize:28, fontWeight:900, color:"#fff", marginBottom:8 }}>다올 마케팅</div>
+    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Noto Sans KR', sans-serif" }}>
+      <div style={{ background:"#F8FAFC", border:"1px solid rgba(255,255,255,0.08)", borderRadius:20, padding:"48px 40px", width:360, textAlign:"center" }}>
+        <div style={{ fontSize:28, fontWeight:900, color:"#0F172A", marginBottom:8 }}>다올 마케팅</div>
         <div style={{ color:"#64748B", fontSize:13, marginBottom:32 }}>대시보드에 접근하려면 로그인하세요</div>
         <input
           ref={pwRef}
@@ -4265,10 +4265,10 @@ function LoginScreen({ onLogin }) {
           onKeyDown={e => e.key === "Enter" && handleLogin()}
           placeholder="비밀번호 입력"
           autoFocus
-          style={{ width:"100%", background:"rgba(255,255,255,0.05)", border:`1px solid ${error?"#F87171":"rgba(255,255,255,0.1)"}`, borderRadius:10, color:"#E2E8F0", padding:"12px 16px", fontSize:15, fontFamily:"'Noto Sans KR', sans-serif", outline:"none", letterSpacing:4, marginBottom:8, boxSizing:"border-box" }}
+          style={{ width:"100%", background:"#F1F5F9", border:`1px solid ${error?"#F87171":"rgba(255,255,255,0.1)"}`, borderRadius:10, color:"#0F172A", padding:"12px 16px", fontSize:15, fontFamily:"'Noto Sans KR', sans-serif", outline:"none", letterSpacing:4, marginBottom:8, boxSizing:"border-box" }}
         />
         {error && <div style={{ color:"#F87171", fontSize:12, marginBottom:12 }}>비밀번호가 틀렸어요</div>}
-        <button onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg,#38BDF8,#818CF8)", border:"none", color:"#fff", borderRadius:10, padding:"13px 0", fontSize:15, cursor:"pointer", fontWeight:700, marginTop:8 }}>
+        <button onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg,#38BDF8,#818CF8)", border:"none", color:"#0F172A", borderRadius:10, padding:"13px 0", fontSize:15, cursor:"pointer", fontWeight:700, marginTop:8 }}>
           로그인
         </button>
       </div>
@@ -4300,7 +4300,7 @@ function HospitalRoute({ hospitals, onUpdateHospital, isAdmin }) {
   };
 
   if (!hospital) return (
-    <div style={{ minHeight:"100vh", background:"#070D18", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, fontFamily:"'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, fontFamily:"'Noto Sans KR', sans-serif" }}>
       <div style={{ color:"#38BDF8", fontSize:18, fontWeight:700 }}>병원을 찾을 수 없어요</div>
       <button onClick={() => navigate("/")} style={{ background:"transparent", border:"1px solid #334155", color:"#64748B", borderRadius:9, padding:"8px 20px", fontSize:13, cursor:"pointer" }}>← 목록으로</button>
     </div>
@@ -4308,17 +4308,17 @@ function HospitalRoute({ hospitals, onUpdateHospital, isAdmin }) {
 
   // 비밀번호 입력 화면
   if (!canAccess) return (
-    <div style={{ minHeight:"100vh", background:"#070D18", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Noto Sans KR', sans-serif" }}>
-      <div style={{ background:"#0F172A", border:`1px solid ${hospital.color}30`, borderRadius:20, padding:40, width:360, boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }}>
+    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Noto Sans KR', sans-serif" }}>
+      <div style={{ background:"#F8FAFC", border:`1px solid ${hospital.color}30`, borderRadius:20, padding:40, width:360, boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }}>
         {/* 병원 정보 */}
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:28 }}>
           <div style={{ width:44, height:44, borderRadius:13, background:`linear-gradient(135deg,${hospital.color},${hospital.color}88)`, flexShrink:0 }} />
           <div>
-            <div style={{ color:"#E2E8F0", fontSize:16, fontWeight:800 }}>{hospital.name}</div>
+            <div style={{ color:"#0F172A", fontSize:16, fontWeight:800 }}>{hospital.name}</div>
             <div style={{ color:"#64748B", fontSize:12, marginTop:2 }}>{hospital.dept} · {hospital.region}</div>
           </div>
         </div>
-        <div style={{ color:"#E2E8F0", fontSize:14, fontWeight:700, marginBottom:6 }}>비밀번호를 입력해주세요</div>
+        <div style={{ color:"#0F172A", fontSize:14, fontWeight:700, marginBottom:6 }}>비밀번호를 입력해주세요</div>
         <div style={{ color:"#64748B", fontSize:12, marginBottom:20 }}>이 대시보드는 비밀번호로 보호되어 있어요</div>
         <input
           ref={pwRef}
@@ -4328,10 +4328,10 @@ function HospitalRoute({ hospitals, onUpdateHospital, isAdmin }) {
           onKeyDown={e => e.key === "Enter" && handleUnlock()}
           placeholder="비밀번호"
           autoFocus
-          style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${pwError ? "#F87171" : "#1E293B"}`, borderRadius:8, color:"#E2E8F0", padding:"10px 14px", fontSize:15, fontFamily:"'Noto Sans KR', sans-serif", width:"100%", outline:"none", letterSpacing:4, marginBottom:8 }}
+          style={{ background:"#F1F5F9", border:`1px solid ${pwError ? "#F87171" : "#0F172A"}`, borderRadius:8, color:"#0F172A", padding:"10px 14px", fontSize:15, fontFamily:"'Noto Sans KR', sans-serif", width:"100%", outline:"none", letterSpacing:4, marginBottom:8 }}
         />
         {pwError && <div style={{ color:"#F87171", fontSize:12, marginBottom:12 }}>비밀번호가 틀렸어요</div>}
-        <button onClick={handleUnlock} style={{ width:"100%", background:`linear-gradient(135deg,${hospital.color},#818CF8)`, border:"none", color:"#fff", borderRadius:10, padding:"12px 0", fontSize:14, cursor:"pointer", fontWeight:700, marginTop:8 }}>
+        <button onClick={handleUnlock} style={{ width:"100%", background:`linear-gradient(135deg,${hospital.color},#818CF8)`, border:"none", color:"#0F172A", borderRadius:10, padding:"12px 0", fontSize:14, cursor:"pointer", fontWeight:700, marginTop:8 }}>
           입장하기
         </button>
       </div>
