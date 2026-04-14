@@ -1452,9 +1452,12 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
 
   // 월 목록 (콘텐츠에서 추출 + 전체)
   const monthList = useMemo(() => {
-    const months = [...new Set(contents.map(c => c.date?.slice(0,7)).filter(Boolean))].sort().reverse();
+    const contentMonths = [...new Set(contents.map(c => c.date?.slice(0,7)).filter(Boolean))];
+    const rawCh = hospital.channelData || {};
+    const inflowMonths = Array.isArray(rawCh) ? [] : Object.keys(rawCh);
+    const months = [...new Set([...contentMonths, ...inflowMonths])].sort().reverse();
     return ["전체", ...months];
-  }, [contents]);
+  }, [contents, hospital.channelData]);
 
   // 월 필터 적용된 콘텐츠
   const monthFiltered = useMemo(() =>
@@ -1548,7 +1551,26 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
           { key:"유튜브",       label:"유튜브",  color:"#FF0000" },
           { key:"검색광고",     label:"검색광고",color:"#A78BFA" },
         ];
-        const total = inflowChannels.reduce((s, ch) => s + (chData.find(c=>c.channel===ch.key)?.inflow||0), 0);
+        // 현재 표시할 월의 채널 데이터 (마케팅탭 자체 월 기준)
+        const displayMonth = inflowMonth || (selMonth !== "전체" ? selMonth : new Date().toISOString().slice(0,7));
+        const rawChAll = hospital.channelData || {};
+        const curChData = Array.isArray(rawChAll) ? rawChAll : (rawChAll[displayMonth] || []);
+
+        // 지난달 데이터
+        const prevMonth = (() => {
+          const [y, m] = displayMonth.split('-').map(Number);
+          return m === 1 ? `${y-1}-12` : `${y}-${String(m-1).padStart(2,'0')}`;
+        })();
+        const prevChData = Array.isArray(rawChAll) ? [] : (rawChAll[prevMonth] || []);
+
+        // 작년 동월 데이터
+        const lastYearMonth = (() => {
+          const [y, m] = displayMonth.split('-');
+          return `${+y-1}-${m}`;
+        })();
+        const lastYearChData = Array.isArray(rawChAll) ? [] : (rawChAll[lastYearMonth] || []);
+
+        const total = inflowChannels.reduce((s, ch) => s + (curChData.find(c=>c.channel===ch.key)?.inflow||0), 0);
 
         // 최근 12개월 추이 데이터
         const rawChData = hospital.channelData || {};
@@ -1643,13 +1665,38 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
             {/* KPI 카드 */}
             <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:10 }}>
               {inflowChannels.map(ch => {
-                const val = chData.find(c=>c.channel===ch.key)?.inflow || 0;
+                const val = curChData.find(c=>c.channel===ch.key)?.inflow || 0;
+                const prev = prevChData.find(c=>c.channel===ch.key)?.inflow || 0;
+                const lastYear = lastYearChData.find(c=>c.channel===ch.key)?.inflow || 0;
+                const diffPrev = prev > 0 ? val - prev : null;
+                const diffYear = lastYear > 0 ? val - lastYear : null;
                 const pct = total > 0 ? Math.round((val/total)*100) : 0;
                 return (
                   <div key={ch.key} style={{ background:C.surface, border:`1px solid ${ch.color}25`, borderRadius:12, padding:"14px 16px" }}>
                     <div style={{ color:C.muted, fontSize:11, marginBottom:6 }}>{ch.label} 유입</div>
                     <div style={{ color:ch.color, fontSize:20, fontWeight:900 }}>{val.toLocaleString()}<span style={{ fontSize:11, fontWeight:400, marginLeft:2 }}>명</span></div>
                     <div style={{ color:C.muted, fontSize:11, marginTop:4 }}>{total > 0 ? `${pct}%` : "-"}</div>
+                    {/* 지난달 대비 */}
+                    <div style={{ marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}`, fontSize:10 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                        <span style={{ color:C.muted }}>전월 대비</span>
+                        {diffPrev === null
+                          ? <span style={{ color:C.muted }}>-</span>
+                          : <span style={{ color: diffPrev > 0 ? C.green : diffPrev < 0 ? C.red : C.muted, fontWeight:700 }}>
+                              {diffPrev > 0 ? `▲ ${diffPrev.toLocaleString()}` : diffPrev < 0 ? `▼ ${Math.abs(diffPrev).toLocaleString()}` : "— 동일"}
+                            </span>
+                        }
+                      </div>
+                      <div style={{ display:"flex", justifyContent:"space-between" }}>
+                        <span style={{ color:C.muted }}>전년 동월</span>
+                        {diffYear === null
+                          ? <span style={{ color:C.muted }}>-</span>
+                          : <span style={{ color: diffYear > 0 ? C.green : diffYear < 0 ? C.red : C.muted, fontWeight:700 }}>
+                              {diffYear > 0 ? `▲ ${diffYear.toLocaleString()}` : diffYear < 0 ? `▼ ${Math.abs(diffYear).toLocaleString()}` : "— 동일"}
+                            </span>
+                        }
+                      </div>
+                    </div>
                   </div>
                 );
               })}
