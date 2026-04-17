@@ -219,6 +219,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   const [form, setForm]             = useState(EMPTY_HOSPITAL_FORM);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [savedMsg, setSavedMsg]     = useState("");
+  const [mainTab, setMainTab]       = useState("hospitals"); // "hospitals" | "internal"
 
   // 관리자 계정 관리 (이름 + 비밀번호)
   const [adminAccounts, setAdminAccounts] = useState([
@@ -297,9 +298,8 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
     <div style={{ minHeight:"100vh", background:C.bg, padding:"40px 32px", fontFamily:"'Noto Sans KR', sans-serif" }}>
       <Toast msg={savedMsg} />
 
-
       {/* 헤더 */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:40, flexWrap:"wrap", gap:16 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24, flexWrap:"wrap", gap:16 }}>
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <div style={{ color:C.text, fontSize:26, fontWeight:900, marginBottom:4 }}>다올 마케팅 대시보드</div>
@@ -531,6 +531,21 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
         </div>
       )}
 
+      {/* 탭 네비게이션 */}
+      <div style={{ display:"flex", gap:8, marginBottom:28, borderBottom:`1px solid ${C.border}`, paddingBottom:0 }}>
+        {[
+          { id:"hospitals", label:"🏥 병원 목록" },
+          { id:"internal", label:"📋 내부 작업" },
+        ].map(t => (
+          <button key={t.id} onClick={() => setMainTab(t.id)} style={{
+            background:"transparent", border:"none", borderBottom: mainTab===t.id ? `2px solid ${C.accent}` : "2px solid transparent",
+            color: mainTab===t.id ? C.accent : C.muted, padding:"10px 20px", fontSize:14, cursor:"pointer", fontWeight: mainTab===t.id ? 700 : 500,
+            marginBottom:-1,
+          }}>{t.label}</button>
+        ))}
+      </div>
+
+      {mainTab === "hospitals" && (<>
       {/* 요약 KPI */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:14, maxWidth:900, margin:"0 auto 36px" }}>
         {[
@@ -616,9 +631,480 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
         </div>
         )}
       </div>
+      </>)}
+
+      {mainTab === "internal" && (
+        <InternalDashboard hospitals={hospitals} loginName={loginName} />
+      )}
     </div>
   );
 }
+
+// ─── 내부 작업 대시보드 ────────────────────────────────────────
+function InternalDashboard({ hospitals, loginName }) {
+  const [internalTab, setInternalTab] = useState("meetings");
+  const [kanbanCards, setKanbanCards] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [savedMsg, setSavedMsg] = useState("");
+  const toast = (msg) => { setSavedMsg(msg); setTimeout(() => setSavedMsg(""), 2000); };
+
+  // Supabase 불러오기
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [kb, sc] = await Promise.all([
+          supabase.from('kanban_data').select('*').eq('id', 1).single(),
+          supabase.from('schedule_data').select('*').eq('id', 1).single(),
+        ]);
+        if (kb.data?.data) setKanbanCards(kb.data.data);
+        if (sc.data?.data) setSchedules(sc.data.data);
+      } catch(e) {}
+    };
+    load();
+  }, []);
+
+  const saveKanban = async (cards) => {
+    try { await supabase.from('kanban_data').upsert({ id:1, data:cards }, { onConflict:'id' }); } catch(e) {}
+  };
+  const saveSchedule = async (sched) => {
+    try { await supabase.from('schedule_data').upsert({ id:1, data:sched }, { onConflict:'id' }); } catch(e) {}
+  };
+
+  // 전체 병원 미팅 로그 취합
+  const allMeetings = useMemo(() => {
+    const logs = [];
+    hospitals.forEach(h => {
+      // meeting_data는 각 탭에서 Supabase로 관리되므로 hospital 객체엔 없을 수 있음
+      // 미팅 데이터를 별도로 불러와야 함
+    });
+    return logs;
+  }, [hospitals]);
+
+  const KANBAN_COLS = [
+    { id:"todo",    label:"📋 할 일",   color:C.muted },
+    { id:"doing",   label:"⚡ 진행 중", color:C.accent },
+    { id:"hold",    label:"⏸ 보류",    color:C.orange },
+    { id:"done",    label:"✅ 완료",    color:C.green },
+  ];
+
+  // 칸반 카드 추가
+  const [newCardCol, setNewCardCol] = useState(null);
+  const [newCardText, setNewCardText] = useState("");
+  const [newCardHospital, setNewCardHospital] = useState("");
+  const [newCardAssignee, setNewCardAssignee] = useState("");
+  const [kanbanWeek, setKanbanWeek] = useState("all");
+  const [editCardId, setEditCardId] = useState(null);
+  const [editCardForm, setEditCardForm] = useState({ text:"", hospital:"", assignee:"", comment:"" });
+
+  const addCard = (colId) => {
+    if (!newCardText.trim()) return;
+    const card = { id:Date.now(), col:colId, text:newCardText.trim(), hospital:newCardHospital, assignee:newCardAssignee, author:loginName, date:new Date().toLocaleDateString("ko-KR"), comment:"" };
+    const updated = [...kanbanCards, card];
+    setKanbanCards(updated); saveKanban(updated);
+    setNewCardText(""); setNewCardHospital(""); setNewCardAssignee(""); setNewCardCol(null);
+    toast("카드 추가 완료!");
+  };
+
+  const openEditCard = (card) => {
+    setEditCardId(card.id);
+    setEditCardForm({ text:card.text, hospital:card.hospital||"", assignee:card.assignee||"", comment:card.comment||"" });
+  };
+
+  const updateCard = () => {
+    const updated = kanbanCards.map(c => c.id === editCardId ? { ...c, ...editCardForm } : c);
+    setKanbanCards(updated); saveKanban(updated);
+    setEditCardId(null); toast("수정 완료!");
+  };
+
+  const moveCard = (id, toCol) => {
+    const updated = kanbanCards.map(c => c.id === id ? {...c, col:toCol} : c);
+    setKanbanCards(updated); saveKanban(updated);
+  };
+
+  const deleteCard = (id) => {
+    const updated = kanbanCards.filter(c => c.id !== id);
+    setKanbanCards(updated); saveKanban(updated);
+  };
+
+  // 일정 관련
+  const [selCalMonth, setSelCalMonth] = useState(new Date().toISOString().slice(0,7));
+  const [showSchedForm, setShowSchedForm] = useState(false);
+  const [schedForm, setSchedForm] = useState({ date:"", title:"", hospital:"", memo:"", color:C.accent });
+  const [deleteSchedConfirm, setDeleteSchedConfirm] = useState(null);
+
+  const addSchedule = () => {
+    if (!schedForm.date || !schedForm.title) return;
+    const schedId = Date.now();
+    const updated = [...schedules, { id:schedId, ...schedForm }];
+    setSchedules(updated); saveSchedule(updated);
+    // 칸반 할일에도 자동 추가
+    const kanbanCard = { id:schedId+1, col:"todo", text:`[${schedForm.date}] ${schedForm.title}`, hospital:schedForm.hospital, assignee:"", author:loginName, date:new Date().toLocaleDateString("ko-KR"), fromSchedule:true, schedDate:schedForm.date };
+    const updatedKanban = [...kanbanCards, kanbanCard];
+    setKanbanCards(updatedKanban); saveKanban(updatedKanban);
+    setSchedForm({ date:"", title:"", hospital:"", memo:"", color:C.accent });
+    setShowSchedForm(false); toast("일정 추가 완료! 칸반 할일에도 추가됐어요.");
+  };
+
+  const deleteSchedule = (id) => {
+    const updated = schedules.filter(s => s.id !== id);
+    setSchedules(updated); saveSchedule(updated);
+    setDeleteSchedConfirm(null);
+  };
+
+  // 캘린더 계산
+  const calDays = useMemo(() => {
+    const [y, m] = selCalMonth.split('-').map(Number);
+    const firstDay = new Date(y, m-1, 1).getDay();
+    const lastDate = new Date(y, m, 0).getDate();
+    const days = [];
+    for (let i = 0; i < firstDay; i++) days.push(null);
+    for (let d = 1; d <= lastDate; d++) days.push(d);
+    return { days, y, m };
+  }, [selCalMonth]);
+
+  const monthSchedules = schedules.filter(s => s.date?.startsWith(selCalMonth));
+
+  // 미팅 로그 Supabase에서 직접 불러오기
+  const [meetingLogs, setMeetingLogs] = useState([]);
+  const [meetingSelMonth, setMeetingSelMonth] = useState("전체");
+  const [confirmedLogs, setConfirmedLogs] = useState({});
+
+  const toggleConfirm = (logId) => {
+    setConfirmedLogs(prev => ({ ...prev, [logId]: !prev[logId] }));
+  };
+
+  useEffect(() => {
+    const loadMeetings = async () => {
+      try {
+        const results = await Promise.all(
+          hospitals.map(h => supabase.from('meeting_data').select('*').eq('hospital_id', h.id).single())
+        );
+        const logs = [];
+        results.forEach((r, i) => {
+          if (r.data?.data) {
+            r.data.data.forEach(log => logs.push({ ...log, hospitalName: hospitals[i].name, hospitalColor: hospitals[i].color }));
+          }
+        });
+        logs.sort((a,b) => b.date > a.date ? 1 : -1);
+        setMeetingLogs(logs);
+      } catch(e) {}
+    };
+    loadMeetings();
+  }, [hospitals]);
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+
+      {/* 내부 탭 */}
+      <div style={{ display:"flex", gap:8, borderBottom:`1px solid ${C.border}`, paddingBottom:0 }}>
+        {[
+          { id:"meetings", label:"📞 미팅 요약" },
+          { id:"calendar", label:"📅 일정 관리" },
+          { id:"kanban",   label:"🗂 칸반보드" },
+        ].map(t => (
+          <button key={t.id} onClick={() => setInternalTab(t.id)} style={{
+            background:"transparent", border:"none",
+            borderBottom: internalTab===t.id ? `2px solid ${C.accent2}` : "2px solid transparent",
+            color: internalTab===t.id ? C.accent2 : C.muted,
+            padding:"8px 18px", fontSize:13, cursor:"pointer", fontWeight: internalTab===t.id ? 700 : 500,
+            marginBottom:-1,
+          }}>{t.label}</button>
+        ))}
+      </div>
+
+      {/* 미팅 요약 */}
+      {internalTab === "meetings" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          {/* 월 필터 */}
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+            <span style={{ color:C.muted, fontSize:12, flexShrink:0 }}>조회 월:</span>
+            {["전체", ...Array.from(new Set(meetingLogs.map(l => l.date?.slice(0,7)).filter(Boolean))).sort().reverse()].map(m => (
+              <button key={m} onClick={() => setMeetingSelMonth(m)} style={{
+                background: meetingSelMonth===m ? `${C.accent2}20` : "transparent",
+                border: `1px solid ${meetingSelMonth===m ? C.accent2 : C.border}`,
+                color: meetingSelMonth===m ? C.accent2 : C.muted,
+                borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+              }}>{m === "전체" ? "전체" : m.slice(5)+"월"}</button>
+            ))}
+          </div>
+
+          {/* 로그 목록 */}
+          {(() => {
+            const filtered = meetingSelMonth === "전체"
+              ? meetingLogs
+              : meetingLogs.filter(l => l.date?.startsWith(meetingSelMonth));
+            return filtered.length === 0
+              ? <div style={{ background:C.surface, borderRadius:14, padding:32, textAlign:"center", color:C.muted }}>미팅 로그가 없어요</div>
+              : filtered.map((log, i) => {
+                const isConfirmed = confirmedLogs[`${log.hospitalName}_${log.id}`];
+                return (
+                  <div key={i} style={{ background:C.surface, border:`1px solid ${isConfirmed ? C.green+"60" : C.border}`, borderRadius:14, padding:18, position:"relative" }}>
+                    {/* 확인 버튼 */}
+                    <button onClick={() => toggleConfirm(`${log.hospitalName}_${log.id}`)} style={{
+                      position:"absolute", top:14, right:14,
+                      background: isConfirmed ? `${C.green}20` : "transparent",
+                      border: `1px solid ${isConfirmed ? C.green : C.dim}`,
+                      color: isConfirmed ? C.green : C.muted,
+                      borderRadius:7, padding:"3px 10px", fontSize:11, cursor:"pointer", fontWeight:700,
+                    }}>{isConfirmed ? "✓ 확인됨" : "확인"}</button>
+
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10, paddingRight:80 }}>
+                      <div style={{ width:8, height:8, borderRadius:"50%", background:log.hospitalColor, flexShrink:0 }} />
+                      <span style={{ color:log.hospitalColor, fontWeight:700, fontSize:13 }}>{log.hospitalName}</span>
+                      <span style={{ color:C.muted, fontSize:12 }}>{log.date}</span>
+                      <span style={{ background:`${C.accent2}15`, color:C.accent2, borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{log.type}</span>
+                      {log.attendees && <span style={{ color:C.muted, fontSize:11 }}>👤 {log.attendees}</span>}
+                    </div>
+                    <div style={{ color:C.text, fontSize:13, lineHeight:1.7, marginBottom: log.actions?.length ? 10 : 0 }}>{log.summary}</div>
+                    {log.actions?.length > 0 && (
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
+                        {log.actions.map((a,j) => (
+                          <span key={j} style={{ background: a.done ? `${C.green}15` : `${C.muted}10`, border:`1px solid ${a.done ? C.green : C.dim}`, color: a.done ? C.green : C.muted, borderRadius:6, padding:"2px 10px", fontSize:11 }}>
+                            {a.done ? "✓" : "○"} {a.text}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+          })()}
+        </div>
+      )}
+
+      {/* 캘린더 */}
+      {internalTab === "calendar" && (
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 320px", gap:20 }}>
+          {/* 캘린더 */}
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:22 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <button onClick={() => {
+                  const [y,m] = selCalMonth.split('-').map(Number);
+                  const prev = m===1 ? `${y-1}-12` : `${y}-${String(m-1).padStart(2,'0')}`;
+                  setSelCalMonth(prev);
+                }} style={{ background:"transparent", border:`1px solid ${C.border}`, borderRadius:7, padding:"4px 10px", cursor:"pointer", color:C.muted, fontSize:13 }}>‹</button>
+                <span style={{ color:C.text, fontWeight:700, fontSize:15 }}>{calDays.y}년 {calDays.m}월</span>
+                <button onClick={() => {
+                  const [y,m] = selCalMonth.split('-').map(Number);
+                  const next = m===12 ? `${y+1}-01` : `${y}-${String(m+1).padStart(2,'0')}`;
+                  setSelCalMonth(next);
+                }} style={{ background:"transparent", border:`1px solid ${C.border}`, borderRadius:7, padding:"4px 10px", cursor:"pointer", color:C.muted, fontSize:13 }}>›</button>
+              </div>
+              <button onClick={() => setShowSchedForm(!showSchedForm)} style={{ background:`linear-gradient(135deg,${C.accent2},${C.accent})`, border:"none", color:"#0F172A", borderRadius:8, padding:"7px 16px", fontSize:12, cursor:"pointer", fontWeight:700 }}>+ 일정 추가</button>
+            </div>
+            {/* 요일 헤더 */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2, marginBottom:4 }}>
+              {["일","월","화","수","목","금","토"].map((d,i) => (
+                <div key={d} style={{ textAlign:"center", color: i===0?C.red:i===6?C.accent:C.muted, fontSize:11, fontWeight:600, padding:"4px 0" }}>{d}</div>
+              ))}
+            </div>
+            {/* 날짜 그리드 */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2 }}>
+              {calDays.days.map((d, i) => {
+                const dateStr = d ? `${selCalMonth}-${String(d).padStart(2,'0')}` : null;
+                const daySchedules = dateStr ? schedules.filter(s => s.date === dateStr) : [];
+                const isToday = dateStr === new Date().toISOString().slice(0,10);
+                const dayOfWeek = i % 7;
+                return (
+                  <div key={i} style={{ minHeight:70, background: isToday ? `${C.accent}10` : "#F8FAFC", borderRadius:8, padding:4, border: isToday ? `1px solid ${C.accent}40` : `1px solid ${C.border}`, opacity: d ? 1 : 0 }}>
+                    {d && <>
+                      <div style={{ color: isToday ? C.accent : dayOfWeek===0 ? C.red : dayOfWeek===6 ? C.accent2 : C.text, fontSize:11, fontWeight: isToday ? 800 : 500, marginBottom:2 }}>{d}</div>
+                      {daySchedules.map((s,j) => (
+                        <div key={j} style={{ background:s.color||C.accent, borderRadius:3, padding:"1px 4px", fontSize:10, color:"#0F172A", fontWeight:600, marginBottom:1, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>{s.title}</div>
+                      ))}
+                    </>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 일정 목록 + 추가 폼 */}
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            {showSchedForm && (
+              <div style={{ background:C.surface, border:`1px solid ${C.accent2}30`, borderRadius:14, padding:18 }}>
+                <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:12 }}>새 일정 추가</div>
+                {[
+                  { label:"날짜", key:"date", type:"date" },
+                  { label:"제목", key:"title", type:"text", placeholder:"일정 제목" },
+                  { label:"병원", key:"hospital", type:"text", placeholder:"관련 병원 (선택)" },
+                  { label:"메모", key:"memo", type:"text", placeholder:"메모 (선택)" },
+                ].map(f => (
+                  <div key={f.key} style={{ marginBottom:8 }}>
+                    <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>{f.label}</label>
+                    <input type={f.type} value={schedForm[f.key]} placeholder={f.placeholder}
+                      onChange={e => setSchedForm(prev => ({...prev, [f.key]: e.target.value}))}
+                      style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
+                  </div>
+                ))}
+                <div style={{ marginBottom:12 }}>
+                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>색상</label>
+                  <div style={{ display:"flex", gap:8 }}>
+                    {[C.accent, C.green, C.yellow, C.red, C.accent2, C.orange].map(color => (
+                      <div key={color} onClick={() => setSchedForm(prev=>({...prev,color}))} style={{ width:20, height:20, borderRadius:"50%", background:color, cursor:"pointer", border: schedForm.color===color ? `2px solid #0F172A` : "2px solid transparent" }} />
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={addSchedule} style={{ background:`linear-gradient(135deg,${C.accent2},${C.accent})`, border:"none", color:"#0F172A", borderRadius:8, padding:"7px 16px", fontSize:12, cursor:"pointer", fontWeight:700 }}>저장</button>
+                  <button onClick={() => setShowSchedForm(false)} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer" }}>취소</button>
+                </div>
+              </div>
+            )}
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:18 }}>
+              <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:12 }}>{calDays.m}월 일정 ({monthSchedules.length}건)</div>
+              {monthSchedules.length === 0
+                ? <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:"20px 0" }}>일정이 없어요</div>
+                : monthSchedules.sort((a,b)=>a.date>b.date?1:-1).map(s => (
+                  <div key={s.id} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"12px 0", borderBottom:`1px solid ${C.border}` }}>
+                    <div style={{ width:4, minHeight:50, borderRadius:2, background:s.color, flexShrink:0, marginTop:2 }} />
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+                        <span style={{ color:C.text, fontWeight:700, fontSize:13 }}>{s.title}</span>
+                        {s.hospital && <span style={{ background:`${C.accent}15`, color:C.accent, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:600 }}>🏥 {s.hospital}</span>}
+                      </div>
+                      <div style={{ color:C.muted, fontSize:11, marginBottom:s.memo?3:0 }}>📅 {s.date}</div>
+                      {s.memo && <div style={{ color:C.text, fontSize:12, lineHeight:1.6, background:"#F8FAFC", borderRadius:6, padding:"6px 8px", marginTop:4 }}>💬 {s.memo}</div>}
+                    </div>
+                    {deleteSchedConfirm === s.id
+                      ? <button onClick={() => deleteSchedule(s.id)} style={{ background:`${C.red}15`, border:`1px solid ${C.red}`, color:C.red, borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", flexShrink:0 }}>확인</button>
+                      : <button onClick={() => setDeleteSchedConfirm(s.id)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", flexShrink:0 }}>삭제</button>
+                    }
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 칸반보드 */}
+      {internalTab === "kanban" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          {/* 주간 필터 */}
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+            <span style={{ color:C.muted, fontSize:12 }}>기간:</span>
+            {[
+              { id:"all", label:"전체" },
+              { id:"this", label:"이번 주" },
+              { id:"next", label:"다음 주" },
+              { id:"overdue", label:"기한 초과" },
+            ].map(w => (
+              <button key={w.id} onClick={() => setKanbanWeek(w.id)} style={{
+                background: kanbanWeek===w.id ? `${C.accent2}20` : "transparent",
+                border: `1px solid ${kanbanWeek===w.id ? C.accent2 : C.border}`,
+                color: kanbanWeek===w.id ? C.accent2 : C.muted,
+                borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+              }}>{w.label}</button>
+            ))}
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16 }}>
+          {KANBAN_COLS.map(col => {
+            const today = new Date(); today.setHours(0,0,0,0);
+            const getWeekRange = (offset=0) => {
+              const d = new Date(today);
+              const day = d.getDay();
+              const mon = new Date(d); mon.setDate(d.getDate() - day + 1 + offset*7);
+              const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+              return [mon, sun];
+            };
+            const allCards = kanbanCards.filter(c => c.col === col.id);
+            const cards = allCards.filter(c => {
+              if (kanbanWeek === "all") return true;
+              const dueDate = c.schedDate || c.dueDate;
+              if (!dueDate) return kanbanWeek === "all";
+              const d = new Date(dueDate); d.setHours(0,0,0,0);
+              if (kanbanWeek === "this") { const [mon,sun] = getWeekRange(0); return d >= mon && d <= sun; }
+              if (kanbanWeek === "next") { const [mon,sun] = getWeekRange(1); return d >= mon && d <= sun; }
+              if (kanbanWeek === "overdue") return d < today && col.id !== "done";
+              return true;
+            });
+            return (
+              <div key={col.id} style={{ background:"#F8FAFC", border:`1px solid ${C.border}`, borderRadius:16, padding:16, minHeight:400 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                  <div style={{ color:col.color, fontWeight:700, fontSize:14 }}>{col.label} <span style={{ color:C.muted, fontSize:12, fontWeight:400 }}>({cards.length})</span></div>
+                  <button onClick={() => { setNewCardCol(newCardCol===col.id ? null : col.id); setNewCardText(""); setNewCardHospital(""); setNewCardAssignee(""); }} style={{ background:`${col.color}15`, border:`1px solid ${col.color}30`, color:col.color, borderRadius:7, padding:"3px 10px", fontSize:12, cursor:"pointer", fontWeight:600 }}>+ 추가</button>
+                </div>
+
+                {newCardCol === col.id && (
+                  <div style={{ background:C.surface, border:`1px solid ${col.color}30`, borderRadius:10, padding:12, marginBottom:12 }}>
+                    <input value={newCardText} onChange={e=>setNewCardText(e.target.value)} placeholder="할 일 내용"
+                      style={{ ...inputSt, marginBottom:6, padding:"6px 10px", fontSize:12 }} />
+                    <select value={newCardHospital} onChange={e=>setNewCardHospital(e.target.value)}
+                      style={{ ...inputSt, marginBottom:6, padding:"6px 10px", fontSize:12, appearance:"none" }}>
+                      <option value="">병원 선택 (선택)</option>
+                      {hospitals.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
+                    </select>
+                    <input value={newCardAssignee} onChange={e=>setNewCardAssignee(e.target.value)} placeholder="담당자 (선택)"
+                      style={{ ...inputSt, marginBottom:8, padding:"6px 10px", fontSize:12 }} />
+                    <div style={{ display:"flex", gap:6 }}>
+                      <button onClick={() => addCard(col.id)} style={{ background:`linear-gradient(135deg,${col.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:7, padding:"5px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
+                      <button onClick={() => setNewCardCol(null)} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:7, padding:"5px 10px", fontSize:12, cursor:"pointer" }}>취소</button>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {cards.map(card => (
+                    <div key={card.id} style={{ background:C.surface, border:`1px solid ${editCardId===card.id ? C.accent2 : C.border}`, borderRadius:10, padding:12 }}>
+                      {editCardId === card.id ? (
+                        /* 수정 폼 */
+                        <div>
+                          <div style={{ color:C.accent2, fontSize:11, fontWeight:700, marginBottom:8 }}>✏️ 카드 수정</div>
+                          <input value={editCardForm.text} onChange={e=>setEditCardForm(p=>({...p,text:e.target.value}))}
+                            placeholder="내용" style={{ ...inputSt, marginBottom:6, padding:"5px 8px", fontSize:12 }} />
+                          <select value={editCardForm.hospital} onChange={e=>setEditCardForm(p=>({...p,hospital:e.target.value}))}
+                            style={{ ...inputSt, marginBottom:6, padding:"5px 8px", fontSize:12, appearance:"none" }}>
+                            <option value="">병원 선택</option>
+                            {hospitals.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
+                          </select>
+                          <input value={editCardForm.assignee} onChange={e=>setEditCardForm(p=>({...p,assignee:e.target.value}))}
+                            placeholder="담당자" style={{ ...inputSt, marginBottom:6, padding:"5px 8px", fontSize:12 }} />
+                          <textarea value={editCardForm.comment} onChange={e=>setEditCardForm(p=>({...p,comment:e.target.value}))}
+                            placeholder="코멘트 (메모)" rows={2}
+                            style={{ ...inputSt, marginBottom:8, padding:"5px 8px", fontSize:12, resize:"vertical", lineHeight:1.5 }} />
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button onClick={updateCard} style={{ background:`linear-gradient(135deg,${C.accent2},${C.accent})`, border:"none", color:"#0F172A", borderRadius:6, padding:"4px 12px", fontSize:11, cursor:"pointer", fontWeight:700 }}>저장</button>
+                            <button onClick={() => setEditCardId(null)} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer" }}>취소</button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* 카드 보기 */
+                        <>
+                          {card.hospital && <div style={{ color:C.accent, fontSize:10, fontWeight:700, marginBottom:4 }}>🏥 {card.hospital}</div>}
+                          <div style={{ color:C.text, fontSize:13, marginBottom:6, lineHeight:1.5 }}>{card.text}</div>
+                          {card.comment && <div style={{ color:C.muted, fontSize:11, background:"#F8FAFC", borderRadius:6, padding:"4px 8px", marginBottom:6, lineHeight:1.5 }}>💬 {card.comment}</div>}
+                          {card.schedDate && <div style={{ color:C.muted, fontSize:10, marginBottom:4 }}>📅 {card.schedDate}</div>}
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                            <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                              {card.assignee && <span style={{ background:`${C.accent2}15`, color:C.accent2, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:600 }}>👤 {card.assignee}</span>}
+                              <span style={{ color:C.muted, fontSize:10 }}>{card.author}</span>
+                            </div>
+                            <div style={{ display:"flex", gap:4 }}>
+                              <button onClick={() => openEditCard(card)} style={{ background:`${C.accent2}10`, border:`1px solid ${C.accent2}30`, color:C.accent2, borderRadius:5, padding:"2px 6px", fontSize:9, cursor:"pointer", fontWeight:600 }}>수정</button>
+                              {KANBAN_COLS.filter(c => c.id !== col.id).map(c => (
+                                <button key={c.id} onClick={() => moveCard(card.id, c.id)} style={{ background:`${c.color}15`, border:`1px solid ${c.color}30`, color:c.color, borderRadius:5, padding:"2px 6px", fontSize:9, cursor:"pointer", fontWeight:600 }}>→{c.label.slice(2)}</button>
+                              ))}
+                              <button onClick={() => deleteCard(card.id)} style={{ background:`${C.red}10`, border:`1px solid ${C.red}30`, color:C.red, borderRadius:5, padding:"2px 6px", fontSize:9, cursor:"pointer" }}>삭제</button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 // ─── 통합요약 + 상세성과 탭 입력 폼 ──────────────────────────
 function PerformanceInputForm({ hospital, monthlyData, onSave, onClose }) {
