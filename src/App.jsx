@@ -3376,7 +3376,14 @@ function CostTab({ hospital, hData, onDataLoad }) {
 
 // ─── 병원 대시보드 ────────────────────────────────────────────
 function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
-  const [tab, setTab] = useState("overview");
+  const enabledTabIds = hospital.tabs || DEFAULT_TABS;
+  const [tab, setTab] = useState(() => {
+    const firstEnabled = [
+      "overview","performance","channel","funnel","patient",
+      "marketing","keyword","schedule","cost","meeting"
+    ].find(id => enabledTabIds.includes(id));
+    return firstEnabled || "overview";
+  });
   const [showPerfInput, setShowPerfInput] = useState(false);
   const [showChannelInput, setShowChannelInput] = useState(false);
 
@@ -3449,9 +3456,8 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
     { id:"cost",        label:"비용 관리" },
     { id:"meeting",     label:"미팅 로그" },
   ].filter(t => {
-    const savedTabs = hospital.tabs || DEFAULT_TABS;
-    // 기존 병원에 저장된 탭이 없으면 defaultOn 탭은 항상 포함
-    const enabledTabs = [...new Set([...savedTabs, ...ALL_TABS.filter(a=>a.defaultOn).map(a=>a.id)])];
+    // hospital.tabs가 저장돼 있으면 그걸 우선, 없으면 DEFAULT_TABS 사용
+    const enabledTabs = hospital.tabs || DEFAULT_TABS;
     return enabledTabs.includes(t.id);
   });
 
@@ -4543,6 +4549,8 @@ function AppInner() {
             channelData: channel?.data || [],
             contentData: content?.data || [],
             meetingData: meeting?.data || [],
+            // 기존 병원에 새 탭(schedule 등) 자동 추가
+            tabs: h.tabs ? [...new Set([...h.tabs, 'schedule'])] : DEFAULT_TABS,
           };
         });
         setHospitals(loaded);
