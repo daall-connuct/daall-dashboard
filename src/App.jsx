@@ -3087,6 +3087,7 @@ function MeetingTab({ hospital }) {
 
 // ─── 비용 관리 탭 ─────────────────────────────────────────────
 const COST_CATEGORIES = [
+  { id:"marketing",          label:"마케팅",               group:"마케팅", color:"#0EA5E9" },
   { id:"marketing_blog",    label:"마케팅 - 블로그",     group:"마케팅", color:"#03C75A" },
   { id:"marketing_insta",   label:"마케팅 - 인스타그램", group:"마케팅", color:"#E1306C" },
   { id:"marketing_youtube", label:"마케팅 - 유튜브",     group:"마케팅", color:"#FF0000" },
