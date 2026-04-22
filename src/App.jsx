@@ -27,6 +27,13 @@ const HOSPITALS_INIT = [
 ];
 
 
+const TEAM_LEADERS_META = [
+  { team:"디자인팀", name:"서보영", color:"#A78BFA" },
+  { team:"CS팀",     name:"김혜지", color:"#F97316" },
+  { team:"마케팅팀", name:"박다은", color:"#0EA5E9" },
+  { team:"기획팀",   name:"홍동호", color:"#10B981" },
+];
+
 const ASSIGNEE_COLORS = {
   "서보영": "#A78BFA",
   "김혜지": "#F97316",
@@ -666,28 +673,65 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
   const [leaderTab, setLeaderTab] = useState("서보영");
   const [leaderColFilter, setLeaderColFilter] = useState("all");
   const [editLeaderCardId, setEditLeaderCardId] = useState(null);
-  const [editLeaderForm, setEditLeaderForm] = useState({ text:"", hospital:"", col:"", comment:"" });
+  const [editLeaderForm, setEditLeaderForm] = useState({ text:"", hospital:"", col:"", comment:"", dueDate:"" });
   const [routines, setRoutines] = useState([]);
   const [showRoutineForm, setShowRoutineForm] = useState(false);
   const [routineForm, setRoutineForm] = useState({ title:"", assignee:"서보영", cycle:"weekly", memo:"" });
+  const [confirmedLogs, setConfirmedLogs] = useState({});
+  const [meetingLogs, setMeetingLogs] = useState([]);
+  const [meetingSelMonth, setMeetingSelMonth] = useState("전체");
+  const [internalLightbox, setInternalLightbox] = useState(null);
+  const [expandedMeetings, setExpandedMeetings] = useState({});
   const toast = (msg) => { setSavedMsg(msg); setTimeout(() => setSavedMsg(""), 2000); };
 
-  // Supabase 불러오기
+  // 최초 로드
   useEffect(() => {
     const load = async () => {
       try {
-        const [kb, sc, rt] = await Promise.all([
+        const [kb, sc, rt, cf] = await Promise.all([
           supabase.from('kanban_data').select('*').eq('id', 1).single(),
           supabase.from('schedule_data').select('*').eq('id', 1).single(),
           supabase.from('kanban_data').select('*').eq('id', 2).single(),
+          supabase.from('kanban_data').select('*').eq('id', 3).single(), // confirmed logs
         ]);
         if (kb.data?.data) setKanbanCards(kb.data.data);
         if (sc.data?.data) setSchedules(sc.data.data);
         if (rt.data?.data) setRoutines(rt.data.data);
+        if (cf.data?.data) setConfirmedLogs(cf.data.data);
       } catch(e) {}
     };
     load();
   }, []);
+
+  // 일정 탭 진입 시 schedule_data 실시간 리로드
+  useEffect(() => {
+    if (internalTab !== "calendar") return;
+    const reload = async () => {
+      try {
+        const res = await supabase.from('schedule_data').select('*').eq('id', 1).single();
+        if (res.data?.data) setSchedules(res.data.data);
+      } catch(e) {}
+    };
+    reload();
+  }, [internalTab]);
+
+  // 미팅 탭 진입 시 전체 병원 미팅 로그 취합
+  useEffect(() => {
+    if (internalTab !== "meetings") return;
+    const loadMeetings = async () => {
+      try {
+        const allMeets = [];
+        for (const h of hospitals) {
+          const res = await supabase.from('meeting_data').select('*').eq('hospital_id', h.id).single();
+          if (res.data?.data) {
+            res.data.data.forEach(log => allMeets.push({ ...log, hospitalName:h.name, hospitalColor:h.color }));
+          }
+        }
+        setMeetingLogs(allMeets.sort((a,b) => (b.date||"") > (a.date||"") ? 1 : -1));
+      } catch(e) {}
+    };
+    loadMeetings();
+  }, [internalTab]);
 
   const saveKanban = async (cards) => {
     try { await supabase.from('kanban_data').upsert({ id:1, data:cards }, { onConflict:'id' }); } catch(e) {}
@@ -698,17 +742,17 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
   const saveSchedule = async (sched) => {
     try { await supabase.from('schedule_data').upsert({ id:1, data:sched }, { onConflict:'id' }); } catch(e) {}
   };
+  const saveConfirmed = async (confirmed) => {
+    try { await supabase.from('kanban_data').upsert({ id:3, data:confirmed }, { onConflict:'id' }); } catch(e) {}
+  };
+
+  const toggleConfirm = (logId) => {
+    const updated = { ...confirmedLogs, [logId]: !confirmedLogs[logId] };
+    setConfirmedLogs(updated);
+    saveConfirmed(updated);
+  };
 
   // 전체 병원 미팅 로그 취합
-  const allMeetings = useMemo(() => {
-    const logs = [];
-    hospitals.forEach(h => {
-      // meeting_data는 각 탭에서 Supabase로 관리되므로 hospital 객체엔 없을 수 있음
-      // 미팅 데이터를 별도로 불러와야 함
-    });
-    return logs;
-  }, [hospitals]);
-
   const KANBAN_COLS = [
     { id:"todo",    label:"📬 요청",    color:C.muted },
     { id:"doing",   label:"⚡ 진행 중", color:C.accent },
@@ -721,27 +765,38 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
   const [newCardText, setNewCardText] = useState("");
   const [newCardHospital, setNewCardHospital] = useState("");
   const [newCardAssignee, setNewCardAssignee] = useState("");
+  const [newCardDueDate, setNewCardDueDate] = useState("");
   const [kanbanWeek, setKanbanWeek] = useState("all");
   const [editCardId, setEditCardId] = useState(null);
-  const [editCardForm, setEditCardForm] = useState({ text:"", hospital:"", assignee:"", comment:"" });
+  const [editCardForm, setEditCardForm] = useState({ text:"", hospital:"", assignee:"", comment:"", dueDate:"" });
 
   const addCard = (colId) => {
     if (!newCardText.trim()) return;
-    const card = { id:Date.now(), col:colId, text:newCardText.trim(), hospital:newCardHospital, assignee:newCardAssignee, author:loginName, date:new Date().toLocaleDateString("ko-KR"), comment:"" };
+    const card = { id:Date.now(), col:colId, text:newCardText.trim(), hospital:newCardHospital, assignee:newCardAssignee, dueDate:newCardDueDate, author:loginName, date:new Date().toLocaleDateString("ko-KR"), comment:"" };
     const updated = [...kanbanCards, card];
     setKanbanCards(updated); saveKanban(updated);
-    setNewCardText(""); setNewCardHospital(""); setNewCardAssignee(""); setNewCardCol(null);
+    setNewCardText(""); setNewCardHospital(""); setNewCardAssignee(""); setNewCardDueDate(""); setNewCardCol(null);
     toast("카드 추가 완료!");
   };
 
   const openEditCard = (card) => {
     setEditCardId(card.id);
-    setEditCardForm({ text:card.text, hospital:card.hospital||"", assignee:card.assignee||"", comment:card.comment||"" });
+    setEditCardForm({ text:card.text, hospital:card.hospital||"", assignee:card.assignee||"", comment:card.comment||"", dueDate:card.dueDate||"" });
   };
 
   const updateCard = () => {
     const updated = kanbanCards.map(c => c.id === editCardId ? { ...c, ...editCardForm } : c);
     setKanbanCards(updated); saveKanban(updated);
+    // 일정에서 온 카드면 schedule_data도 업데이트
+    const orig = kanbanCards.find(c => c.id === editCardId);
+    if (orig?.fromSchedule && orig?.schedDate) {
+      const updatedSched = schedules.map(s =>
+        (s.date === orig.schedDate && (s.hospital === orig.hospital || !s.hospital))
+          ? { ...s, title:editCardForm.text.replace(/^\[\d{4}-\d{2}-\d{2}\]\s*/,''), hospital:editCardForm.hospital, assignee:editCardForm.assignee, comment:editCardForm.comment }
+          : s
+      );
+      setSchedules(updatedSched); saveSchedule(updatedSched);
+    }
     setEditCardId(null); toast("수정 완료!");
   };
 
@@ -781,13 +836,27 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
     const color = getAssigneeColor(editSchedForm.assignee) || C.accent;
     const updated = schedules.map(s => s.id === editSchedId ? { ...s, ...editSchedForm, color } : s);
     setSchedules(updated); saveSchedule(updated);
-    setEditSchedId(null); toast("일정 수정 완료!");
+    // 칸반에서 연동된 카드도 같이 수정 (fromSchedule or schedDate 기준)
+    const sched = updated.find(s => s.id === editSchedId);
+    const updatedKanban = kanbanCards.map(c =>
+      c.fromSchedule && (c.id === editSchedId + 1 || c.schedDate === sched?.date)
+        ? { ...c, text:`[${editSchedForm.date}] ${editSchedForm.title}`, hospital:editSchedForm.hospital, assignee:editSchedForm.assignee||c.assignee, schedDate:editSchedForm.date }
+        : c
+    );
+    setKanbanCards(updatedKanban); saveKanban(updatedKanban);
+    setEditSchedId(null); toast("일정 수정 완료! 칸반도 반영됐어요.");
   };
 
   const deleteSchedule = (id) => {
+    const target = schedules.find(s => s.id === id);
     const updated = schedules.filter(s => s.id !== id);
     setSchedules(updated); saveSchedule(updated);
-    setDeleteSchedConfirm(null); toast("일정 삭제 완료!");
+    // 연결된 칸반 카드도 삭제 (schedDate + hospital 기준)
+    const updatedKanban = kanbanCards.filter(c =>
+      !(c.fromSchedule && target && c.schedDate === target.date && (c.hospital === target.hospital || !target.hospital))
+    );
+    setKanbanCards(updatedKanban); saveKanban(updatedKanban);
+    setDeleteSchedConfirm(null); toast("일정 삭제 완료! 칸반도 반영됐어요.");
   };  // 캘린더 계산
   const calDays = useMemo(() => {
     const [y, m] = selCalMonth.split('-').map(Number);
@@ -806,35 +875,6 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
     return s.hospital === calHospitalFilter;
   });
 
-  // 미팅 로그 Supabase에서 직접 불러오기
-  const [meetingLogs, setMeetingLogs] = useState([]);
-  const [meetingSelMonth, setMeetingSelMonth] = useState("전체");
-  const [confirmedLogs, setConfirmedLogs] = useState({});
-  const [internalLightbox, setInternalLightbox] = useState(null);
-  const [expandedMeetings, setExpandedMeetings] = useState({});
-
-  const toggleConfirm = (logId) => {
-    setConfirmedLogs(prev => ({ ...prev, [logId]: !prev[logId] }));
-  };
-
-  useEffect(() => {
-    const loadMeetings = async () => {
-      try {
-        const results = await Promise.all(
-          hospitals.map(h => supabase.from('meeting_data').select('*').eq('hospital_id', h.id).single())
-        );
-        const logs = [];
-        results.forEach((r, i) => {
-          if (r.data?.data) {
-            r.data.data.forEach(log => logs.push({ ...log, hospitalName: hospitals[i].name, hospitalColor: hospitals[i].color }));
-          }
-        });
-        logs.sort((a,b) => b.date > a.date ? 1 : -1);
-        setMeetingLogs(logs);
-      } catch(e) {}
-    };
-    loadMeetings();
-  }, [hospitals]);
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
@@ -887,24 +927,31 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
               : meetingLogs.filter(l => l.date?.startsWith(meetingSelMonth));
             return filtered.length === 0
               ? <div style={{ background:C.surface, borderRadius:14, padding:32, textAlign:"center", color:C.muted }}>미팅 로그가 없어요</div>
-              : filtered.map((log, i) => {
+              : filtered.map((log) => {
                 const logKey = `${log.hospitalName}_${log.id}`;
                 const isConfirmed = confirmedLogs[logKey];
-                const isExpanded = expandedMeetings[logKey] !== false; // 기본 펼침
+                const isExpanded = expandedMeetings[logKey] === true;
+                const doneCount = (log.actions||[]).filter(a=>a.done).length;
+                const totalCount = (log.actions||[]).length;
                 return (
-                  <div key={i} style={{ background:C.surface, border:`1px solid ${isConfirmed ? C.green+"60" : C.border}`, borderRadius:14, overflow:"hidden", position:"relative" }}>
+                  <div key={logKey} style={{ background:C.surface, border:`1px solid ${isConfirmed ? C.green+"60" : C.border}`, borderRadius:14, overflow:"hidden", position:"relative" }}>
                     {/* 헤더 (항상 표시) */}
-                    <div onClick={() => setExpandedMeetings(p=>({...p,[logKey]:!isExpanded}))}
-                      style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 18px", cursor:"pointer", paddingRight:100 }}>
+                    <div onClick={() => setExpandedMeetings(p=>({...p,[logKey]: p[logKey] === true ? false : true}))}
+                      style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 18px", cursor:"pointer", paddingRight:110 }}>
                       <div style={{ width:8, height:8, borderRadius:"50%", background:log.hospitalColor, flexShrink:0 }} />
                       <span style={{ color:log.hospitalColor, fontWeight:700, fontSize:13 }}>{log.hospitalName}</span>
                       <span style={{ color:C.muted, fontSize:12 }}>{log.date}</span>
                       <span style={{ background:`${C.accent2}15`, color:C.accent2, borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{log.type}</span>
                       {log.attendees && <span style={{ color:C.muted, fontSize:11 }}>👤 {log.attendees}</span>}
+                      {totalCount > 0 && (
+                        <span style={{ background:doneCount===totalCount?`${C.green}15`:`${C.yellow}15`, color:doneCount===totalCount?C.green:C.yellow, borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700 }}>
+                          {doneCount}/{totalCount} 완료
+                        </span>
+                      )}
                       <span style={{ color:C.muted, fontSize:11, marginLeft:"auto" }}>{isExpanded ? "▲" : "▼"}</span>
                     </div>
-                    {/* 확인 버튼 */}
-                    <button onClick={() => toggleConfirm(logKey)} style={{
+                    {/* 확인 버튼 - 이벤트 전파 중단 */}
+                    <button onClick={(e) => { e.stopPropagation(); toggleConfirm(logKey); }} style={{
                       position:"absolute", top:14, right:14,
                       background: isConfirmed ? `${C.green}20` : "transparent",
                       border: `1px solid ${isConfirmed ? C.green : C.dim}`,
@@ -926,12 +973,17 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
                         )}
                         {log.memo && <div style={{ color:C.muted, fontSize:12, marginTop:8, padding:"6px 10px", background:"#F8FAFC", borderRadius:7 }}>💬 {log.memo}</div>}
                         {log.actions?.length > 0 && (
-                          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
-                            {log.actions.map((a,j) => (
-                              <span key={j} style={{ background: a.done ? `${C.green}15` : `${C.muted}10`, border:`1px solid ${a.done ? C.green : C.dim}`, color: a.done ? C.green : C.muted, borderRadius:6, padding:"2px 10px", fontSize:11 }}>
-                                {a.done ? "✓" : "○"} {a.text}
-                              </span>
-                            ))}
+                          <div style={{ display:"flex", flexDirection:"column", gap:5, marginTop:10 }}>
+                            {log.actions.map((a,j) => {
+                              const tm = TEAM_LEADERS_META.find(t => t.team === a.team);
+                              return (
+                                <div key={j} style={{ display:"flex", alignItems:"center", gap:6, background: a.done ? `${C.green}10` : "#F8FAFC", border:`1px solid ${a.done ? C.green : C.dim}`, borderRadius:7, padding:"5px 10px" }}>
+                                  <span style={{ color: a.done ? C.green : C.muted, fontSize:12, flexShrink:0 }}>{a.done ? "✓" : "○"}</span>
+                                  {a.team && <span style={{ background:`${tm?.color||C.accent2}20`, color:tm?.color||C.accent2, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700, flexShrink:0 }}>{a.team}</span>}
+                                  <span style={{ color: a.done ? C.green : C.text, fontSize:12 }}>{a.text}</span>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -1192,7 +1244,7 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
                       {hospitals.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
                     </select>
                     <select value={newCardAssignee} onChange={e=>setNewCardAssignee(e.target.value)}
-                      style={{ ...inputSt, marginBottom:8, padding:"6px 10px", fontSize:12, appearance:"none" }}>
+                      style={{ ...inputSt, marginBottom:6, padding:"6px 10px", fontSize:12, appearance:"none" }}>
                       <option value="">담당자 선택 (선택)</option>
                       <option value="대표님">대표님</option>
                       <option value="서보영">서보영</option>
@@ -1200,6 +1252,11 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
                       <option value="박다은">박다은</option>
                       <option value="홍동호">홍동호</option>
                     </select>
+                    <div style={{ marginBottom:8 }}>
+                      <label style={{ color:C.muted, fontSize:10, display:"block", marginBottom:2 }}>마감일 (선택)</label>
+                      <input type="date" value={newCardDueDate} onChange={e=>setNewCardDueDate(e.target.value)}
+                        style={{ ...inputSt, padding:"5px 10px", fontSize:12 }} />
+                    </div>
                     <div style={{ display:"flex", gap:6 }}>
                       <button onClick={() => addCard(col.id)} style={{ background:`linear-gradient(135deg,${col.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:7, padding:"5px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
                       <button onClick={() => setNewCardCol(null)} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:7, padding:"5px 10px", fontSize:12, cursor:"pointer" }}>취소</button>
@@ -1230,6 +1287,11 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
                             <option value="박다은">박다은</option>
                             <option value="홍동호">홍동호</option>
                           </select>
+                          <div style={{ marginBottom:6 }}>
+                            <label style={{ color:C.muted, fontSize:10, display:"block", marginBottom:2 }}>마감일</label>
+                            <input type="date" value={editCardForm.dueDate||""} onChange={e=>setEditCardForm(p=>({...p,dueDate:e.target.value}))}
+                              style={{ ...inputSt, padding:"5px 8px", fontSize:12 }} />
+                          </div>
                           <textarea value={editCardForm.comment} onChange={e=>setEditCardForm(p=>({...p,comment:e.target.value}))}
                             placeholder="코멘트 (메모)" rows={2}
                             style={{ ...inputSt, marginBottom:8, padding:"5px 8px", fontSize:12, resize:"vertical", lineHeight:1.5 }} />
@@ -1244,7 +1306,25 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
                           {card.hospital && <div style={{ color:C.accent, fontSize:10, fontWeight:700, marginBottom:4 }}>🏥 {card.hospital}</div>}
                           <div style={{ color:C.text, fontSize:13, marginBottom:6, lineHeight:1.5 }}>{card.text}</div>
                           {card.comment && <div style={{ color:C.muted, fontSize:11, background:"#F8FAFC", borderRadius:6, padding:"4px 8px", marginBottom:6, lineHeight:1.5 }}>💬 {card.comment}</div>}
-                          {card.schedDate && <div style={{ color:C.muted, fontSize:10, marginBottom:4 }}>📅 {card.schedDate}</div>}
+                          {/* 마감일 표시 */}
+                          {card.dueDate && (() => {
+                            const today = new Date(); today.setHours(0,0,0,0);
+                            const due = new Date(card.dueDate);
+                            const diff = Math.ceil((due - today) / (1000*60*60*24));
+                            const isOverdue = diff < 0 && card.col !== "done";
+                            const isSoon = diff >= 0 && diff <= 3 && card.col !== "done";
+                            return (
+                              <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:5 }}>
+                                <span style={{ fontSize:10, color: isOverdue ? C.red : isSoon ? C.orange : C.muted, fontWeight: isOverdue||isSoon ? 700 : 400 }}>
+                                  📅 {card.dueDate}
+                                  {isOverdue && ` (${Math.abs(diff)}일 초과)`}
+                                  {isSoon && diff === 0 && " (오늘 마감!)"}
+                                  {isSoon && diff > 0 && ` (${diff}일 남음)`}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                          {card.schedDate && !card.dueDate && <div style={{ color:C.muted, fontSize:10, marginBottom:4 }}>📅 {card.schedDate}</div>}
                           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                             <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                               {card.assignee && <span style={{ background:`${C.accent2}15`, color:C.accent2, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:600 }}>👤 {card.assignee}</span>}
@@ -1336,6 +1416,11 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
                                     style={{ ...inputSt, marginBottom:6, padding:"5px 8px", fontSize:12, appearance:"none" }}>
                                     {KANBAN_COLS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                                   </select>
+                                  <div style={{ marginBottom:6 }}>
+                                    <label style={{ color:C.muted, fontSize:10, display:"block", marginBottom:2 }}>마감일</label>
+                                    <input type="date" value={editLeaderForm.dueDate||""} onChange={e=>setEditLeaderForm(p=>({...p,dueDate:e.target.value}))}
+                                      style={{ ...inputSt, padding:"5px 8px", fontSize:12 }} />
+                                  </div>
                                   <textarea value={editLeaderForm.comment} onChange={e=>setEditLeaderForm(p=>({...p,comment:e.target.value}))}
                                     placeholder="코멘트 (선택)" rows={2}
                                     style={{ ...inputSt, marginBottom:8, padding:"5px 8px", fontSize:12, resize:"vertical", lineHeight:1.5 }} />
@@ -1355,11 +1440,21 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
                                     <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{card.text}</div>
                                     {card.hospital && <div style={{ color:C.accent, fontSize:11, marginTop:2 }}>🏥 {card.hospital}</div>}
                                     {card.comment && <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>💬 {card.comment}</div>}
+                                    {card.dueDate && (() => {
+                                      const today = new Date(); today.setHours(0,0,0,0);
+                                      const due = new Date(card.dueDate);
+                                      const diff = Math.ceil((due - today) / (1000*60*60*24));
+                                      const isOverdue = diff < 0 && card.col !== "done";
+                                      const isSoon = diff >= 0 && diff <= 3 && card.col !== "done";
+                                      return <div style={{ fontSize:10, color:isOverdue?C.red:isSoon?C.orange:C.muted, fontWeight:isOverdue||isSoon?700:400, marginTop:2 }}>
+                                        📅 {card.dueDate}{isOverdue?` (${Math.abs(diff)}일 초과)`:isSoon&&diff===0?" (오늘 마감!)":isSoon?` (${diff}일 남음)`:""}
+                                      </div>;
+                                    })()}
                                   </div>
                                   <span style={{ background:`${col?.color||C.muted}15`, color:col?.color||C.muted, borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:600, flexShrink:0 }}>{col?.label||card.col}</span>
                                   <button onClick={() => {
                                     setEditLeaderCardId(card.id);
-                                    setEditLeaderForm({ text:card.text, hospital:card.hospital||"", col:card.col, comment:card.comment||"" });
+                                    setEditLeaderForm({ text:card.text, hospital:card.hospital||"", col:card.col, comment:card.comment||"", dueDate:card.dueDate||"" });
                                   }} style={{ background:`${leader.color}10`, border:`1px solid ${leader.color}30`, color:leader.color, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontWeight:600, flexShrink:0 }}>수정</button>
                                 </div>
                               )}
@@ -2657,219 +2752,159 @@ function MeetingTab({ hospital }) {
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY_MEETING);
   const [newAction, setNewAction] = useState("");
+  const [newActionTeam, setNewActionTeam] = useState("");
   const [expandedId, setExpandedId] = useState(null);
   const [savedMsg, setSavedMsg] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [lightboxImg, setLightboxImg] = useState(null);
+  const [selMeetingMonth, setSelMeetingMonth] = useState("전체");
 
   const toast = (msg) => { setSavedMsg(msg); setTimeout(() => setSavedMsg(""), 2000); };
 
-  // Supabase 불러오기
   useEffect(() => {
     const load = async () => {
       try {
-        const { data } = await supabase.from('meeting_data').select('*').eq('hospital_id', hospital.id).single();
-        if (data?.data?.length > 0) setLogs(data.data);
+        const res = await supabase.from('meeting_data').select('*').eq('hospital_id', hospital.id).single();
+        if (res.data?.data) setLogs(res.data.data.slice().reverse());
       } catch(e) {}
     };
     load();
   }, [hospital.id]);
 
-  const saveToSupabase = async (newLogs) => {
-    try {
-      await supabase.from('meeting_data').upsert({ hospital_id: hospital.id, data: newLogs }, { onConflict: 'hospital_id' });
-    } catch(e) { console.error('미팅로그 저장 실패:', e); }
+  const saveLogs = async (newLogs) => {
+    try { await supabase.from('meeting_data').upsert({ hospital_id: hospital.id, data: newLogs.slice().reverse() }, { onConflict: 'hospital_id' }); } catch(e) { console.error('미팅로그 저장 실패:', e); }
   };
 
-  // 액션아이템 추가
   const addAction = () => {
     if (!newAction.trim()) return;
-    setForm(prev => ({ ...prev, actions: [...prev.actions, { id: Date.now(), text: newAction.trim(), done: false }] }));
-    setNewAction("");
+    setForm(prev => ({ ...prev, actions: [...prev.actions, { id: Date.now(), text: newAction.trim(), team: newActionTeam, done: false }] }));
+    setNewAction(""); setNewActionTeam("");
   };
+  const removeAction = (id) => setForm(prev => ({ ...prev, actions: prev.actions.filter(a => a.id !== id) }));
 
-  // 액션아이템 삭제 (폼에서)
-  const removeAction = (id) => {
-    setForm(prev => ({ ...prev, actions: prev.actions.filter(a => a.id !== id) }));
-  };
-
-  // 액션아이템 체크 토글 (저장된 로그에서 직접)
-  const toggleActionDone = (logId, actionId) => {
-    const newLogs = logs.map(l => l.id === logId
-      ? { ...l, actions: l.actions.map(a => a.id === actionId ? { ...a, done: !a.done } : a) }
-      : l
+  const toggleActionDone = async (logId, actionId) => {
+    const updated = logs.map(l =>
+      l.id === logId ? { ...l, actions: l.actions.map(a => a.id === actionId ? { ...a, done: !a.done } : a) } : l
     );
-    setLogs(newLogs);
-    saveToSupabase(newLogs);
+    setLogs(updated); await saveLogs(updated);
   };
 
-  const handleAdd = () => {
-    if (!form.date || !form.summary) return;
+  const handleAdd = async () => {
     const newLog = { ...form, id: Date.now() };
-    const newLogs = [newLog, ...logs].sort((a, b) => b.date > a.date ? 1 : -1);
-    setLogs(newLogs);
-    saveToSupabase(newLogs);
-    logActivity("미팅 로그 추가", hospital.name, `${form.date} ${form.type} 미팅`);
-    setForm(EMPTY_MEETING); setNewAction(""); setShowForm(false); toast("미팅 로그 저장 완료!");
+    const updated = [newLog, ...logs];
+    setLogs(updated); await saveLogs(updated);
+    setForm(EMPTY_MEETING); setNewAction(""); setNewActionTeam(""); setShowForm(false); toast("미팅 로그 저장 완료!");
   };
 
-  const handleEdit = (log) => {
-    setEditId(log.id); setForm({ ...log, actions: [...log.actions] }); setShowForm(true);
+  const handleEdit = (log) => { setEditId(log.id); setForm({ ...log, actions: [...log.actions] }); setShowForm(true); };
+
+  const handleUpdate = async () => {
+    const updated = logs.map(l => l.id === editId ? { ...form, id: editId } : l);
+    setLogs(updated); await saveLogs(updated);
+    setEditId(null); setForm(EMPTY_MEETING); setNewAction(""); setNewActionTeam(""); setShowForm(false); toast("수정 완료!");
   };
 
-  const handleUpdate = () => {
-    const newLogs = logs.map(l => l.id === editId ? { ...form, id: editId } : l)
-      .sort((a, b) => b.date > a.date ? 1 : -1);
-    setLogs(newLogs);
-    saveToSupabase(newLogs);
-    logActivity("미팅 로그 수정", hospital.name);
-    setEditId(null); setForm(EMPTY_MEETING); setNewAction(""); setShowForm(false); toast("수정 완료!");
+  const handleDelete = async (id) => {
+    const updated = logs.filter(l => l.id !== id);
+    setLogs(updated); await saveLogs(updated);
+    setDeleteConfirm(null); toast("삭제 완료!");
   };
 
-  const handleDelete = (id) => {
-    const newLogs = logs.filter(l => l.id !== id);
-    setLogs(newLogs);
-    saveToSupabase(newLogs);
-    setDeleteConfirm(null); toast("삭제 완료");
-  };
+  const cancelForm = () => { setShowForm(false); setEditId(null); setForm(EMPTY_MEETING); setNewAction(""); setNewActionTeam(""); };
 
-  const cancelForm = () => { setShowForm(false); setEditId(null); setForm(EMPTY_MEETING); setNewAction(""); };
-
-  // 월 선택 필터
   const meetingMonthList = useMemo(() => {
     const months = [...new Set(logs.map(l => l.date?.slice(0,7)).filter(Boolean))].sort().reverse();
     return ["전체", ...months];
   }, [logs]);
-  const [selMeetingMonth, setSelMeetingMonth] = useState("전체");
 
   const filteredLogs = useMemo(() =>
     selMeetingMonth === "전체" ? logs : logs.filter(l => l.date?.startsWith(selMeetingMonth))
   , [logs, selMeetingMonth]);
 
-  // 최근 미팅 날짜
-  const lastMeeting = logs[0];
-  const daysSince = lastMeeting
-    ? Math.floor((new Date() - new Date(lastMeeting.date)) / (1000 * 60 * 60 * 24))
-    : null;
-
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
       <Toast msg={savedMsg} />
 
-      {/* 라이트박스 모달 */}
+      {/* 라이트박스 */}
       {lightboxImg && (
         <div onClick={() => setLightboxImg(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-out" }}>
-          <img src={lightboxImg} alt="" style={{ maxWidth:"90vw", maxHeight:"90vh", borderRadius:12, objectFit:"contain", boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }} onClick={e => e.stopPropagation()} />
-          <button onClick={() => setLightboxImg(null)} style={{ position:"absolute", top:20, right:24, background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:"50%", width:36, height:36, fontSize:20, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+          <img src={lightboxImg} alt="" style={{ maxWidth:"90vw", maxHeight:"90vh", borderRadius:12, objectFit:"contain" }} onClick={e => e.stopPropagation()} />
+          <button onClick={() => setLightboxImg(null)} style={{ position:"absolute", top:20, right:24, background:"rgba(255,255,255,0.15)", border:"none", color:"#0F172A", borderRadius:"50%", width:36, height:36, fontSize:20, cursor:"pointer" }}>×</button>
         </div>
       )}
 
-      {/* 월 선택 + 추가 버튼 */}
+      {/* 헤더 */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
         <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
           <span style={{ color:C.muted, fontSize:12, flexShrink:0 }}>조회 월:</span>
-          <button onClick={() => setSelMeetingMonth("전체")} style={{
-            background: selMeetingMonth==="전체" ? `${hospital.color}25` : "transparent",
-            border: `1px solid ${selMeetingMonth==="전체" ? hospital.color : C.border}`,
-            color: selMeetingMonth==="전체" ? hospital.color : C.muted,
-            borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
-          }}>전체</button>
-          <YearMonthSelector
-            availMonths={meetingMonthList.filter(m => m !== "전체")}
-            selMonth={selMeetingMonth === "전체" ? "" : selMeetingMonth}
-            setSelMonth={setSelMeetingMonth}
-            color={hospital.color}
-          />
+          {meetingMonthList.map(m => (
+            <button key={m} onClick={() => setSelMeetingMonth(m)} style={{
+              background: selMeetingMonth===m ? `${hospital.color}20` : "transparent",
+              border: `1px solid ${selMeetingMonth===m ? hospital.color : C.border}`,
+              color: selMeetingMonth===m ? hospital.color : C.muted,
+              borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+            }}>{m === "전체" ? "전체" : m.slice(5)+"월"}</button>
+          ))}
         </div>
         <button onClick={() => { cancelForm(); setShowForm(!showForm); }} style={{
-          background: showForm && !editId ? "rgba(248,113,113,0.15)" : `linear-gradient(135deg,${hospital.color},${C.accent2})`,
+          background: showForm && !editId ? `${C.red}15` : `linear-gradient(135deg,${hospital.color},${C.accent2})`,
           border: showForm && !editId ? `1px solid ${C.red}` : "none",
           color: showForm && !editId ? C.red : "#0F172A",
-          borderRadius:10, padding:"9px 20px", fontSize:13, cursor:"pointer", fontWeight:700,
+          borderRadius:9, padding:"9px 18px", fontSize:13, cursor:"pointer", fontWeight:700,
         }}>{showForm && !editId ? "닫기" : "+ 미팅 로그 추가"}</button>
-      </div>
-
-      {/* 요약 카드 */}
-      <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
-        {[
-          { label: selMeetingMonth==="전체" ? "총 미팅" : `${+selMeetingMonth.slice(5)}월 미팅`, value:`${filteredLogs.length}회`, color:hospital.color },
-          { label:"최근 미팅", value: daysSince !== null ? `${daysSince}일 전` : "-", color: daysSince !== null && daysSince > 30 ? C.red : C.green },
-          { label:"대면", value:`${filteredLogs.filter(l=>l.type==="대면").length}회`, color:MEETING_TYPE_COLORS["대면"] },
-          { label:"전화", value:`${filteredLogs.filter(l=>l.type==="전화").length}회`, color:MEETING_TYPE_COLORS["전화"] },
-          { label:"화상", value:`${filteredLogs.filter(l=>l.type==="화상").length}회`, color:MEETING_TYPE_COLORS["화상"] },
-          { label:"메신저", value:`${filteredLogs.filter(l=>l.type==="메신저").length}회`, color:MEETING_TYPE_COLORS["메신저"] },
-        ].map((item, i) => (
-          <div key={i} style={{ background:C.surface, border:`1px solid ${item.color}25`, borderRadius:10, padding:"10px 16px", textAlign:"center" }}>
-            <div style={{ color:C.muted, fontSize:10, marginBottom:3 }}>{item.label}</div>
-            <div style={{ color:item.color, fontSize:15, fontWeight:800 }}>{item.value}</div>
-          </div>
-        ))}
       </div>
 
       {/* 입력 폼 */}
       {showForm && (
-        <div style={{ background:"#F8FAFC", border:`1px solid ${hospital.color}30`, borderRadius:16, padding:24 }}>
-          <div style={{ color:hospital.color, fontSize:14, fontWeight:700, marginBottom:16 }}>
-            {editId ? "미팅 로그 수정" : "새 미팅 로그"}
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))", gap:12, marginBottom:14 }}>
+        <div style={{ background:C.surface, border:`1px solid ${hospital.color}30`, borderRadius:16, padding:24 }}>
+          <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:20 }}>{editId ? "미팅 로그 수정" : "새 미팅 로그"}</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
             <div>
               <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>날짜 *</label>
-              <input type="date" value={form.date} onChange={e => setForm(prev => ({...prev, date:e.target.value}))} style={inputSt} />
+              <input type="date" value={form.date} onChange={e => setForm(p=>({...p,date:e.target.value}))} style={{ ...inputSt, padding:"8px 12px" }} />
             </div>
             <div>
               <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>미팅 방식</label>
-              <div style={{ display:"flex", gap:6 }}>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                 {MEETING_TYPES.map(t => (
-                  <button key={t} onClick={() => setForm(prev => ({...prev, type:t}))} style={{
-                    flex:1, background: form.type===t ? `${MEETING_TYPE_COLORS[t]}25` : "transparent",
-                    border: `1px solid ${form.type===t ? MEETING_TYPE_COLORS[t] : C.dim}`,
-                    color: form.type===t ? MEETING_TYPE_COLORS[t] : C.muted,
-                    borderRadius:7, padding:"7px 0", fontSize:12, cursor:"pointer", fontWeight:600,
+                  <button key={t} onClick={() => setForm(p=>({...p,type:t}))} style={{
+                    background: form.type===t ? `${hospital.color}20` : "transparent",
+                    border: `1px solid ${form.type===t ? hospital.color : C.border}`,
+                    color: form.type===t ? hospital.color : C.muted,
+                    borderRadius:7, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:600,
                   }}>{t}</button>
                 ))}
               </div>
             </div>
-            <div>
-              <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>참석자</label>
-              <KInput value={form.attendees} onChange={e => setForm(prev => ({...prev, attendees:e.target.value}))}
-                placeholder="예: 임지혜, 원장님" style={inputSt} />
-            </div>
-            <div>
-              <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>참고 링크</label>
-              <input value={form.link} onChange={e => setForm(prev => ({...prev, link:e.target.value}))}
-                placeholder="https://..." style={inputSt} />
-            </div>
           </div>
-          <div style={{ marginBottom:12 }}>
+          <div style={{ marginBottom:16 }}>
+            <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>참석자</label>
+            <input type="text" value={form.attendees} placeholder="예: 원장님, 실장님" onChange={e=>setForm(p=>({...p,attendees:e.target.value}))} style={{ ...inputSt, padding:"8px 12px", fontSize:13 }} />
+          </div>
+          <div style={{ marginBottom:16 }}>
             <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>주요 논의 내용 *</label>
-            <textarea value={form.summary}
-              onChange={e => setForm(prev => ({...prev, summary:e.target.value}))}
-              placeholder="이번 미팅에서 논의한 주요 내용을 입력하세요"
-              style={{ ...inputSt, height:90, resize:"vertical", lineHeight:1.7 }} />
+            <textarea value={form.summary} rows={4} placeholder="이번 미팅에서 논의된 주요 내용을 기록해주세요" onChange={e=>setForm(p=>({...p,summary:e.target.value}))}
+              style={{ ...inputSt, resize:"vertical", lineHeight:1.6, padding:"8px 12px", fontSize:13 }} />
           </div>
-
-          {/* 이미지 첨부 */}
-          <div style={{ marginBottom:12 }}>
-            <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:6 }}>이미지 첨부 <span style={{ color:C.muted, fontWeight:400 }}>(최대 3장, 각 1MB 이하)</span></label>
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"flex-start" }}>
+          {/* 이미지 */}
+          <div style={{ marginBottom:16 }}>
+            <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>첨부 이미지 (최대 3장)</label>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
               {(form.images||[]).map((img, idx) => (
-                <div key={idx} style={{ position:"relative", width:80, height:80 }}>
-                  <img src={img} alt="" style={{ width:80, height:80, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}` }} />
-                  <div onClick={() => setForm(prev => ({...prev, images: prev.images.filter((_,i)=>i!==idx)}))}
+                <div key={idx} style={{ position:"relative" }}>
+                  <img src={img} alt="" style={{ width:60, height:60, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}`, cursor:"pointer" }} onClick={() => setLightboxImg(img)} />
+                  <div onClick={() => setForm(p=>({...p,images:p.images.filter((_,i)=>i!==idx)}))}
                     style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", background:C.red, color:"#0F172A", fontSize:11, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>×</div>
                 </div>
               ))}
               {(form.images||[]).length < 3 && (
-                <label style={{ width:80, height:80, border:`2px dashed ${C.border}`, borderRadius:8, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"pointer", color:C.muted, fontSize:11, gap:4 }}>
-                  <span style={{ fontSize:20 }}>+</span>
-                  <span>사진 추가</span>
+                <label style={{ width:60, height:60, border:`2px dashed ${C.border}`, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:C.muted, fontSize:20 }}>
+                  +
                   <input type="file" accept="image/*" style={{ display:"none" }} onChange={e => {
                     const file = e.target.files[0];
                     if (!file) return;
-                    if (file.size > 1024*1024) { alert("1MB 이하 이미지만 첨부 가능해요"); return; }
                     const reader = new FileReader();
-                    reader.onload = ev => setForm(prev => ({...prev, images: [...(prev.images||[]), ev.target.result]}));
+                    reader.onload = ev => setForm(p=>({...p, images:[...(p.images||[]), ev.target.result]}));
                     reader.readAsDataURL(file);
                     e.target.value = "";
                   }} />
@@ -2877,47 +2912,47 @@ function MeetingTab({ hospital }) {
               )}
             </div>
           </div>
-          <div style={{ marginBottom:12 }}>
+          {/* 액션아이템 */}
+          <div style={{ marginBottom:16 }}>
             <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>결정사항 / 액션아이템</label>
-            {/* 추가된 항목들 */}
             {form.actions.length > 0 && (
               <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:8 }}>
-                {form.actions.map(action => (
-                  <div key={action.id} style={{ display:"flex", alignItems:"center", gap:8, background:"#F8FAFC", borderRadius:8, padding:"8px 12px" }}>
-                    <div style={{ width:18, height:18, borderRadius:5, flexShrink:0, background:action.done?C.green:"transparent", border:`2px solid ${action.done?C.green:C.dim}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      {action.done && <span style={{ color:"#0F172A", fontSize:11, fontWeight:900 }}>✓</span>}
+                {form.actions.map(action => {
+                  const teamLeader = TEAM_LEADERS_META.find(t => t.team === action.team);
+                  return (
+                    <div key={action.id} style={{ display:"flex", alignItems:"center", gap:8, background:"#F8FAFC", borderRadius:8, padding:"8px 12px" }}>
+                      <div style={{ width:18, height:18, borderRadius:5, flexShrink:0, background:action.done?C.green:"transparent", border:`2px solid ${action.done?C.green:C.dim}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                        {action.done && <span style={{ color:"#0F172A", fontSize:11, fontWeight:900 }}>✓</span>}
+                      </div>
+                      {action.team && <span style={{ background:`${teamLeader?.color||C.accent2}20`, color:teamLeader?.color||C.accent2, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700, flexShrink:0 }}>{action.team}</span>}
+                      <span style={{ flex:1, color:C.text, fontSize:12 }}>{action.text}</span>
+                      <span onClick={() => removeAction(action.id)} style={{ color:C.dim, cursor:"pointer", fontSize:16, fontWeight:700, lineHeight:1 }}>×</span>
                     </div>
-                    <span style={{ flex:1, color:C.text, fontSize:12 }}>{action.text}</span>
-                    <span onClick={() => removeAction(action.id)} style={{ color:C.dim, cursor:"pointer", fontSize:16, fontWeight:700, lineHeight:1 }}>×</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
-            {/* 새 항목 입력 */}
-            <div style={{ display:"flex", gap:8 }}>
-              <input
-                value={newAction}
-                onChange={e => setNewAction(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && addAction()}
-                placeholder="액션아이템 입력 후 Enter 또는 추가 버튼"
-                style={{ ...inputSt, flex:1, padding:"7px 12px", fontSize:12 }}
-              />
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              <select value={newActionTeam} onChange={e=>setNewActionTeam(e.target.value)}
+                style={{ ...inputSt, width:120, padding:"7px 10px", fontSize:12, appearance:"none", flexShrink:0 }}>
+                <option value="">팀 선택</option>
+                {TEAM_LEADERS_META.map(t => <option key={t.team} value={t.team}>{t.team}</option>)}
+              </select>
+              <input value={newAction} onChange={e=>setNewAction(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addAction()}
+                placeholder="액션아이템 입력 후 Enter 또는 추가" style={{ ...inputSt, flex:1, padding:"7px 12px", fontSize:12, minWidth:160 }} />
               <button onClick={addAction} style={{ background:`${hospital.color}20`, border:`1px solid ${hospital.color}`, color:hospital.color, borderRadius:8, padding:"7px 14px", fontSize:12, cursor:"pointer", fontWeight:700, flexShrink:0 }}>+ 추가</button>
             </div>
           </div>
           <div style={{ marginBottom:16 }}>
             <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>메모</label>
-            <KInput value={form.memo} onChange={e => setForm(prev => ({...prev, memo:e.target.value}))}
-              placeholder="기타 특이사항" style={inputSt} />
+            <KInput value={form.memo} onChange={e=>setForm(p=>({...p,memo:e.target.value}))} placeholder="기타 특이사항" style={inputSt} />
           </div>
           <div style={{ display:"flex", gap:10 }}>
-            <button onClick={editId ? handleUpdate : handleAdd}
-              disabled={!form.date || !form.summary}
-              style={{
-                background: form.date && form.summary ? `linear-gradient(135deg,${hospital.color},${C.accent2})` : C.dim,
-                border:"none", color:"#0F172A", borderRadius:9, padding:"10px 24px",
-                fontSize:13, cursor: form.date && form.summary ? "pointer" : "not-allowed", fontWeight:700,
-              }}>{editId ? "수정 완료" : "저장하기"}</button>
+            <button onClick={editId ? handleUpdate : handleAdd} disabled={!form.date || !form.summary} style={{
+              background: form.date && form.summary ? `linear-gradient(135deg,${hospital.color},${C.accent2})` : C.dim,
+              border:"none", color:"#0F172A", borderRadius:9, padding:"10px 24px",
+              fontSize:13, cursor: form.date && form.summary ? "pointer" : "not-allowed", fontWeight:700,
+            }}>{editId ? "수정 완료" : "저장하기"}</button>
             <button onClick={cancelForm} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:9, padding:"10px 16px", fontSize:13, cursor:"pointer" }}>취소</button>
           </div>
         </div>
@@ -2925,151 +2960,91 @@ function MeetingTab({ hospital }) {
 
       {/* 로그 목록 */}
       {filteredLogs.length === 0 ? (
-        <div style={{ background:C.surface, border:`2px dashed ${C.border}`, borderRadius:16, padding:48, textAlign:"center" }}>
-          <div style={{ color:C.text, fontSize:15, fontWeight:700, marginBottom:8 }}>
-            {selMeetingMonth === "전체" ? "미팅 로그가 없어요" : `${+selMeetingMonth.slice(5)}월 미팅 로그가 없어요`}
-          </div>
-          <div style={{ color:C.muted, fontSize:13 }}>
-            {selMeetingMonth === "전체" ? "위 버튼을 눌러 첫 미팅 로그를 추가해 보세요" : "다른 월을 선택하거나 새 로그를 추가해 보세요"}
-          </div>
+        <div style={{ background:C.surface, border:`2px dashed ${C.border}`, borderRadius:16, padding:40, textAlign:"center", color:C.muted }}>
+          미팅 로그가 없어요. 위의 버튼으로 추가해보세요!
         </div>
       ) : (
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          {filteredLogs.map((log, i) => {
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          {filteredLogs.map((log) => {
             const isExpanded = expandedId === log.id;
-            const typeColor = MEETING_TYPE_COLORS[log.type] || C.muted;
-            const isRecent = log.id === logs[0]?.id;
+            const doneCount = log.actions.filter(a=>a.done).length;
             return (
-              <div key={log.id} style={{
-                background: C.surface,
-                border: `1px solid ${isExpanded ? hospital.color+"60" : C.border}`,
-                borderRadius:14, overflow:"hidden", transition:"all 0.2s",
-              }}>
-                {/* 로그 헤더 - 클릭해서 펼치기 */}
+              <div key={log.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, overflow:"hidden" }}>
+                {/* 헤더 */}
                 <div onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                  style={{ padding:"16px 20px", cursor:"pointer", display:"flex", alignItems:"center", gap:14 }}>
-                  {/* 날짜 */}
-                  <div style={{ flexShrink:0, textAlign:"center", width:52 }}>
-                    <div style={{ color:hospital.color, fontSize:18, fontWeight:900, lineHeight:1 }}>
-                      {log.date.slice(8)}
-                    </div>
-                    <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>
-                      {log.date.slice(0,7).replace("-",".")}
-                    </div>
-                  </div>
-                  <div style={{ width:1, height:36, background:C.dim, flexShrink:0 }} />
-                  {/* 방식 배지 */}
-                  <Badge color={typeColor}>{log.type}</Badge>
-                  {/* 요약 */}
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ color:C.text, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                      {log.summary}
-                    </div>
-                    {log.attendees && (
-                      <div style={{ color:C.muted, fontSize:11, marginTop:3 }}>👥 {log.attendees}</div>
+                  style={{ display:"flex", alignItems:"center", gap:10, padding:"16px 20px", cursor:"pointer" }}>
+                  <div style={{ flex:1, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                    <span style={{ color:C.text, fontWeight:700, fontSize:14 }}>{log.date}</span>
+                    <span style={{ background:`${hospital.color}15`, color:hospital.color, borderRadius:6, padding:"2px 10px", fontSize:12, fontWeight:600 }}>{log.type}</span>
+                    {log.attendees && <span style={{ color:C.muted, fontSize:12 }}>👤 {log.attendees}</span>}
+                    {log.actions.length > 0 && (
+                      <span style={{ background:doneCount===log.actions.length?`${C.green}15`:`${C.yellow}15`, color:doneCount===log.actions.length?C.green:C.yellow, borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:600 }}>
+                        {doneCount}/{log.actions.length} 완료
+                      </span>
                     )}
                   </div>
-                  {isRecent && <Badge color={C.green}>최신</Badge>}
-                  {log.actions.length > 0 && (() => {
-                    const done = log.actions.filter(a => a.done).length;
-                    const total = log.actions.length;
-                    const allDone = done === total;
-                    return <Badge color={allDone ? C.green : C.yellow}>{done}/{total}</Badge>;
-                  })()}
-                  <span style={{ color:C.muted, fontSize:16, flexShrink:0 }}>{isExpanded ? "▲" : "▼"}</span>
+                  <span style={{ color:C.muted, fontSize:16 }}>{isExpanded ? "▲" : "▼"}</span>
                 </div>
 
-                {/* 펼쳐진 상세 내용 */}
+                {/* 상세 내용 */}
                 {isExpanded && (
                   <div style={{ padding:"0 20px 20px", borderTop:`1px solid ${C.dim}` }}>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginTop:16 }}>
-                      {/* 주요 논의 내용 */}
+                      {/* 논의 내용 */}
                       <div style={{ background:"#F8FAFC", borderRadius:10, padding:14 }}>
-                        <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:8 }}>📋 주요 논의 내용</div>
+                        <div style={{ color:C.muted, fontSize:11, fontWeight:600, marginBottom:8 }}>📋 주요 논의 내용</div>
                         <div style={{ color:C.text, fontSize:13, lineHeight:1.7, whiteSpace:"pre-wrap" }}>{log.summary}</div>
-                        {log.images && log.images.length > 0 && (
-                          <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:12 }}>
-                            {log.images.map((img, idx) => (
-                              <img key={idx} src={img} alt="" onClick={() => setLightboxImg(img)}
-                                style={{ width:72, height:72, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}`, cursor:"pointer" }} />
-                            ))}
-                          </div>
-                        )}
                       </div>
-                      {/* 결정사항 / 액션아이템 */}
-                      <div style={{ background:`${hospital.color}08`, border:`1px solid ${hospital.color}20`, borderRadius:10, padding:14 }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                          <div style={{ color:hospital.color, fontSize:11, fontWeight:700 }}>✅ 결정사항 / 액션아이템</div>
-                          {log.actions.length > 0 && (
-                            <div style={{ color:C.muted, fontSize:11 }}>
-                              {log.actions.filter(a=>a.done).length}/{log.actions.length} 완료
-                            </div>
-                          )}
-                        </div>
+                      {/* 액션아이템 */}
+                      <div style={{ background:"#F8FAFC", borderRadius:10, padding:14 }}>
+                        <div style={{ color:C.muted, fontSize:11, fontWeight:600, marginBottom:8 }}>✅ 결정사항 / 액션아이템</div>
                         {log.actions.length === 0 ? (
                           <div style={{ color:C.muted, fontSize:12 }}>없음</div>
                         ) : (
                           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                            {log.actions.map(action => (
-                              <div key={action.id}
-                                onClick={() => toggleActionDone(log.id, action.id)}
-                                style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer",
-                                  padding:"6px 8px", borderRadius:7,
-                                  background: action.done ? `${C.green}10` : "transparent",
-                                  transition:"background 0.15s",
-                                }}>
-                                <div style={{
-                                  width:20, height:20, borderRadius:6, flexShrink:0,
-                                  background: action.done ? C.green : "transparent",
-                                  border: `2px solid ${action.done ? C.green : C.dim}`,
-                                  display:"flex", alignItems:"center", justifyContent:"center",
-                                  transition:"all 0.15s",
-                                }}>
-                                  {action.done && <span style={{ color:"#0F172A", fontSize:12, fontWeight:900 }}>✓</span>}
+                            {log.actions.map(action => {
+                              const tm = TEAM_LEADERS_META.find(t => t.team === action.team);
+                              return (
+                                <div key={action.id} onClick={() => toggleActionDone(log.id, action.id)}
+                                  style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", padding:"6px 8px", borderRadius:7, background:action.done?`${C.green}10`:"transparent", transition:"background 0.15s" }}>
+                                  <div style={{ width:20, height:20, borderRadius:6, flexShrink:0, background:action.done?C.green:"transparent", border:`2px solid ${action.done?C.green:C.dim}`, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}>
+                                    {action.done && <span style={{ color:"#0F172A", fontSize:12, fontWeight:900 }}>✓</span>}
+                                  </div>
+                                  {action.team && <span style={{ background:`${tm?.color||C.accent2}20`, color:tm?.color||C.accent2, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700, flexShrink:0 }}>{action.team}</span>}
+                                  <span style={{ flex:1, fontSize:13, lineHeight:1.5, color:action.done?C.muted:C.text, textDecoration:action.done?"line-through":"none", transition:"all 0.15s" }}>{action.text}</span>
                                 </div>
-                                <span style={{
-                                  flex:1, fontSize:13, lineHeight:1.5,
-                                  color: action.done ? C.muted : C.text,
-                                  textDecoration: action.done ? "line-through" : "none",
-                                  transition:"all 0.15s",
-                                }}>{action.text}</span>
-                              </div>
-                            ))}
-                            {/* 완료율 바 */}
+                              );
+                            })}
                             {log.actions.length > 1 && (
                               <div style={{ marginTop:4, background:C.dim, borderRadius:3, height:4 }}>
-                                <div style={{
-                                  width:`${Math.round((log.actions.filter(a=>a.done).length / log.actions.length)*100)}%`,
-                                  height:"100%", background:C.green, borderRadius:3, transition:"width 0.3s"
-                                }}/>
+                                <div style={{ width:`${Math.round((doneCount/log.actions.length)*100)}%`, height:"100%", background:C.green, borderRadius:3, transition:"width 0.3s" }} />
                               </div>
                             )}
                           </div>
                         )}
                       </div>
                     </div>
-                    {/* 링크 / 메모 */}
-                    {(log.link || log.memo) && (
-                      <div style={{ display:"flex", gap:12, marginTop:12, flexWrap:"wrap" }}>
-                        {log.link && (
-                          <a href={log.link} target="_blank" rel="noreferrer"
-                            style={{ color:C.accent, fontSize:12, display:"flex", alignItems:"center", gap:4 }}>
-                            🔗 참고 링크
-                          </a>
-                        )}
-                        {log.memo && (
-                          <div style={{ color:C.muted, fontSize:12 }}>📝 {log.memo}</div>
-                        )}
+                    {/* 이미지 */}
+                    {log.images && log.images.length > 0 && (
+                      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:14 }}>
+                        {log.images.map((img,idx) => (
+                          <img key={idx} src={img} alt="" onClick={() => setLightboxImg(img)}
+                            style={{ width:80, height:80, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}`, cursor:"zoom-in" }} />
+                        ))}
                       </div>
                     )}
-                    {/* 수정 / 삭제 버튼 */}
+                    {/* 메모 / 링크 */}
+                    {(log.link || log.memo) && (
+                      <div style={{ display:"flex", gap:12, marginTop:12, flexWrap:"wrap" }}>
+                        {log.link && <a href={log.link} target="_blank" rel="noreferrer" style={{ color:C.accent, fontSize:12, display:"flex", alignItems:"center", gap:4 }}>🔗 참고 링크</a>}
+                        {log.memo && <div style={{ color:C.muted, fontSize:12 }}>📝 {log.memo}</div>}
+                      </div>
+                    )}
+                    {/* 수정/삭제 */}
                     <div style={{ display:"flex", gap:8, marginTop:14, paddingTop:14, borderTop:`1px solid ${C.dim}` }}>
-                      <button onClick={() => handleEdit(log)} style={{ background:`${hospital.color}20`, border:`1px solid ${hospital.color}40`, color:hospital.color, borderRadius:7, padding:"5px 14px", fontSize:12, cursor:"pointer", fontWeight:600 }}>수정</button>
+                      <button onClick={() => handleEdit(log)} style={{ background:`${hospital.color}15`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:7, padding:"5px 14px", fontSize:12, cursor:"pointer", fontWeight:600 }}>수정</button>
                       {deleteConfirm === log.id ? (
-                        <>
-                          <button onClick={() => handleDelete(log.id)} style={{ background:`${C.red}20`, border:`1px solid ${C.red}`, color:C.red, borderRadius:7, padding:"5px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>삭제 확인</button>
-                          <button onClick={() => setDeleteConfirm(null)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:7, padding:"5px 12px", fontSize:12, cursor:"pointer" }}>취소</button>
-                        </>
+                        <button onClick={() => handleDelete(log.id)} style={{ background:`${C.red}15`, border:`1px solid ${C.red}`, color:C.red, borderRadius:7, padding:"5px 14px", fontSize:12, cursor:"pointer", fontWeight:600 }}>확인 삭제</button>
                       ) : (
                         <button onClick={() => setDeleteConfirm(log.id)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:7, padding:"5px 14px", fontSize:12, cursor:"pointer" }}>삭제</button>
                       )}
@@ -3085,7 +3060,6 @@ function MeetingTab({ hospital }) {
   );
 }
 
-// ─── 비용 관리 탭 ─────────────────────────────────────────────
 const COST_CATEGORIES = [
   { id:"marketing",          label:"마케팅",               group:"마케팅", color:"#0EA5E9" },
   { id:"marketing_blog",    label:"마케팅 - 블로그",     group:"마케팅", color:"#03C75A" },
