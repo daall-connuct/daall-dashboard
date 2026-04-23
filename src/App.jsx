@@ -100,7 +100,7 @@ function YearMonthSelector({ availMonths, selMonth, setSelMonth, color }) {
   return (
     <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
       <select value={selYear} onChange={e => { setSelYear(e.target.value); setSelMonth(""); }}
-        style={{ background:"#F1F5F9", border:`1px solid #1E293B`, borderRadius:8, color:"#0F172A", padding:"4px 10px", fontSize:12, fontFamily:"'Noto Sans KR', sans-serif", outline:"none", cursor:"pointer" }}>
+        style={{ background:"#F1F5F9", border:`1px solid #1E293B`, borderRadius:8, color:"#0F172A", padding:"4px 10px", fontSize:12, fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif", outline:"none", cursor:"pointer" }}>
         {years.map(y => <option key={y} value={y} style={{background:"#F8FAFC"}}>{y}년</option>)}
       </select>
       {monthsInYear.length === 0
@@ -152,7 +152,7 @@ const TT = (props) => (
   <Tooltip contentStyle={{ background: "#F8FAFC", border: `1px solid ${C.dim}`, borderRadius: 10, color: C.text, fontSize: 12 }} {...props} />
 );
 
-const inputSt = { background: "#F1F5F9", border: `1px solid ${C.dim}`, borderRadius: 8, color: C.text, padding: "8px 12px", fontSize: 13, fontFamily: "'Noto Sans KR', sans-serif", width: "100%", outline: "none" };
+const inputSt = { background: "#F1F5F9", border: `1px solid ${C.dim}`, borderRadius: 8, color: C.text, padding: "8px 12px", fontSize: 13, fontFamily: "-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif", width: "100%", outline: "none" };
 
 // ─── 한글 입력 버그 방지 Input 컴포넌트 ──────────────────────
 function KInput({ value, onChange, style, type="text", placeholder, onKeyDown, autoFocus, ...rest }) {
@@ -230,7 +230,7 @@ function HospitalFormField({ label, k, placeholder, type="text", required, form,
   );
 }
 
-function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospital, onDeleteHospital, onUpdateHospital, isAdmin, isSuperAdmin, loginName, onAdminLogout }) {
+function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospital, onDeleteHospital, onUpdateHospital, isAdmin, isSuperAdmin, loginName, onAdminLogout, globalSchedules, saveGlobalSchedules }) {
   const [showForm, setShowForm]     = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [form, setForm]             = useState(EMPTY_HOSPITAL_FORM);
@@ -312,7 +312,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   }), [hospitals]);
 
   return (
-    <div style={{ minHeight:"100vh", background:C.bg, padding:"40px 32px", fontFamily:"'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:C.bg, padding:"40px 32px", fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif" }}>
       <Toast msg={savedMsg} />
 
       {/* 헤더 */}
@@ -651,14 +651,14 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
       </>)}
 
       {mainTab === "internal" && (
-        <InternalDashboard hospitals={hospitals} loginName={loginName} onUpdateHospital={onUpdateHospital} />
+        <InternalDashboard hospitals={hospitals} loginName={loginName} onUpdateHospital={onUpdateHospital} globalSchedules={globalSchedules} saveGlobalSchedules={saveGlobalSchedules} />
       )}
     </div>
   );
 }
 
 // ─── 내부 작업 대시보드 ────────────────────────────────────────
-function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
+function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSchedules, saveGlobalSchedules }) {
   const TEAM_LEADERS = [
     { name:"서보영", team:"디자인팀", color:"#F472B6" },
     { name:"김혜지", team:"CS팀",     color:"#34D399" },
@@ -668,7 +668,9 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
 
   const [internalTab, setInternalTab] = useState("meetings");
   const [kanbanCards, setKanbanCards] = useState([]);
-  const [schedules, setSchedules] = useState([]);
+  // schedules는 globalSchedules prop 사용 (단일 소스)
+  const schedules = globalSchedules || [];
+  const saveSchedule = saveGlobalSchedules;
   const [savedMsg, setSavedMsg] = useState("");
   const [leaderTab, setLeaderTab] = useState("서보영");
   const [leaderColFilter, setLeaderColFilter] = useState("all");
@@ -688,32 +690,18 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
   useEffect(() => {
     const load = async () => {
       try {
-        const [kb, sc, rt, cf] = await Promise.all([
+        const [kb, rt, cf] = await Promise.all([
           supabase.from('kanban_data').select('*').eq('id', 1).single(),
-          supabase.from('schedule_data').select('*').eq('id', 1).single(),
           supabase.from('kanban_data').select('*').eq('id', 2).single(),
           supabase.from('kanban_data').select('*').eq('id', 3).single(), // confirmed logs
         ]);
         if (kb.data?.data) setKanbanCards(kb.data.data);
-        if (sc.data?.data) setSchedules(sc.data.data);
         if (rt.data?.data) setRoutines(rt.data.data);
         if (cf.data?.data) setConfirmedLogs(cf.data.data);
       } catch(e) {}
     };
     load();
   }, []);
-
-  // 일정 탭 진입 시 schedule_data 실시간 리로드
-  useEffect(() => {
-    if (internalTab !== "calendar") return;
-    const reload = async () => {
-      try {
-        const res = await supabase.from('schedule_data').select('*').eq('id', 1).single();
-        if (res.data?.data) setSchedules(res.data.data);
-      } catch(e) {}
-    };
-    reload();
-  }, [internalTab]);
 
   // 미팅 탭 진입 시 전체 병원 미팅 로그 취합
   useEffect(() => {
@@ -738,9 +726,6 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
   };
   const saveRoutines = async (rts) => {
     try { await supabase.from('kanban_data').upsert({ id:2, data:rts }, { onConflict:'id' }); } catch(e) {}
-  };
-  const saveSchedule = async (sched) => {
-    try { await supabase.from('schedule_data').upsert({ id:1, data:sched }, { onConflict:'id' }); } catch(e) {}
   };
   const saveConfirmed = async (confirmed) => {
     try { await supabase.from('kanban_data').upsert({ id:3, data:confirmed }, { onConflict:'id' }); } catch(e) {}
@@ -822,8 +807,9 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
   const addSchedule = () => {
     if (!schedForm.date || !schedForm.title) return;
     const schedId = Date.now();
-    const updated = [...schedules, { id:schedId, ...schedForm }];
-    setSchedules(updated); saveSchedule(updated);
+    const color = getAssigneeColor(schedForm.assignee) || C.accent;
+    const newItem = { id:schedId, ...schedForm, color, source:"internal" };
+    saveGlobalSchedules([...schedules, newItem]);
     // 칸반 할일에도 자동 추가
     const kanbanCard = { id:schedId+1, col:"todo", text:`[${schedForm.date}] ${schedForm.title}`, hospital:schedForm.hospital, assignee:schedForm.assignee||"", author:loginName, date:new Date().toLocaleDateString("ko-KR"), fromSchedule:true, schedDate:schedForm.date };
     const updatedKanban = [...kanbanCards, kanbanCard];
@@ -832,14 +818,14 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
     setShowSchedForm(false); toast("일정 추가 완료! 칸반 할일에도 추가됐어요.");
   };
 
-  const updateInternalSchedule = async () => {
+  const updateInternalSchedule = () => {
     const color = getAssigneeColor(editSchedForm.assignee) || C.accent;
     const updated = schedules.map(s => s.id === editSchedId ? { ...s, ...editSchedForm, color } : s);
-    setSchedules(updated); saveSchedule(updated);
-    // 칸반에서 연동된 카드도 같이 수정 (fromSchedule or schedDate 기준)
+    saveGlobalSchedules(updated);
+    // 칸반에서 연동된 카드도 같이 수정
     const sched = updated.find(s => s.id === editSchedId);
     const updatedKanban = kanbanCards.map(c =>
-      c.fromSchedule && (c.id === editSchedId + 1 || c.schedDate === sched?.date)
+      c.fromSchedule && c.schedDate === sched?.date
         ? { ...c, text:`[${editSchedForm.date}] ${editSchedForm.title}`, hospital:editSchedForm.hospital, assignee:editSchedForm.assignee||c.assignee, schedDate:editSchedForm.date }
         : c
     );
@@ -849,9 +835,8 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital }) {
 
   const deleteSchedule = (id) => {
     const target = schedules.find(s => s.id === id);
-    const updated = schedules.filter(s => s.id !== id);
-    setSchedules(updated); saveSchedule(updated);
-    // 연결된 칸반 카드도 삭제 (schedDate + hospital 기준)
+    saveGlobalSchedules(schedules.filter(s => s.id !== id));
+    // 연결된 칸반 카드도 삭제
     const updatedKanban = kanbanCards.filter(c =>
       !(c.fromSchedule && target && c.schedDate === target.date && (c.hospital === target.hospital || !target.hospital))
     );
@@ -3350,7 +3335,7 @@ function CostTab({ hospital, hData, onDataLoad }) {
 }
 
 // ─── 병원 대시보드 ────────────────────────────────────────────
-function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
+function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, globalSchedules, saveGlobalSchedules }) {
   const enabledTabIds = hospital.tabs || DEFAULT_TABS;
   const [tab, setTab] = useState(() => {
     const firstEnabled = [
@@ -3587,7 +3572,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #F1F5F9; color: #1E293B; font-family: 'Noto Sans KR', sans-serif; padding: 40px 32px; line-height: 1.6; }
+  body { background: #F1F5F9; color: #1E293B; font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif; padding: 40px 32px; line-height: 1.6; }
   .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 36px; padding-bottom: 24px; border-bottom: 2px solid ${hospital.color}40; }
   .hospital-name { font-size: 28px; font-weight: 900; color: #1E293B; margin-bottom: 6px; }
   .hospital-meta { color: #64748B; font-size: 13px; }
@@ -3779,7 +3764,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
   ) : null;
 
   return (
-    <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif" }}>
 
       {/* 헤더 */}
       <div style={{ background:"#F8FAFC", borderBottom:`1px solid ${C.border}`, padding:"16px 28px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 }}>
@@ -3809,7 +3794,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             background:"transparent", border:"none", padding:"14px 16px", fontSize:13, cursor:"pointer", fontWeight:600,
-            fontFamily:"'Noto Sans KR', sans-serif",
+            fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif",
             color:tab===t.id ? hospital.color : C.muted,
             borderBottom:tab===t.id ? `2px solid ${hospital.color}` : "2px solid transparent",
             transition:"all 0.15s", whiteSpace:"nowrap",
@@ -4255,7 +4240,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
         {tab === "cost" && <CostTab hospital={hospital} hData={hData} onDataLoad={setSharedCostData} />}
         {tab === "meeting" && <MeetingTab hospital={hospital} />}
         {tab === "keyword" && <KeywordRankTab hospital={hospital} isAdmin={isAdmin} onDataLoad={setSharedKeywordData} />}
-        {tab === "schedule" && <HospitalScheduleTab hospital={hospital} />}
+        {tab === "schedule" && <HospitalScheduleTab hospital={hospital} globalSchedules={globalSchedules} saveGlobalSchedules={saveGlobalSchedules} />}
 
       </div>
     </div>
@@ -4264,9 +4249,8 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin }) {
 
 // ─── 병원별 일정 관리 탭 ─────────────────────────────────────
 // schedule_data(Supabase)를 단일 소스로 사용 - 내부/팀장/칸반 전부 동기화
-function HospitalScheduleTab({ hospital }) {
-  const [schedules, setSchedules] = useState([]);
-  const [loading, setLoading] = useState(true);
+function HospitalScheduleTab({ hospital, globalSchedules, saveGlobalSchedules }) {
+  const schedules = (globalSchedules||[]).filter(s => s.hospitalId === hospital.id || s.hospital === hospital.name);
   const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ date:"", title:"", memo:"", assignee:"" });
@@ -4276,49 +4260,24 @@ function HospitalScheduleTab({ hospital }) {
   const [savedMsg, setSavedMsg] = useState("");
   const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
 
-  // Supabase에서 이 병원 일정 불러오기
-  const loadSchedules = async () => {
-    try {
-      const res = await supabase.from('schedule_data').select('*').eq('id', 1).single();
-      const all = res.data?.data || [];
-      setSchedules(all.filter(s => s.hospitalId === hospital.id || s.hospital === hospital.name));
-    } catch(e) {}
-    setLoading(false);
-  };
-
-  useEffect(() => { loadSchedules(); }, [hospital.id]);
-
-  const saveToSupabase = async (updatedItem, action) => {
-    try {
-      const res = await supabase.from('schedule_data').select('*').eq('id', 1).single();
-      const all = res.data?.data || [];
-      let newAll;
-      if (action === 'add') newAll = [...all, updatedItem];
-      else if (action === 'update') newAll = all.map(s => s.id === updatedItem.id ? updatedItem : s);
-      else if (action === 'delete') newAll = all.filter(s => s.id !== updatedItem);
-      await supabase.from('schedule_data').upsert({ id:1, data:newAll }, { onConflict:'id' });
-      setSchedules(newAll.filter(s => s.hospitalId === hospital.id || s.hospital === hospital.name));
-    } catch(e) { console.error(e); }
-  };
-
   const addSchedule = async () => {
     if (!form.date || !form.title) return;
     const color = getAssigneeColor(form.assignee) || hospital.color;
     const newItem = { id:Date.now(), ...form, color, hospital:hospital.name, hospitalId:hospital.id, hospitalColor:hospital.color, source:"hospital" };
-    await saveToSupabase(newItem, 'add');
+    await saveGlobalSchedules([...(globalSchedules||[]), newItem]);
     setForm({ date:"", title:"", memo:"", assignee:"" });
-    setShowForm(false); toast("일정 추가 완료!");
+    setShowForm(false); toast("일정 추가 완료! 내부 일정에도 즉시 반영됐어요.");
   };
 
   const updateSchedule = async () => {
     const color = getAssigneeColor(editForm.assignee) || hospital.color;
-    const updated = { ...schedules.find(s=>s.id===editId), ...editForm, color };
-    await saveToSupabase(updated, 'update');
+    const updated = (globalSchedules||[]).map(s => s.id === editId ? { ...s, ...editForm, color } : s);
+    await saveGlobalSchedules(updated);
     setEditId(null); toast("수정 완료!");
   };
 
   const deleteSchedule = async (id) => {
-    await saveToSupabase(id, 'delete');
+    await saveGlobalSchedules((globalSchedules||[]).filter(s => s.id !== id));
     setDeleteConfirm(null); toast("삭제 완료!");
   };
 
@@ -4329,9 +4288,6 @@ function HospitalScheduleTab({ hospital }) {
   for (let i=0; i<firstDay; i++) calDays.push(null);
   for (let d=1; d<=lastDate; d++) calDays.push(d);
   const monthSchedules = schedules.filter(s => s.date?.startsWith(selMonth)).sort((a,b)=>a.date>b.date?1:-1);
-
-  if (loading) return <div style={{ color:C.muted, textAlign:"center", padding:40 }}>불러오는 중...</div>;
-
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
       <Toast msg={savedMsg} />
@@ -4479,7 +4435,7 @@ const CONTENT_INIT = { 1:[], 2:[], 3:[], 4:[], 5:[], 6:[], 7:[] };
 export default function App() {
   return (
     <BrowserRouter>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap'); * { box-sizing: border-box; margin: 0; padding: 0; } ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 3px; }`}</style>
+      <style>{`* { box-sizing: border-box; margin: 0; padding: 0; } ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 3px; }`}</style>
       <AppInner />
     </BrowserRouter>
   );
@@ -4493,6 +4449,12 @@ function AppInner() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loginName, setLoginName] = useState("");
+  const [globalSchedules, setGlobalSchedules] = useState([]);
+
+  const saveGlobalSchedules = async (updated) => {
+    setGlobalSchedules(updated);
+    try { await supabase.from('schedule_data').upsert({ id:1, data:updated }, { onConflict:'id' }); } catch(e) {}
+  };
 
   // ─── Supabase에서 데이터 불러오기 ────────────────────────────
   useEffect(() => {
@@ -4501,13 +4463,13 @@ function AppInner() {
 
   const loadHospitals = async () => {
     try {
-      
-
       const { data: hospRows } = await supabase.from('hospitals').select('*');
       const { data: monthlyRows } = await supabase.from('monthly_data').select('*');
       const { data: channelRows } = await supabase.from('channel_data').select('*');
       const { data: contentRows } = await supabase.from('content_data').select('*');
       const { data: meetingRows } = await supabase.from('meeting_data').select('*');
+      const schedRes = await supabase.from('schedule_data').select('*').eq('id', 1).single();
+      if (schedRes.data?.data) setGlobalSchedules(schedRes.data.data);
 
       if (hospRows && hospRows.length > 0) {
         // DB에 데이터가 있으면 불러오기
@@ -4626,7 +4588,7 @@ function AppInner() {
   const selected = hospitals.find(h => h.id === selectedId);
 
   if (loading) return (
-    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, fontFamily:"'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif" }}>
       <div style={{ color:"#38BDF8", fontSize:18, fontWeight:700 }}>다올 마케팅 대시보드</div>
       <div style={{ color:"#64748B", fontSize:13 }}>데이터를 불러오는 중이에요...</div>
     </div>
@@ -4659,6 +4621,8 @@ function AppInner() {
           isAdmin={isAdmin}
           isSuperAdmin={isSuperAdmin}
           loginName={loginName}
+          globalSchedules={globalSchedules}
+          saveGlobalSchedules={saveGlobalSchedules}
           onAdminLogout={() => { setIsAdmin(false); setIsLoggedIn(false); setIsSuperAdmin(false); setLoginName(""); sessionStorage.removeItem("daall_actor"); }}
         />
       } />
@@ -4667,6 +4631,8 @@ function AppInner() {
           hospitals={hospitals}
           onUpdateHospital={handleUpdateHospital}
           isAdmin={isAdmin}
+          globalSchedules={globalSchedules}
+          saveGlobalSchedules={saveGlobalSchedules}
         />
       } />
     </Routes>
@@ -4702,7 +4668,7 @@ function LoginScreen({ onLogin }) {
   };
 
   return (
-    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif" }}>
       <div style={{ background:"#F8FAFC", border:"1px solid rgba(255,255,255,0.08)", borderRadius:20, padding:"48px 40px", width:360, textAlign:"center" }}>
         <div style={{ fontSize:28, fontWeight:900, color:"#0F172A", marginBottom:8 }}>다올 마케팅</div>
         <div style={{ color:"#64748B", fontSize:13, marginBottom:32 }}>대시보드에 접근하려면 로그인하세요</div>
@@ -4714,7 +4680,7 @@ function LoginScreen({ onLogin }) {
           onKeyDown={e => e.key === "Enter" && handleLogin()}
           placeholder="비밀번호 입력"
           autoFocus
-          style={{ width:"100%", background:"#F1F5F9", border:`1px solid ${error?"#F87171":"rgba(255,255,255,0.1)"}`, borderRadius:10, color:"#0F172A", padding:"12px 16px", fontSize:15, fontFamily:"'Noto Sans KR', sans-serif", outline:"none", letterSpacing:4, marginBottom:8, boxSizing:"border-box" }}
+          style={{ width:"100%", background:"#F1F5F9", border:`1px solid ${error?"#F87171":"rgba(255,255,255,0.1)"}`, borderRadius:10, color:"#0F172A", padding:"12px 16px", fontSize:15, fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif", outline:"none", letterSpacing:4, marginBottom:8, boxSizing:"border-box" }}
         />
         {error && <div style={{ color:"#F87171", fontSize:12, marginBottom:12 }}>비밀번호가 틀렸어요</div>}
         <button onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg,#38BDF8,#818CF8)", border:"none", color:"#0F172A", borderRadius:10, padding:"13px 0", fontSize:15, cursor:"pointer", fontWeight:700, marginTop:8 }}>
@@ -4725,7 +4691,7 @@ function LoginScreen({ onLogin }) {
   );
 }
 
-function HospitalRoute({ hospitals, onUpdateHospital, isAdmin }) {
+function HospitalRoute({ hospitals, onUpdateHospital, isAdmin, globalSchedules, saveGlobalSchedules }) {
   const { hospitalId } = useParams();
   const navigate = useNavigate();
   const hospital = hospitals.find(h => String(h.id) === String(hospitalId));
@@ -4749,7 +4715,7 @@ function HospitalRoute({ hospitals, onUpdateHospital, isAdmin }) {
   };
 
   if (!hospital) return (
-    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, fontFamily:"'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif" }}>
       <div style={{ color:"#38BDF8", fontSize:18, fontWeight:700 }}>병원을 찾을 수 없어요</div>
       <button onClick={() => navigate("/")} style={{ background:"transparent", border:"1px solid #334155", color:"#64748B", borderRadius:9, padding:"8px 20px", fontSize:13, cursor:"pointer" }}>← 목록으로</button>
     </div>
@@ -4757,7 +4723,7 @@ function HospitalRoute({ hospitals, onUpdateHospital, isAdmin }) {
 
   // 비밀번호 입력 화면
   if (!canAccess) return (
-    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif" }}>
       <div style={{ background:"#F8FAFC", border:`1px solid ${hospital.color}30`, borderRadius:20, padding:40, width:360, boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }}>
         {/* 병원 정보 */}
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:28 }}>
@@ -4777,7 +4743,7 @@ function HospitalRoute({ hospitals, onUpdateHospital, isAdmin }) {
           onKeyDown={e => e.key === "Enter" && handleUnlock()}
           placeholder="비밀번호"
           autoFocus
-          style={{ background:"#F1F5F9", border:`1px solid ${pwError ? "#F87171" : "#0F172A"}`, borderRadius:8, color:"#0F172A", padding:"10px 14px", fontSize:15, fontFamily:"'Noto Sans KR', sans-serif", width:"100%", outline:"none", letterSpacing:4, marginBottom:8 }}
+          style={{ background:"#F1F5F9", border:`1px solid ${pwError ? "#F87171" : "#0F172A"}`, borderRadius:8, color:"#0F172A", padding:"10px 14px", fontSize:15, fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif", width:"100%", outline:"none", letterSpacing:4, marginBottom:8 }}
         />
         {pwError && <div style={{ color:"#F87171", fontSize:12, marginBottom:12 }}>비밀번호가 틀렸어요</div>}
         <button onClick={handleUnlock} style={{ width:"100%", background:`linear-gradient(135deg,${hospital.color},#818CF8)`, border:"none", color:"#0F172A", borderRadius:10, padding:"12px 0", fontSize:14, cursor:"pointer", fontWeight:700, marginTop:8 }}>
@@ -4793,6 +4759,8 @@ function HospitalRoute({ hospitals, onUpdateHospital, isAdmin }) {
       onBack={isAdmin ? () => navigate("/") : null}
       onUpdateHospital={onUpdateHospital}
       isAdmin={isAdmin}
+      globalSchedules={globalSchedules}
+      saveGlobalSchedules={saveGlobalSchedules}
     />
   );
 }
