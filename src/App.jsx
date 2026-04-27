@@ -757,11 +757,20 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
 
   const addCard = (colId) => {
     if (!newCardText.trim()) return;
-    const card = { id:Date.now(), col:colId, text:newCardText.trim(), hospital:newCardHospital, assignee:newCardAssignee, dueDate:newCardDueDate, author:loginName, date:new Date().toLocaleDateString("ko-KR"), comment:"" };
+    const cardId = Date.now();
+    const card = { id:cardId, col:colId, text:newCardText.trim(), hospital:newCardHospital, assignee:newCardAssignee, dueDate:newCardDueDate, author:loginName, date:new Date().toLocaleDateString("ko-KR"), comment:"", fromSchedule: !!newCardDueDate, schedDate: newCardDueDate||"" };
     const updated = [...kanbanCards, card];
     setKanbanCards(updated); saveKanban(updated);
+
+    // 마감일이 있으면 일정 관리에도 자동 등록
+    if (newCardDueDate) {
+      const color = getAssigneeColor(newCardAssignee) || C.accent2;
+      const schedItem = { id:cardId+1, date:newCardDueDate, title:newCardText.trim(), hospital:newCardHospital||"", assignee:newCardAssignee||"", memo:"", color, source:"internal" };
+      saveGlobalSchedules([...schedules, schedItem]);
+    }
+
     setNewCardText(""); setNewCardHospital(""); setNewCardAssignee(""); setNewCardDueDate(""); setNewCardCol(null);
-    toast("카드 추가 완료!");
+    toast(newCardDueDate ? "카드 추가 완료! 일정에도 등록됐어요." : "카드 추가 완료!");
   };
 
   const openEditCard = (card) => {
