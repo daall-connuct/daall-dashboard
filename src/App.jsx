@@ -4840,7 +4840,8 @@ function LoginScreen({ onLogin }) {
     const matched = accounts.find(a => a.password === pw);
     if (matched) {
       const role = matched.role || (matched.password === SUPER_ADMIN_PW ? "최고관리자" : "중간관리자");
-      onLogin(matched.name, matched.password === SUPER_ADMIN_PW, role);
+      const isSuperAdminFlag = matched.password === SUPER_ADMIN_PW || role === "최고관리자";
+      onLogin(matched.name, isSuperAdminFlag, role);
     } else {
       setError(true); setPw("");
       setTimeout(() => pwRef.current?.focus(), 0);
