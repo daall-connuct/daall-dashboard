@@ -2627,21 +2627,55 @@ function KeywordRankTab({ hospital, isAdmin }) {
 
       {/* 상단 - 월 선택 + 업로드 */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-          <span style={{ color:C.muted, fontSize:12, flexShrink:0 }}>조회 주차:</span>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            {availMonths.length === 0
-              ? <span style={{ color:C.muted, fontSize:12 }}>데이터 없음</span>
-              : availMonths.map(w => (
-                  <button key={w} onClick={() => setSelMonth(w)} style={{
-                    background: selMonth===w ? `${hospital.color}25` : "transparent",
-                    border: `1px solid ${selMonth===w ? hospital.color : C.border}`,
-                    color: selMonth===w ? hospital.color : C.muted,
-                    borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
-                  }}>{w}</button>
-                ))
-            }
-          </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {availMonths.length === 0
+            ? <span style={{ color:C.muted, fontSize:12 }}>데이터 없음 — CSV를 업로드해주세요</span>
+            : (() => {
+                // month 값에서 YYYY-MM 추출 (형식이 다양할 수 있으므로)
+                const getYM = (m) => {
+                  if (!m) return "";
+                  const match = m.match(/(\d{4})[.\-/](\d{1,2})/);
+                  if (match) return `${match[1]}-${match[2].padStart(2,'0')}`;
+                  return m.slice(0,7);
+                };
+                const ymGroups = [...new Set(availMonths.map(getYM))].sort().reverse();
+                const selYM = getYM(selMonth);
+                const weeksInSelYM = availMonths.filter(w => getYM(w) === selYM);
+                return (
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {/* 월 그룹 */}
+                    <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                      <span style={{ color:C.muted, fontSize:12, flexShrink:0 }}>월:</span>
+                      {ymGroups.map(ym => (
+                        <button key={ym} onClick={() => {
+                          const weeksInYM = availMonths.filter(w => getYM(w) === ym);
+                          setSelMonth(weeksInYM[0] || ym);
+                        }} style={{
+                          background: selYM===ym ? `${hospital.color}25` : "transparent",
+                          border: `1px solid ${selYM===ym ? hospital.color : C.border}`,
+                          color: selYM===ym ? hospital.color : C.muted,
+                          borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+                        }}>{ym.slice(0,4)}년 {parseInt(ym.slice(5))}월</button>
+                      ))}
+                    </div>
+                    {/* 주차 (같은 월 내 여러 주차 있을 때만) */}
+                    {weeksInSelYM.length > 1 && (
+                      <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                        <span style={{ color:C.muted, fontSize:11, flexShrink:0 }}>주차:</span>
+                        {weeksInSelYM.map(w => (
+                          <button key={w} onClick={() => setSelMonth(w)} style={{
+                            background: selMonth===w ? `${hospital.color}20` : "transparent",
+                            border: `1px solid ${selMonth===w ? hospital.color : C.border}`,
+                            color: selMonth===w ? hospital.color : C.muted,
+                            borderRadius:7, padding:"3px 10px", fontSize:11, cursor:"pointer", fontWeight:600,
+                          }}>{w}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
+          }
         </div>
         {isAdmin && (
           <div style={{ display:"flex", gap:8 }}>
@@ -3514,6 +3548,18 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   });
   const [showPerfInput, setShowPerfInput] = useState(false);
   const [showChannelInput, setShowChannelInput] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportSections, setReportSections] = useState([
+    { id:"overview",    label:"통합 요약",    checked:true },
+    { id:"performance", label:"상세 성과",    checked:true },
+    { id:"funnel",      label:"전환 분석",    checked:true },
+    { id:"channel",     label:"채널 분석",    checked:true },
+    { id:"patient",     label:"환자 유입",    checked:true },
+    { id:"marketing",   label:"마케팅 현황",  checked:true },
+    { id:"cost",        label:"비용 관리",    checked:true },
+    { id:"keyword",     label:"키워드 현황",  checked:true },
+  ]);
+  const [reportMonth, setReportMonth] = useState("");
 
   // 리포트용 공유 데이터 state
   const [sharedPatientData, setSharedPatientData] = useState([]);
@@ -3524,10 +3570,12 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   const _rawChData = hospital.channelData || [];
 
   // ─── 공통 월 선택 ─────────────────────────────────────────
-  const availMonths = [...hData].reverse().map(d => d.month); // YYYY-MM 형식
+  const availMonths = useMemo(() =>
+    [...new Set(hData.map(d => d.month).filter(Boolean))].sort().reverse()
+  , [hData]);
   const availYears = [...new Set(availMonths.map(m => m.slice(0,4)))].sort().reverse();
-  const [selMonth, setSelMonth] = useState(() => hData.length > 0 ? hData[hData.length-1].month : "");
-  const [selYear, setSelYear] = useState(() => hData.length > 0 ? hData[hData.length-1].month.slice(0,4) : String(new Date().getFullYear()));
+  const [selMonth, setSelMonth] = useState(() => availMonths[0] || "");
+  const [selYear, setSelYear] = useState(() => availMonths[0]?.slice(0,4) || String(new Date().getFullYear()));
 
   // channelData가 월별 객체면 selMonth 기준으로, 배열이면 그대로
   const chData = !Array.isArray(_rawChData) && selMonth
@@ -3605,13 +3653,17 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   ];
 
   // ─── 리포트 HTML 생성 & 다운로드 ───────────────────────────
-  const exportReport = async () => {
+  const exportReport = async (sections, month) => {
     const today = new Date().toLocaleDateString("ko-KR", { year:"numeric", month:"long", day:"numeric" });
-    const reportData = last;
-    const lastMonth = reportData.month || selMonth || "-";
+    const targetMonth = month || selMonth;
+    const hDataAll = hospital.monthlyData || [];
+    const targetData = hDataAll.find(d => d.month === targetMonth) || last;
+    const reportData = targetData;
+    const lastMonth = targetData.month || targetMonth || "-";
     const fmtN = (n) => (n || 0).toLocaleString();
     const pctN = (a, b) => b > 0 ? ((a / b) * 100).toFixed(1) + "%" : "-";
     const roi2 = reportData.marketingCost ? Math.round(((reportData.revenue - reportData.marketingCost) / reportData.marketingCost) * 100) : 0;
+    const hasTab = (id) => (sections || reportSections).find(s => s.id === id)?.checked === true;
 
     // Supabase에서 데이터 직접 가져오기
     let costContracts = [], costExpenses = [], patientRecords = [], kwKeywords = [];
@@ -3802,6 +3854,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   </div>
 
   <!-- 1. 통합 요약 -->
+  ${hasTab("overview") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>통합 요약</div>
     <div class="roi-box">
@@ -3815,9 +3868,10 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
       ].map(i => `<div class="roi-item"><div class="val">${i.val}</div><div class="lbl">${i.label}</div></div>`).join("")}
     </div>
     <div class="kpi-grid">${kpiCards}</div>
-  </div>
+  </div>` : ""}
 
   <!-- 2. 상세 성과 -->
+  ${hasTab("performance") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>상세 성과 · 월별 추이</div>
     <div class="table-wrap">
@@ -3826,9 +3880,10 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
         <tbody>${trendRows}</tbody>
       </table>
     </div>
-  </div>
+  </div>` : ""}
 
   <!-- 3. 전환 분석 -->
+  ${hasTab("funnel") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>전환 분석</div>
     <div class="roi-box">${convKpis}</div>
@@ -3838,10 +3893,10 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
         <tbody>${funnelRows}</tbody>
       </table>
     </div>
-  </div>
+  </div>` : ""}
 
   <!-- 4. 채널 분석 -->
-  ${chData.length > 0 ? `
+  ${hasTab("channel") && chData.length > 0 ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>채널별 성과</div>
     <div class="table-wrap">
@@ -3853,7 +3908,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   </div>` : ""}
 
   <!-- 5. 환자 유입 -->
-  ${patientRec ? `
+  ${hasTab("patient") && patientRec ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>환자 유입 현황</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
@@ -3867,7 +3922,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   </div>` : ""}
 
   <!-- 6. 마케팅 현황 -->
-  ${monthContents.length > 0 ? `
+  ${hasTab("marketing") && monthContents.length > 0 ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>마케팅 현황 · 콘텐츠 목록</div>
     <div class="table-wrap">
@@ -3879,7 +3934,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   </div>` : ""}
 
   <!-- 7. 비용 관리 -->
-  ${(monthContract > 0 || monthExpenses.length > 0) ? `
+  ${hasTab("cost") && (monthContract > 0 || monthExpenses.length > 0) ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>비용 관리</div>
     <div class="roi-box" style="margin-bottom:16px">
@@ -3892,7 +3947,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   </div>` : ""}
 
   <!-- 8. 키워드 현황 -->
-  ${monthKw.length > 0 ? `
+  ${hasTab("keyword") && monthKw.length > 0 ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>키워드 현황</div>
     <div class="table-wrap">
@@ -3954,9 +4009,75 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
           </div>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button onClick={() => exportReport()} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:9, padding:"8px 16px", fontSize:12, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
+          <button onClick={() => {
+            const months = [...new Set((hospital.monthlyData||[]).map(d=>d.month).filter(Boolean))].sort().reverse();
+            setReportMonth(months[0] || selMonth || "");
+            setShowReportModal(true);
+          }} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:9, padding:"8px 16px", fontSize:12, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
             리포트 출력
           </button>
+
+          {/* 리포트 섹션 선택 모달 */}
+          {showReportModal && (
+            <div onClick={() => setShowReportModal(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <div onClick={e => e.stopPropagation()} style={{ background:C.surface, borderRadius:16, padding:28, width:380, boxShadow:"0 20px 60px rgba(0,0,0,0.2)", maxHeight:"90vh", overflowY:"auto" }}>
+                <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:6 }}>📄 리포트 출력 설정</div>
+                <div style={{ color:C.muted, fontSize:12, marginBottom:18 }}>출력할 월과 섹션을 선택해주세요</div>
+
+                {/* 월 선택 */}
+                <div style={{ marginBottom:18 }}>
+                  <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:8 }}>📅 기준 월</label>
+                  {(() => {
+                    const months = [...new Set((hospital.monthlyData||[]).map(d=>d.month).filter(Boolean))].sort().reverse();
+                    if (months.length === 0) return <div style={{ color:C.muted, fontSize:12 }}>월별 데이터가 없어요</div>;
+                    return (
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                        {months.map(m => (
+                          <button key={m} onClick={() => setReportMonth(m)} style={{
+                            background: reportMonth===m ? hospital.color : "#F1F5F9",
+                            border: `1px solid ${reportMonth===m ? hospital.color : C.border}`,
+                            color: reportMonth===m ? "#0F172A" : C.muted,
+                            borderRadius:8, padding:"6px 14px", fontSize:12,
+                            cursor:"pointer", fontWeight: reportMonth===m ? 700 : 400,
+                          }}>{m}</button>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* 섹션 선택 */}
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                    <label style={{ color:C.muted, fontSize:11, fontWeight:700 }}>📋 포함할 섹션</label>
+                    <div style={{ display:"flex", gap:10 }}>
+                      <button onClick={() => setReportSections(prev => prev.map(r=>({...r,checked:true})))} style={{ background:"transparent", border:"none", color:C.accent, fontSize:11, cursor:"pointer", fontWeight:600 }}>전체 선택</button>
+                      <button onClick={() => setReportSections(prev => prev.map(r=>({...r,checked:false})))} style={{ background:"transparent", border:"none", color:C.muted, fontSize:11, cursor:"pointer" }}>전체 해제</button>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {reportSections.map(s => (
+                      <div key={s.id} onClick={() => setReportSections(prev => prev.map(r => r.id===s.id ? {...r, checked:!r.checked} : r))}
+                        style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:s.checked?`${hospital.color}10`:"#F8FAFC", border:`1px solid ${s.checked?hospital.color:C.border}`, borderRadius:10, cursor:"pointer" }}>
+                        <div style={{ width:18, height:18, borderRadius:5, background:s.checked?hospital.color:C.surface, border:`2px solid ${s.checked?hospital.color:C.dim}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          {s.checked && <span style={{ color:"#0F172A", fontSize:11, fontWeight:900 }}>✓</span>}
+                        </div>
+                        <span style={{ color:s.checked?C.text:C.muted, fontSize:13, fontWeight:s.checked?600:400 }}>{s.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={() => {
+                    setShowReportModal(false);
+                    exportReport([...reportSections], reportMonth);
+                  }} style={{ flex:1, background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:9, padding:"11px 0", fontSize:13, cursor:"pointer", fontWeight:700 }}>출력하기</button>
+                  <button onClick={() => setShowReportModal(false)} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:9, padding:"11px 16px", fontSize:13, cursor:"pointer" }}>취소</button>
+                </div>
+              </div>
+            </div>
+          )}
           <Badge color={hospital.color}>{hospital.dept}</Badge>
           <Badge color={roi > 200 ? C.green : roi > 100 ? C.yellow : C.red}>ROI {roi}%</Badge>
         </div>
