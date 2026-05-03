@@ -3565,8 +3565,24 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   const [sharedPatientData, setSharedPatientData] = useState([]);
   const [sharedCostData, setSharedCostData] = useState({ contracts:[], expenses:[] });
   const [sharedKeywordData, setSharedKeywordData] = useState([]);
+  const [localMonthlyData, setLocalMonthlyData] = useState(hospital.monthlyData || []);
 
-  const hData = hospital.monthlyData || [];
+  // monthlyData가 비어있으면 Supabase에서 직접 로드
+  useEffect(() => {
+    if ((hospital.monthlyData || []).length > 0) {
+      setLocalMonthlyData(hospital.monthlyData);
+      return;
+    }
+    const load = async () => {
+      try {
+        const res = await supabase.from('monthly_data').select('*').eq('hospital_id', hospital.id).single();
+        if (res.data?.data?.length > 0) setLocalMonthlyData(res.data.data);
+      } catch(e) {}
+    };
+    load();
+  }, [hospital.id, hospital.monthlyData]);
+
+  const hData = localMonthlyData;
   const _rawChData = hospital.channelData || [];
 
   // ─── 공통 월 선택 ─────────────────────────────────────────
@@ -3576,6 +3592,14 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   const availYears = [...new Set(availMonths.map(m => m.slice(0,4)))].sort().reverse();
   const [selMonth, setSelMonth] = useState(() => availMonths[0] || "");
   const [selYear, setSelYear] = useState(() => availMonths[0]?.slice(0,4) || String(new Date().getFullYear()));
+
+  // localMonthlyData 로드 후 selMonth 초기화
+  useEffect(() => {
+    if (availMonths.length > 0 && !selMonth) {
+      setSelMonth(availMonths[0]);
+      setSelYear(availMonths[0].slice(0,4));
+    }
+  }, [availMonths]);
 
   // channelData가 월별 객체면 selMonth 기준으로, 배열이면 그대로
   const chData = !Array.isArray(_rawChData) && selMonth
@@ -3656,8 +3680,8 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   const exportReport = async (sections, month) => {
     const today = new Date().toLocaleDateString("ko-KR", { year:"numeric", month:"long", day:"numeric" });
     const targetMonth = month || selMonth;
-    const hDataAll = hospital.monthlyData || [];
-    const targetData = hDataAll.find(d => d.month === targetMonth) || last;
+    const hDataAll = localMonthlyData || [];
+    const targetData = hDataAll.find(d => d.month === targetMonth) || hDataAll[hDataAll.length-1] || {};
     const reportData = targetData;
     const lastMonth = targetData.month || targetMonth || "-";
     const fmtN = (n) => (n || 0).toLocaleString();
@@ -4010,7 +4034,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <button onClick={() => {
-            const months = [...new Set((hospital.monthlyData||[]).map(d=>d.month).filter(Boolean))].sort().reverse();
+            const months = [...new Set((localMonthlyData||[]).map(d=>d.month).filter(Boolean))].sort().reverse();
             setReportMonth(months[0] || selMonth || "");
             setShowReportModal(true);
           }} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:9, padding:"8px 16px", fontSize:12, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
@@ -4028,7 +4052,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
                 <div style={{ marginBottom:18 }}>
                   <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:8 }}>📅 기준 월</label>
                   {(() => {
-                    const months = [...new Set((hospital.monthlyData||[]).map(d=>d.month).filter(Boolean))].sort().reverse();
+                    const months = [...new Set((localMonthlyData||[]).map(d=>d.month).filter(Boolean))].sort().reverse();
                     if (months.length === 0) return <div style={{ color:C.muted, fontSize:12 }}>월별 데이터가 없어요</div>;
                     return (
                       <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
