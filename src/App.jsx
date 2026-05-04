@@ -3861,11 +3861,19 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
     .kpi-value { font-size: 20px !important; }
     .section { page-break-inside: avoid; margin-bottom: 24px !important; }
     .footer { border-top: 1px solid #ddd !important; }
-    @page { margin: 1.5cm; size: A4; }
+    .no-print { display: none !important; }
+    @page { margin: 1.5cm; size: A4 landscape; }
   }
 </style>
 </head>
 <body>
+  <!-- 인쇄 안내 버튼 (화면에만 표시) -->
+  <div class="no-print" style="background:#0EA5E9;color:#0F172A;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px;border-radius:10px;font-size:13px;">
+    <span style="font-weight:700">📄 리포트 저장 방법</span>
+    <span>① 아래 <b>인쇄</b> 버튼 클릭 → ② 대상 프린터를 <b>"PDF로 저장"</b> 선택 → ③ 저장</span>
+    <button onclick="window.print()" style="background:#0F172A;color:#fff;border:none;borderRadius:7px;padding:7px 18px;font-size:13px;cursor:pointer;font-weight:700;margin-left:auto;">🖨️ 인쇄 / PDF 저장</button>
+    <a href="https://pdf2ppt.com" target="_blank" style="background:#6366F1;color:#fff;text-decoration:none;border-radius:7px;padding:7px 18px;font-size:13px;font-weight:700;">📊 PDF → PPT 변환</a>
+  </div>
   <div class="header">
     <div>
       <div class="hospital-name">${hospital.name}</div>
@@ -3986,16 +3994,11 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
 </body>
 </html>`;
 
-    // 새 창에서 열고 바로 인쇄창 띄우기 (PDF로 저장 가능)
-    const printHtml = html.replace(
-      '</body>',
-      `<script>window.onload = function() { window.print(); }</script></body>`
-    );
-    const blob = new Blob([printHtml], { type: "text/html;charset=utf-8" });
+    // 새 창에서 열기
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const win = window.open(url, "_blank");
     if (!win) {
-      // 팝업 차단된 경우 파일로 다운로드
       const a = document.createElement("a");
       a.href = url;
       a.download = `${hospital.name}_마케팅리포트_${lastMonth}.html`;
