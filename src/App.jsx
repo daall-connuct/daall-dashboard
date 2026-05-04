@@ -3565,39 +3565,26 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   const [sharedPatientData, setSharedPatientData] = useState([]);
   const [sharedCostData, setSharedCostData] = useState({ contracts:[], expenses:[] });
   const [sharedKeywordData, setSharedKeywordData] = useState([]);
-  const [localMonthlyData, setLocalMonthlyData] = useState(hospital.monthlyData || []);
 
-  // monthlyData가 비어있으면 Supabase에서 직접 로드
-  useEffect(() => {
-    if ((hospital.monthlyData || []).length > 0) {
-      setLocalMonthlyData(hospital.monthlyData);
-      return;
-    }
-    const load = async () => {
-      try {
-        const res = await supabase.from('monthly_data').select('*').eq('hospital_id', hospital.id).single();
-        if (res.data?.data?.length > 0) setLocalMonthlyData(res.data.data);
-      } catch(e) {}
-    };
-    load();
-  }, [hospital.id, hospital.monthlyData]);
-
-  const hData = localMonthlyData;
+  // hospital.monthlyData를 직접 사용 (항상 최신)
+  const hData = hospital.monthlyData || [];
   const _rawChData = hospital.channelData || [];
 
   // ─── 공통 월 선택 ─────────────────────────────────────────
   const availMonths = useMemo(() =>
     [...new Set(hData.map(d => d.month).filter(Boolean))].sort().reverse()
   , [hData]);
-  const availYears = [...new Set(availMonths.map(m => m.slice(0,4)))].sort().reverse();
-  const [selMonth, setSelMonth] = useState(() => availMonths[0] || "");
-  const [selYear, setSelYear] = useState(() => availMonths[0]?.slice(0,4) || String(new Date().getFullYear()));
+  const availYears = useMemo(() =>
+    [...new Set(availMonths.map(m => m.slice(0,4)))].sort().reverse()
+  , [availMonths]);
+  const [selMonth, setSelMonth] = useState("");
+  const [selYear, setSelYear] = useState(String(new Date().getFullYear()));
 
-  // localMonthlyData 로드 후 selMonth 초기화
+  // availMonths가 로드되면 selMonth 초기화
   useEffect(() => {
-    if (availMonths.length > 0 && !selMonth) {
-      setSelMonth(availMonths[0]);
-      setSelYear(availMonths[0].slice(0,4));
+    if (availMonths.length > 0) {
+      setSelMonth(prev => prev || availMonths[0]);
+      setSelYear(prev => prev || availMonths[0].slice(0,4));
     }
   }, [availMonths]);
 
@@ -3680,14 +3667,18 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   const exportReport = async (sections, month) => {
     const today = new Date().toLocaleDateString("ko-KR", { year:"numeric", month:"long", day:"numeric" });
     const targetMonth = month || selMonth;
-    const hDataAll = localMonthlyData || [];
-    const targetData = hDataAll.find(d => d.month === targetMonth) || hDataAll[hDataAll.length-1] || {};
+    const hDataAll = hData.length > 0 ? hData : (hospital.monthlyData || []);
+    const targetData = hDataAll.find(d => d.month === targetMonth) || hDataAll[0] || {};
     const reportData = targetData;
     const lastMonth = targetData.month || targetMonth || "-";
     const fmtN = (n) => (n || 0).toLocaleString();
     const pctN = (a, b) => b > 0 ? ((a / b) * 100).toFixed(1) + "%" : "-";
     const roi2 = reportData.marketingCost ? Math.round(((reportData.revenue - reportData.marketingCost) / reportData.marketingCost) * 100) : 0;
-    const hasTab = (id) => (sections || reportSections).find(s => s.id === id)?.checked === true;
+    const hasTab = (id) => {
+      const list = sections || reportSections;
+      const found = list.find(s => s.id === id);
+      return found ? found.checked === true : true; // 기본값 true
+    };
 
     // Supabase에서 데이터 직접 가져오기
     let costContracts = [], costExpenses = [], patientRecords = [], kwKeywords = [];
@@ -3759,8 +3750,12 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
       { label:"환자당 매출",       val: reportData.revenue && reportData.firstPayment ? `${fmtN(Math.round(reportData.revenue/(reportData.firstPayment||1)))}만원` : "-" },
     ].map(i => `<div class="roi-item"><div class="val">${i.val}</div><div class="lbl">${i.label}</div></div>`).join("");
 
-    // 4. 채널 분석
-    const channelRows = chData.map(c => {
+    // 4. 채널 분석 - targetMonth 기준으로 직접 계산
+    const rawChDataAll = hospital.channelData || [];
+    const reportChData = !Array.isArray(rawChDataAll) && targetMonth
+      ? (rawChDataAll[targetMonth] || rawChDataAll[targetMonth.slice(0,7)] || [])
+      : (Array.isArray(rawChDataAll) ? rawChDataAll : []);
+    const channelRows = reportChData.map(c => {
       const r = c.cost > 0 ? Math.round(((c.revenue - c.cost) / c.cost) * 100) : "-";
       const rColor = +r > 300 ? "#34D399" : +r > 100 ? "#FBBF24" : "#F87171";
       return `<tr>
@@ -3775,15 +3770,15 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
     }).join("");
 
     // 5. 환자 유입
-    const patientRec = patientRecords.find ? patientRecords.find(r => r.month === selMonth) : null;
-    const patientRows = patientRec ? patientRec.channelData
-      .filter(c => c.count > 0).sort((a,b) => b.count - a.count)
-      .map(c => `<tr><td>${c.channel}</td><td class="num">${fmtN(c.count)}명</td></tr>`).join("") : "";
+    const patientRec = Array.isArray(patientRecords) ? patientRecords.find(r => r.month === targetMonth) : null;
+    const patientRows = patientRec?.channelData
+      ? patientRec.channelData.filter(c => c.count > 0).sort((a,b) => b.count - a.count)
+        .map(c => `<tr><td>${c.channel}</td><td class="num">${fmtN(c.count)}명</td></tr>`).join("") : "";
 
     // 6. 마케팅 현황
     const contents = hospital.contentData || [];
     const monthContents = Array.isArray(contents)
-      ? contents.filter(c => c.date && c.date.startsWith(selMonth.slice(0,7))) : [];
+      ? contents.filter(c => c.date && c.date.startsWith(targetMonth.slice(0,7))) : [];
     const contentRows = monthContents.slice(0,20).map(c => `
       <tr>
         <td style="font-weight:600;color:#38BDF8">${c.channel}</td>
@@ -3792,8 +3787,8 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
       </tr>`).join("");
 
     // 7. 비용 관리
-    const monthContract = costContracts.find(c => c.month === selMonth)?.amount || 0;
-    const monthExpenses = costExpenses.filter(e => e.month === selMonth);
+    const monthContract = costContracts.find(c => c.month === targetMonth)?.amount || 0;
+    const monthExpenses = costExpenses.filter(e => e.month === targetMonth);
     const totalExpense = monthExpenses.reduce((s,e) => s+e.amount, 0);
     const expenseRows = monthExpenses.map(e => `
       <tr>
@@ -3802,7 +3797,12 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
       </tr>`).join("");
 
     // 8. 키워드 현황
-    const monthKw = kwKeywords.filter ? kwKeywords.filter(k => k.month === selMonth) : [];
+    const monthKw = Array.isArray(kwKeywords) ? kwKeywords.filter(k => {
+      if (!k.month) return false;
+      const kym = k.month.slice(0,7);
+      const tym = targetMonth.slice(0,7);
+      return kym === tym;
+    }) : [];
     const kwRows = monthKw.slice(0,30).map(k => `
       <tr>
         <td style="font-weight:600">${k.keyword}</td>
@@ -3847,6 +3847,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   .conv { text-align: center; color: #34D399; font-weight: 700; }
   .table-wrap { background: "#F8FAFC"; border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; overflow: hidden; margin-bottom: 24px; }
   .footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid #1E293B; color: #64748B; font-size: 11px; display: flex; justify-content: space-between; }
+  .no-data { color: #64748B; font-size: 13px; padding: 20px; text-align: center; background: #F8FAFC; border-radius: 8px; margin-top: 8px; }
   @media print {
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     body { background: #fff !important; color: #111 !important; padding: 16px !important; font-size: 12px !important; }
@@ -3920,47 +3921,44 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   </div>` : ""}
 
   <!-- 4. 채널 분석 -->
-  ${hasTab("channel") && chData.length > 0 ? `
+  ${hasTab("channel") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>채널별 성과</div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>채널</th><th>유입</th><th>내원</th><th>결제</th><th>매출(만)</th><th>광고비(만)</th><th>ROI</th></tr></thead>
-        <tbody>${channelRows}</tbody>
-      </table>
-    </div>
+    ${chData.length > 0 ? `<div class="table-wrap"><table>
+      <thead><tr><th>채널</th><th>유입</th><th>내원</th><th>결제</th><th>매출(만)</th><th>광고비(만)</th><th>ROI</th></tr></thead>
+      <tbody>${channelRows}</tbody>
+    </table></div>` : `<div class="no-data">해당 월 채널 데이터가 없어요</div>`}
   </div>` : ""}
 
   <!-- 5. 환자 유입 -->
-  ${hasTab("patient") && patientRec ? `
+  ${hasTab("patient") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>환자 유입 현황</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
-      <div class="roi-box" style="margin-bottom:0">
-        <div class="roi-item"><div class="val">${fmtN(patientRec.newPatient)}명</div><div class="lbl">신환</div></div>
-        <div class="roi-item"><div class="val">${fmtN(patientRec.returnPatient)}명</div><div class="lbl">구환</div></div>
-        <div class="roi-item"><div class="val">${patientRec.targetNew ? Math.round(patientRec.newPatient/patientRec.targetNew*100)+'%' : '-'}</div><div class="lbl">목표 달성률</div></div>
-      </div>
+    ${patientRec ? `
+    <div class="roi-box" style="margin-bottom:16px">
+      <div class="roi-item"><div class="val">${fmtN(patientRec.newPatient)}명</div><div class="lbl">신환</div></div>
+      <div class="roi-item"><div class="val">${fmtN(patientRec.returnPatient)}명</div><div class="lbl">구환</div></div>
+      <div class="roi-item"><div class="val">${patientRec.targetNew ? Math.round(patientRec.newPatient/patientRec.targetNew*100)+'%' : '-'}</div><div class="lbl">목표 달성률</div></div>
     </div>
     ${patientRows ? `<div class="table-wrap"><table><thead><tr><th>유입 채널</th><th>환자 수</th></tr></thead><tbody>${patientRows}</tbody></table></div>` : ""}
+    ` : `<div class="no-data">해당 월 환자 유입 데이터가 없어요</div>`}
   </div>` : ""}
 
   <!-- 6. 마케팅 현황 -->
-  ${hasTab("marketing") && monthContents.length > 0 ? `
+  ${hasTab("marketing") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>마케팅 현황 · 콘텐츠 목록</div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>채널</th><th>제목</th><th>발행일</th><th>상위노출</th><th>상태</th></tr></thead>
-        <tbody>${contentRows}</tbody>
-      </table>
-    </div>
+    ${monthContents.length > 0 ? `<div class="table-wrap"><table>
+      <thead><tr><th>채널</th><th>제목</th><th>발행일</th><th>상위노출</th><th>상태</th></tr></thead>
+      <tbody>${contentRows}</tbody>
+    </table></div>` : `<div class="no-data">해당 월 콘텐츠 데이터가 없어요</div>`}
   </div>` : ""}
 
   <!-- 7. 비용 관리 -->
-  ${hasTab("cost") && (monthContract > 0 || monthExpenses.length > 0) ? `
+  ${hasTab("cost") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>비용 관리</div>
+    ${(monthContract > 0 || monthExpenses.length > 0) ? `
     <div class="roi-box" style="margin-bottom:16px">
       <div class="roi-item"><div class="val">${fmtN(monthContract)}만원</div><div class="lbl">월 계약금</div></div>
       <div class="roi-item"><div class="val">${fmtN(totalExpense)}만원</div><div class="lbl">소진액</div></div>
@@ -3968,18 +3966,17 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
       <div class="roi-item"><div class="val">${monthContract > 0 ? Math.round(totalExpense/monthContract*100)+'%' : '-'}</div><div class="lbl">소진율</div></div>
     </div>
     ${expenseRows ? `<div class="table-wrap"><table><thead><tr><th>날짜</th><th>항목</th><th>메모</th><th>금액</th></tr></thead><tbody>${expenseRows}</tbody></table></div>` : ""}
+    ` : `<div class="no-data">해당 월 비용 데이터가 없어요</div>`}
   </div>` : ""}
 
   <!-- 8. 키워드 현황 -->
-  ${hasTab("keyword") && monthKw.length > 0 ? `
+  ${hasTab("keyword") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>키워드 현황</div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>키워드</th><th>채널</th><th>현재 위치</th><th>총 순위</th><th>검색량</th></tr></thead>
-        <tbody>${kwRows}</tbody>
-      </table>
-    </div>
+    ${monthKw.length > 0 ? `<div class="table-wrap"><table>
+      <thead><tr><th>키워드</th><th>채널</th><th>현재 위치</th><th>총 순위</th><th>검색량</th></tr></thead>
+      <tbody>${kwRows}</tbody>
+    </table></div>` : `<div class="no-data">해당 월 키워드 데이터가 없어요</div>`}
   </div>` : ""}
 
   <div class="footer">
@@ -4034,8 +4031,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <button onClick={() => {
-            const months = [...new Set((localMonthlyData||[]).map(d=>d.month).filter(Boolean))].sort().reverse();
-            setReportMonth(months[0] || selMonth || "");
+            setReportMonth(availMonths[0] || "");
             setShowReportModal(true);
           }} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:9, padding:"8px 16px", fontSize:12, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
             리포트 출력
@@ -4052,7 +4048,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
                 <div style={{ marginBottom:18 }}>
                   <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:8 }}>📅 기준 월</label>
                   {(() => {
-                    const months = [...new Set((localMonthlyData||[]).map(d=>d.month).filter(Boolean))].sort().reverse();
+                    const months = availMonths;
                     if (months.length === 0) return <div style={{ color:C.muted, fontSize:12 }}>월별 데이터가 없어요</div>;
                     return (
                       <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
@@ -4851,7 +4847,6 @@ function AppInner() {
 
   const saveHospitalToSupabase = async (h) => {
     try {
-      
       const { monthlyData, channelData, contentData, meetingData, ...hospData } = h;
       await supabase.from('hospitals').upsert({ id: h.id, data: hospData });
       await supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData || [] }, { onConflict: 'hospital_id' });
@@ -5039,6 +5034,12 @@ function HospitalRoute({ hospitals, onUpdateHospital, isAdmin, adminRole, global
       setTimeout(() => pwRef.current?.focus(), 0);
     }
   };
+
+  if (hospitals.length === 0) return (
+    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif" }}>
+      <div style={{ color:"#64748B", fontSize:14 }}>불러오는 중...</div>
+    </div>
+  );
 
   if (!hospital) return (
     <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif" }}>
