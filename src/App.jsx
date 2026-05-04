@@ -2451,7 +2451,7 @@ const logActivity = async (action, hospitalName = "", detail = "") => {
   } catch(e) {}
 };
 
-function KeywordRankTab({ hospital, isAdmin }) {
+function KeywordRankTab({ hospital, isAdmin, onDataLoad, onSelMonthChange, isReadOnly }) {
   const [keywords, setKeywords] = useState([]);
   const [selMonth, setSelMonth] = useState("");
   const [selChannel, setSelChannel] = useState("전체");
@@ -2493,6 +2493,13 @@ function KeywordRankTab({ hospital, isAdmin }) {
   const monthKeywords = keywords.filter(k => k.month === selMonth);
   const availChannels = ["전체", ...new Set(monthKeywords.map(k => k.channel).filter(Boolean))];
   const filtered = selChannel === "전체" ? monthKeywords : monthKeywords.filter(k => k.channel === selChannel);
+
+  // selMonth 변경 시 부모에 현재 월 전체 키워드 전달 (리포트용 - 채널 필터 무관)
+  useEffect(() => {
+    const allMonthKw = keywords.filter(k => k.month === selMonth);
+    if (onDataLoad) onDataLoad(allMonthKw.length > 0 ? allMonthKw : keywords);
+    if (onSelMonthChange) onSelMonthChange(selMonth);
+  }, [selMonth, keywords]);
 
   // 이전 주 키워드 (전주 대비용) - week 필드 기준
   const availWeeks = [...new Set(keywords.map(k => k.month).filter(Boolean))].sort().reverse();
@@ -3565,6 +3572,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   const [sharedPatientData, setSharedPatientData] = useState([]);
   const [sharedCostData, setSharedCostData] = useState({ contracts:[], expenses:[] });
   const [sharedKeywordData, setSharedKeywordData] = useState([]);
+  const [sharedKeywordSelMonth, setSharedKeywordSelMonth] = useState("");
 
   // hospital.monthlyData를 직접 사용 (항상 최신)
   const hData = hospital.monthlyData || [];
@@ -3681,17 +3689,35 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
     };
 
     // Supabase에서 데이터 직접 가져오기
-    let costContracts = [], costExpenses = [], patientRecords = [], kwKeywords = [];
+    let costContracts = [], costExpenses = [], patientRecords = [], kwKeywords = [], reportContents = [];
     try {
-      const [costRes, patientRes, kwRes] = await Promise.all([
+      const [costRes, patientRes, kwRes, contentRes] = await Promise.all([
         supabase.from('cost_data').select('*').eq('hospital_id', hospital.id).single(),
         supabase.from('patient_data').select('*').eq('hospital_id', hospital.id).single(),
         supabase.from('keyword_data').select('*').eq('hospital_id', hospital.id).single(),
+        supabase.from('content_data').select('*').eq('hospital_id', hospital.id).single(),
       ]);
-      if (costRes.data?.data) { costContracts = costRes.data.data.contracts||[]; costExpenses = costRes.data.data.expenses||[]; }
+      if (costRes.data?.data) {
+        costContracts = costRes.data.data.contracts || [];
+        costExpenses = costRes.data.data.expenses || [];
+      } else if (sharedCostData) {
+        costContracts = sharedCostData.contracts || [];
+        costExpenses = sharedCostData.expenses || [];
+      }
       if (patientRes.data?.data) patientRecords = patientRes.data.data;
-      if (kwRes.data?.data) kwKeywords = kwRes.data.data;
-    } catch(e) {}
+      else if (sharedPatientData?.length > 0) patientRecords = sharedPatientData;
+      if (kwRes.data?.data && sharedKeywordData.length === 0) kwKeywords = kwRes.data.data;
+      else kwKeywords = sharedKeywordData.length > 0 ? sharedKeywordData : (kwRes.data?.data || []);
+      if (contentRes.data?.data) reportContents = contentRes.data.data;
+      else reportContents = hospital.contentData || [];
+    } catch(e) {
+      // fallback: 이미 로드된 데이터 사용
+      costContracts = sharedCostData?.contracts || [];
+      costExpenses = sharedCostData?.expenses || [];
+      patientRecords = sharedPatientData || [];
+      kwKeywords = sharedKeywordData || [];
+      reportContents = hospital.contentData || [];
+    }
 
     // 1. 통합 요약 KPI
     const kpiCards = [
@@ -3776,10 +3802,12 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
         .map(c => `<tr><td>${c.channel}</td><td class="num">${fmtN(c.count)}명</td></tr>`).join("") : "";
 
     // 6. 마케팅 현황
-    const contents = hospital.contentData || [];
-    const monthContents = Array.isArray(contents)
-      ? contents.filter(c => c.date && c.date.startsWith(targetMonth.slice(0,7))) : [];
-    const contentRows = monthContents.slice(0,20).map(c => `
+    const monthContents = Array.isArray(reportContents)
+      ? reportContents
+          .filter(c => c.date && c.date.startsWith(targetMonth.slice(0,7)))
+          .sort((a,b) => (a.date||"") > (b.date||"") ? 1 : -1)
+      : [];
+    const contentRows = monthContents.map(c => `
       <tr>
         <td style="font-weight:600;color:#38BDF8">${c.channel}</td>
         <td>${c.title}</td><td>${c.date}</td>
@@ -3788,101 +3816,143 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
 
     // 7. 비용 관리
     const monthContract = costContracts.find(c => c.month === targetMonth)?.amount || 0;
-    const monthExpenses = costExpenses.filter(e => e.month === targetMonth);
+    const monthExpenses = costExpenses
+      .filter(e => e.month === targetMonth)
+      .sort((a,b) => (a.date||"") > (b.date||"") ? 1 : -1);
     const totalExpense = monthExpenses.reduce((s,e) => s+e.amount, 0);
     const expenseRows = monthExpenses.map(e => `
       <tr>
-        <td>${e.date||'-'}</td><td>${e.category||'-'}</td>
-        <td>${e.memo||'-'}</td><td class="num">${fmtN(e.amount)}만원</td>
+        <td style="text-align:center">${e.date||'-'}</td>
+        <td style="text-align:center">${e.category||'-'}</td>
+        <td style="text-align:center">${e.memo||'-'}</td>
+        <td class="num">${fmtN(e.amount)}만원</td>
       </tr>`).join("");
 
-    // 8. 키워드 현황
-    const monthKw = Array.isArray(kwKeywords) ? kwKeywords.filter(k => {
-      if (!k.month) return false;
-      const kym = k.month.slice(0,7);
-      const tym = targetMonth.slice(0,7);
-      return kym === tym;
-    }) : [];
-    const kwRows = monthKw.slice(0,30).map(k => `
-      <tr>
-        <td style="font-weight:600">${k.keyword}</td>
-        <td>${k.channel||'-'}</td>
-        <td class="num" style="font-weight:700;color:#34D399">${k.rank||'-'}</td>
-        <td class="num">${k.totalRank ? k.totalRank+'위' : '-'}</td>
-        <td class="num">${k.searchVol ? fmtN(k.searchVol) : '-'}</td>
-      </tr>`).join("");
+    // 8. 키워드 현황 - sharedKeywordData는 이미 현재 선택 월 기준
+    const CHANNEL_ORDER = ["블로그", "카페", "웹사이트", "플레이스", "지식인", "유튜브", "인스타그램"];
+    const monthKw = Array.isArray(kwKeywords) ? kwKeywords : [];
+
+    // 채널별 그룹화
+    const kwByChannel = {};
+    monthKw.forEach(k => {
+      const ch = k.channel || "기타";
+      if (!kwByChannel[ch]) kwByChannel[ch] = [];
+      kwByChannel[ch].push(k);
+    });
+
+    // 채널 순서대로 정렬된 채널 목록
+    const orderedChannels = [
+      ...CHANNEL_ORDER.filter(c => kwByChannel[c]),
+      ...Object.keys(kwByChannel).filter(c => !CHANNEL_ORDER.includes(c))
+    ];
+
+    // 채널별 요약 카드
+    const kwSummaryCards = orderedChannels.map(ch => {
+      const items = kwByChannel[ch];
+      const total = items.length;
+      const parseKwRank = (rank) => {
+        if (!rank) return { page:99, pos:99 };
+        const s = rank.toString();
+        if (s.includes('-')) {
+          const [p, r] = s.split('-').map(Number);
+          return { page:p||99, pos:r||99 };
+        }
+        const n = parseInt(s);
+        if (!isNaN(n)) return { page: Math.ceil(n/10), pos: n };
+        return { page:99, pos:99 };
+      };
+      const page1 = items.filter(k => parseKwRank(k.rank).page === 1).length;
+      const page2 = items.filter(k => parseKwRank(k.rank).page <= 2).length; // 2페이지 이내 (1+2페이지 합산)
+      const top3 = items.filter(k => {
+        const r = parseKwRank(k.rank);
+        return r.page === 1 && r.pos <= 3;
+      }).length;
+      return `
+        <div style="background:#1E293B;border-radius:12px;padding:18px;border:1px solid #334155;">
+          <div style="color:#38BDF8;font-weight:800;font-size:14px;margin-bottom:14px;">📌 ${ch}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div style="background:#0F172A;border-radius:8px;padding:10px;text-align:center;">
+              <div style="color:#94A3B8;font-size:10px;margin-bottom:4px;">총 키워드</div>
+              <div style="color:#F1F5F9;font-size:22px;font-weight:800;">${total}<span style="font-size:12px;font-weight:400;margin-left:2px;">개</span></div>
+            </div>
+            <div style="background:#0F172A;border-radius:8px;padding:10px;text-align:center;">
+              <div style="color:#94A3B8;font-size:10px;margin-bottom:4px;">1페이지</div>
+              <div style="color:#34D399;font-size:22px;font-weight:800;">${page1}<span style="font-size:12px;font-weight:400;margin-left:2px;">개</span></div>
+            </div>
+            <div style="background:#0F172A;border-radius:8px;padding:10px;text-align:center;">
+              <div style="color:#94A3B8;font-size:10px;margin-bottom:4px;">2페이지 이내</div>
+              <div style="color:#60A5FA;font-size:22px;font-weight:800;">${page2}<span style="font-size:12px;font-weight:400;margin-left:2px;">개</span></div>
+            </div>
+          </div>
+          ${top3 > 0 ? `<div style="margin-top:10px;background:#0F172A;border-radius:8px;padding:8px 12px;color:#34D399;font-size:12px;font-weight:700;">🏆 TOP 3 이내: ${top3}개</div>` : ""}
+        </div>`;
+    }).join("");
 
     const html = `<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${hospital.name} 마케팅 리포트 · ${today}</title>
+<title>${hospital.name} 마케팅 리포트 · ${lastMonth}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap');
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #F1F5F9; color: #1E293B; font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif; padding: 40px 32px; line-height: 1.6; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 36px; padding-bottom: 24px; border-bottom: 2px solid ${hospital.color}40; }
-  .hospital-name { font-size: 28px; font-weight: 900; color: #1E293B; margin-bottom: 6px; }
-  .hospital-meta { color: #64748B; font-size: 13px; }
-  .report-date { color: #64748B; font-size: 12px; text-align: right; }
-  .report-month { color: ${hospital.color}; font-size: 22px; font-weight: 800; }
-  .accent-bar { display: inline-block; width: 4px; height: 18px; background: linear-gradient(180deg, ${hospital.color}, #818CF8); border-radius: 2px; margin-right: 8px; vertical-align: middle; }
-  .section { margin-bottom: 36px; }
-  .section-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; }
-  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
-  .kpi-card { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px 20px; }
-  .kpi-label { font-size: 12px; color: #64748B; font-weight: 600; margin-bottom: 8px; }
-  .kpi-value { font-size: 26px; font-weight: 900; line-height: 1; }
-  .kpi-unit { font-size: 13px; margin-left: 4px; font-weight: 600; }
-  .roi-box { background: #FFFFFF; border: 1px solid ${hospital.color}30; border-radius: 12px; padding: 20px 24px; display: flex; gap: 32px; margin-bottom: 24px; flex-wrap: wrap; }
-  .roi-item { text-align: center; min-width: 100px; }
-  .roi-item .val { font-size: 22px; font-weight: 900; color: ${hospital.color}; }
-  .roi-item .lbl { font-size: 11px; color: #64748B; margin-top: 4px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { color: #64748B; font-weight: 600; padding: 10px 14px; text-align: left; border-bottom: 1px solid #1E293B; white-space: nowrap; background: "#F8FAFC"; }
-  td { padding: 10px 14px; border-bottom: 1px solid #1E293B; }
-  tr:hover td { background: ${hospital.color}08; }
-  .num { text-align: right; }
-  .conv { text-align: center; color: #34D399; font-weight: 700; }
-  .table-wrap { background: "#F8FAFC"; border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; overflow: hidden; margin-bottom: 24px; }
-  .footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid #1E293B; color: #64748B; font-size: 11px; display: flex; justify-content: space-between; }
-  .no-data { color: #64748B; font-size: 13px; padding: 20px; text-align: center; background: #F8FAFC; border-radius: 8px; margin-top: 8px; }
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap');
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#F1F5F9; color:#1E293B; font-family:'Noto Sans KR',-apple-system,sans-serif; padding:32px; line-height:1.6; }
+  .header { display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:32px; padding-bottom:20px; border-bottom:3px solid ${hospital.color}; }
+  .hospital-name { font-size:26px; font-weight:900; color:#0F172A; }
+  .hospital-meta { color:#64748B; font-size:13px; margin-top:4px; }
+  .report-month { font-size:15px; font-weight:700; color:${hospital.color}; }
+  .report-date { color:#94A3B8; font-size:12px; margin-top:4px; text-align:right; }
+  .section { background:#fff; border-radius:16px; padding:24px; margin-bottom:24px; box-shadow:0 2px 12px rgba(0,0,0,0.06); break-inside:avoid; }
+  .section-title { font-size:16px; font-weight:800; color:#0F172A; margin-bottom:20px; display:flex; align-items:center; gap:10px; }
+  .accent-bar { width:4px; height:20px; border-radius:2px; background:${hospital.color}; display:inline-block; }
+  .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:0; }
+  .kpi-card { background:#F8FAFC; border-radius:12px; padding:16px; text-align:center; border:1px solid #E2E8F0; }
+  .kpi-label { font-size:11px; color:#64748B; margin-bottom:6px; font-weight:600; }
+  .kpi-value { font-size:22px; font-weight:900; }
+  .kpi-unit { font-size:12px; font-weight:400; margin-left:2px; color:#94A3B8; }
+  .chart-wrap { position:relative; height:280px; margin-top:16px; }
+  .chart-wrap-sm { position:relative; height:220px; }
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .three-col { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+  .stat-box { background:#F8FAFC; border-radius:12px; padding:16px; text-align:center; border:1px solid #E2E8F0; }
+  .stat-val { font-size:24px; font-weight:900; color:${hospital.color}; }
+  .stat-lbl { font-size:11px; color:#94A3B8; margin-top:4px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th { background:#F1F5F9; color:#64748B; font-weight:700; padding:10px 12px; text-align:center; border-bottom:2px solid #E2E8F0; }
+  td { padding:9px 12px; text-align:center; border-bottom:1px solid #F1F5F9; }
+  td:first-child { text-align:left; font-weight:600; }
+  tr:hover td { background:#F8FAFC; }
+  .num { text-align:right; font-weight:600; }
+  .no-data { color:#94A3B8; font-size:13px; padding:24px; text-align:center; background:#F8FAFC; border-radius:8px; }
+  .no-print { display:none !important; }
+  .footer { display:flex; justify-content:space-between; color:#94A3B8; font-size:11px; margin-top:32px; padding-top:16px; border-top:1px solid #E2E8F0; }
   @media print {
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    body { background: #fff !important; color: #111 !important; padding: 16px !important; font-size: 12px !important; }
-    .kpi-card, .roi-box, .table-wrap { border: 1px solid #ddd !important; background: #f8f9fa !important; }
-    .kpi-card { break-inside: avoid; }
-    .kpi-grid { grid-template-columns: repeat(4, 1fr) !important; }
-    th { background: #f0f0f0 !important; color: #333 !important; }
-    td { color: #222 !important; border-bottom: 1px solid #eee !important; }
-    .hospital-name, .section-title { color: #111 !important; }
-    .kpi-label, .report-date, .footer { color: #555 !important; }
-    .kpi-value { font-size: 20px !important; }
-    .section { page-break-inside: avoid; margin-bottom: 24px !important; }
-    .footer { border-top: 1px solid #ddd !important; }
-    .no-print { display: none !important; }
-    @page { margin: 1.5cm; size: A4 landscape; }
+    body { background:#fff; padding:0; }
+    .section { box-shadow:none; border:1px solid #E2E8F0; }
+    @page { size:A4 landscape; margin:1.5cm; }
   }
 </style>
 </head>
 <body>
-  <!-- 인쇄 안내 버튼 (화면에만 표시) -->
-  <div class="no-print" style="background:#0EA5E9;color:#0F172A;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px;border-radius:10px;font-size:13px;">
+
+  <!-- 안내 버튼 -->
+  <div class="no-print" style="background:${hospital.color};color:#0F172A;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px;border-radius:10px;font-size:13px;">
     <span style="font-weight:700">📄 리포트 저장 방법</span>
-    <span>① 아래 <b>인쇄</b> 버튼 클릭 → ② 대상 프린터를 <b>"PDF로 저장"</b> 선택 → ③ 저장</span>
-    <button onclick="window.print()" style="background:#0F172A;color:#fff;border:none;borderRadius:7px;padding:7px 18px;font-size:13px;cursor:pointer;font-weight:700;margin-left:auto;">🖨️ 인쇄 / PDF 저장</button>
+    <span>① 아래 인쇄 버튼 → ② 대상 프린터 <b>"PDF로 저장"</b> 선택 → ③ 저장</span>
+    <button onclick="window.print()" style="background:#0F172A;color:#fff;border:none;border-radius:7px;padding:7px 18px;font-size:13px;cursor:pointer;font-weight:700;margin-left:auto;">🖨️ 인쇄 / PDF 저장</button>
     <a href="https://pdf2ppt.com" target="_blank" style="background:#6366F1;color:#fff;text-decoration:none;border-radius:7px;padding:7px 18px;font-size:13px;font-weight:700;">📊 PDF → PPT 변환</a>
   </div>
+
+  <!-- 헤더 -->
   <div class="header">
     <div>
       <div class="hospital-name">${hospital.name}</div>
-      <div class="hospital-meta">${hospital.dept} &nbsp;·&nbsp; ${hospital.region} &nbsp;·&nbsp; 담당 ${hospital.manager || "-"}</div>
+      <div class="hospital-meta">${hospital.dept||''} · ${hospital.region||''} · 담당 ${hospital.manager||'-'}</div>
     </div>
-    <div class="report-date">
+    <div style="text-align:right">
       <div class="report-month">${lastMonth} 마케팅 리포트</div>
-      <div style="margin-top:4px">생성일 ${today}</div>
-      <div style="margin-top:4px">작성 다올 마케팅</div>
+      <div class="report-date">작성일 ${today}</div>
     </div>
   </div>
 
@@ -3890,24 +3960,40 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   ${hasTab("overview") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>통합 요약</div>
-    <div class="roi-box">
+    <div class="kpi-grid" style="margin-bottom:24px;">
       ${[
-        { label:"신환 수",    val:`${fmtN(reportData.newPatient)}명` },
-        { label:"매출",       val:`${fmtN(reportData.revenue)}만원` },
-        { label:"마케팅비",   val:`${fmtN(reportData.marketingCost)}만원` },
-        { label:"ROI",        val:`${roi2}%` },
-        { label:"CPA",        val:`${reportData.newPatient ? fmtN(Math.round((reportData.marketingCost||0)/reportData.newPatient)) : "-"}만원` },
-        { label:"목표 달성률",val:`${hospital.target_patients ? Math.round((reportData.newPatient||0)/hospital.target_patients*100) : "-"}%` },
-      ].map(i => `<div class="roi-item"><div class="val">${i.val}</div><div class="lbl">${i.label}</div></div>`).join("")}
+        { label:"신환 수",     val:`${fmtN(reportData.newPatient)}명`,    color:"#0EA5E9" },
+        { label:"매출",        val:`${fmtN(reportData.revenue)}만원`,      color:"#10B981" },
+        { label:"마케팅비",    val:`${fmtN(reportData.marketingCost)}만원`,color:"#F59E0B" },
+        { label:"ROI",         val:`${roi2}%`,                             color: roi2>=0?"#10B981":"#EF4444" },
+        { label:"문의",        val:`${fmtN(reportData.inquiry)}건`,         color:"#6366F1" },
+        { label:"초진내원",    val:`${fmtN(reportData.firstVisit)}명`,      color:"#8B5CF6" },
+        { label:"초진결제",    val:`${fmtN(reportData.firstPayment)}건`,    color:"#EC4899" },
+        { label:"CPA",         val:`${reportData.newPatient ? fmtN(Math.round((reportData.marketingCost||0)/reportData.newPatient))+'만원' : '-'}`, color:"#F97316" },
+      ].map(k=>`<div class="kpi-card"><div class="kpi-label">${k.label}</div><div class="kpi-value" style="color:${k.color}">${k.val}</div></div>`).join("")}
     </div>
-    <div class="kpi-grid">${kpiCards}</div>
+    ${hData.length > 1 ? `
+    <div class="section-title" style="font-size:13px;margin-bottom:12px;"><span class="accent-bar"></span>최근 6개월 추이</div>
+    <div class="chart-wrap">
+      <canvas id="overviewChart"></canvas>
+    </div>` : ""}
   </div>` : ""}
 
   <!-- 2. 상세 성과 -->
   ${hasTab("performance") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>상세 성과 · 월별 추이</div>
-    <div class="table-wrap">
+    <div class="two-col">
+      <div>
+        <div style="font-size:12px;color:#64748B;font-weight:700;margin-bottom:8px;">📊 신환 · 매출 추이</div>
+        <div class="chart-wrap-sm"><canvas id="perfChart1"></canvas></div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:#64748B;font-weight:700;margin-bottom:8px;">📋 문의 · 내원 · 결제 추이</div>
+        <div class="chart-wrap-sm"><canvas id="perfChart2"></canvas></div>
+      </div>
+    </div>
+    <div style="margin-top:20px;overflow-x:auto;">
       <table>
         <thead><tr><th>월</th><th>문의</th><th>초진내원</th><th>초진결제</th><th>신환</th><th>매출(만)</th><th>마케팅비(만)</th><th>ROI</th></tr></thead>
         <tbody>${trendRows}</tbody>
@@ -3919,12 +4005,24 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   ${hasTab("funnel") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>전환 분석</div>
-    <div class="roi-box">${convKpis}</div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>단계</th><th>수치</th><th>전환율</th></tr></thead>
-        <tbody>${funnelRows}</tbody>
-      </table>
+    <div class="two-col">
+      <div>
+        <div style="font-size:12px;color:#64748B;font-weight:700;margin-bottom:8px;">🔽 전환 퍼널</div>
+        <div class="chart-wrap-sm"><canvas id="funnelChart"></canvas></div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:#64748B;font-weight:700;margin-bottom:8px;">📈 전환율 지표</div>
+        <div class="three-col" style="margin-top:8px;">
+          ${[
+            { label:"유입→초진 전환율", val: reportData.firstVisit && reportData.inquiry ? pctN(reportData.firstVisit, Math.round(reportData.inquiry*3.2)) : "-" },
+            { label:"상담→결제 전환율", val: reportData.firstPayment && reportData.consult ? pctN(reportData.firstPayment, reportData.consult) : "-" },
+            { label:"예약→내원율",      val: reportData.firstVisit && reportData.reservation ? pctN(reportData.firstVisit, reportData.reservation) : "-" },
+            { label:"광고비 대비 매출", val: reportData.revenue && reportData.marketingCost ? `${(reportData.revenue/reportData.marketingCost).toFixed(1)}배` : "-" },
+            { label:"재방문율",          val: reportData.visit && reportData.firstVisit ? pctN(reportData.visit-reportData.firstVisit, reportData.visit) : "-" },
+            { label:"환자당 매출",       val: reportData.revenue && reportData.firstPayment ? `${fmtN(Math.round(reportData.revenue/(reportData.firstPayment||1)))}만원` : "-" },
+          ].map(i=>`<div class="stat-box"><div class="stat-val" style="font-size:18px">${i.val}</div><div class="stat-lbl">${i.label}</div></div>`).join("")}
+        </div>
+      </div>
     </div>
   </div>` : ""}
 
@@ -3932,10 +4030,23 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   ${hasTab("channel") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>채널별 성과</div>
-    ${chData.length > 0 ? `<div class="table-wrap"><table>
-      <thead><tr><th>채널</th><th>유입</th><th>내원</th><th>결제</th><th>매출(만)</th><th>광고비(만)</th><th>ROI</th></tr></thead>
-      <tbody>${channelRows}</tbody>
-    </table></div>` : `<div class="no-data">해당 월 채널 데이터가 없어요</div>`}
+    ${reportChData.length > 0 ? `
+    <div class="two-col">
+      <div>
+        <div style="font-size:12px;color:#64748B;font-weight:700;margin-bottom:8px;">📊 채널별 유입</div>
+        <div class="chart-wrap-sm"><canvas id="channelChart1"></canvas></div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:#64748B;font-weight:700;margin-bottom:8px;">💰 채널별 ROI</div>
+        <div class="chart-wrap-sm"><canvas id="channelChart2"></canvas></div>
+      </div>
+    </div>
+    <div style="margin-top:16px;overflow-x:auto;">
+      <table>
+        <thead><tr><th>채널</th><th>유입</th><th>내원</th><th>결제</th><th>매출(만)</th><th>광고비(만)</th><th>ROI</th></tr></thead>
+        <tbody>${channelRows}</tbody>
+      </table>
+    </div>` : `<div class="no-data">해당 월 채널 데이터가 없어요</div>`}
   </div>` : ""}
 
   <!-- 5. 환자 유입 -->
@@ -3943,23 +4054,33 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>환자 유입 현황</div>
     ${patientRec ? `
-    <div class="roi-box" style="margin-bottom:16px">
-      <div class="roi-item"><div class="val">${fmtN(patientRec.newPatient)}명</div><div class="lbl">신환</div></div>
-      <div class="roi-item"><div class="val">${fmtN(patientRec.returnPatient)}명</div><div class="lbl">구환</div></div>
-      <div class="roi-item"><div class="val">${patientRec.targetNew ? Math.round(patientRec.newPatient/patientRec.targetNew*100)+'%' : '-'}</div><div class="lbl">목표 달성률</div></div>
-    </div>
-    ${patientRows ? `<div class="table-wrap"><table><thead><tr><th>유입 채널</th><th>환자 수</th></tr></thead><tbody>${patientRows}</tbody></table></div>` : ""}
-    ` : `<div class="no-data">해당 월 환자 유입 데이터가 없어요</div>`}
+    <div class="two-col">
+      <div>
+        <div class="three-col">
+          <div class="stat-box"><div class="stat-val">${fmtN(patientRec.newPatient)}명</div><div class="stat-lbl">신환</div></div>
+          <div class="stat-box"><div class="stat-val">${fmtN(patientRec.returnPatient)}명</div><div class="stat-lbl">구환</div></div>
+          <div class="stat-box"><div class="stat-val" style="font-size:18px">${patientRec.targetNew ? Math.round(patientRec.newPatient/patientRec.targetNew*100)+'%' : '-'}</div><div class="stat-lbl">목표 달성률</div></div>
+        </div>
+        ${patientRows ? `<div style="margin-top:16px;overflow-x:auto;"><table><thead><tr><th>유입 채널</th><th>환자 수</th></tr></thead><tbody>${patientRows}</tbody></table></div>` : ""}
+      </div>
+      <div>
+        <div style="font-size:12px;color:#64748B;font-weight:700;margin-bottom:8px;">🥧 채널별 유입 비율</div>
+        <div class="chart-wrap-sm"><canvas id="patientChart"></canvas></div>
+      </div>
+    </div>` : `<div class="no-data">해당 월 환자 유입 데이터가 없어요</div>`}
   </div>` : ""}
 
   <!-- 6. 마케팅 현황 -->
   ${hasTab("marketing") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>마케팅 현황 · 콘텐츠 목록</div>
-    ${monthContents.length > 0 ? `<div class="table-wrap"><table>
-      <thead><tr><th>채널</th><th>제목</th><th>발행일</th><th>상위노출</th><th>상태</th></tr></thead>
-      <tbody>${contentRows}</tbody>
-    </table></div>` : `<div class="no-data">해당 월 콘텐츠 데이터가 없어요</div>`}
+    ${monthContents.length > 0 ? `
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>채널</th><th>제목</th><th>발행일</th><th>상위노출</th><th>상태</th></tr></thead>
+        <tbody>${contentRows}</tbody>
+      </table>
+    </div>` : `<div class="no-data">해당 월 콘텐츠 데이터가 없어요</div>`}
   </div>` : ""}
 
   <!-- 7. 비용 관리 -->
@@ -3967,33 +4088,159 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>비용 관리</div>
     ${(monthContract > 0 || monthExpenses.length > 0) ? `
-    <div class="roi-box" style="margin-bottom:16px">
-      <div class="roi-item"><div class="val">${fmtN(monthContract)}만원</div><div class="lbl">월 계약금</div></div>
-      <div class="roi-item"><div class="val">${fmtN(totalExpense)}만원</div><div class="lbl">소진액</div></div>
-      <div class="roi-item"><div class="val">${fmtN(monthContract-totalExpense)}만원</div><div class="lbl">잔액</div></div>
-      <div class="roi-item"><div class="val">${monthContract > 0 ? Math.round(totalExpense/monthContract*100)+'%' : '-'}</div><div class="lbl">소진율</div></div>
-    </div>
-    ${expenseRows ? `<div class="table-wrap"><table><thead><tr><th>날짜</th><th>항목</th><th>메모</th><th>금액</th></tr></thead><tbody>${expenseRows}</tbody></table></div>` : ""}
-    ` : `<div class="no-data">해당 월 비용 데이터가 없어요</div>`}
+    <div class="two-col" style="margin-bottom:16px;">
+      <div>
+        <div class="three-col">
+          <div class="stat-box"><div class="stat-val">${fmtN(monthContract)}만원</div><div class="stat-lbl">월 계약금</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#EF4444">${fmtN(totalExpense)}만원</div><div class="stat-lbl">소진액</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#10B981">${fmtN(monthContract-totalExpense)}만원</div><div class="stat-lbl">잔액</div></div>
+        </div>
+        ${expenseRows ? `<div style="margin-top:16px;overflow-x:auto;"><table><thead><tr><th>날짜</th><th>항목</th><th>메모</th><th>금액</th></tr></thead><tbody>${expenseRows}</tbody></table></div>` : ""}
+      </div>
+      <div>
+        <div style="font-size:12px;color:#64748B;font-weight:700;margin-bottom:8px;">📊 항목별 비중</div>
+        <div class="chart-wrap-sm"><canvas id="costChart"></canvas></div>
+      </div>
+    </div>` : `<div class="no-data">해당 월 비용 데이터가 없어요</div>`}
   </div>` : ""}
 
   <!-- 8. 키워드 현황 -->
   ${hasTab("keyword") ? `
   <div class="section">
     <div class="section-title"><span class="accent-bar"></span>키워드 현황</div>
-    ${monthKw.length > 0 ? `<div class="table-wrap"><table>
-      <thead><tr><th>키워드</th><th>채널</th><th>현재 위치</th><th>총 순위</th><th>검색량</th></tr></thead>
-      <tbody>${kwRows}</tbody>
-    </table></div>` : `<div class="no-data">해당 월 키워드 데이터가 없어요</div>`}
+    ${monthKw.length > 0 ? `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px;">
+      ${kwSummaryCards}
+    </div>
+    <div style="color:#94A3B8;font-size:11px;text-align:right;">총 ${monthKw.length}개 키워드 · ${targetMonth} 기준</div>
+    ` : `<div class="no-data">해당 월 키워드 데이터가 없어요</div>`}
   </div>` : ""}
 
   <div class="footer">
-    <span>${hospital.name} · 다올 마케팅 리포트</span>
-    <span>${today} 생성</span>
+    <span>${hospital.name} · ${hospital.dept||''} · ${hospital.region||''}</span>
+    <span>${lastMonth} 마케팅 리포트 · 작성일 ${today}</span>
   </div>
-</body>
-</html>`;
 
+<script>
+// 공통 옵션
+const fontFamily = "'Noto Sans KR', sans-serif";
+Chart.defaults.font.family = fontFamily;
+Chart.defaults.color = '#64748B';
+
+const months6 = ${JSON.stringify(hData.slice(-6).map(d=>d.month))};
+const newPat6  = ${JSON.stringify(hData.slice(-6).map(d=>d.newPatient||0))};
+const revenue6 = ${JSON.stringify(hData.slice(-6).map(d=>d.revenue||0))};
+const inquiry6 = ${JSON.stringify(hData.slice(-6).map(d=>d.inquiry||0))};
+const firstVisit6 = ${JSON.stringify(hData.slice(-6).map(d=>d.firstVisit||0))};
+const firstPayment6 = ${JSON.stringify(hData.slice(-6).map(d=>d.firstPayment||0))};
+const color1 = '${hospital.color}';
+
+${hasTab("overview") && hData.length > 1 ? `
+// 통합 요약 차트
+new Chart(document.getElementById('overviewChart'), {
+  type: 'bar',
+  data: {
+    labels: months6,
+    datasets: [
+      { label: '신환', data: newPat6, backgroundColor: color1+'99', borderColor: color1, borderWidth:2, borderRadius:6, yAxisID:'y' },
+      { label: '매출(만원)', data: revenue6, type:'line', borderColor:'#10B981', backgroundColor:'#10B98120', borderWidth:2.5, pointRadius:4, tension:0.4, fill:true, yAxisID:'y1' },
+    ]
+  },
+  options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'top' } }, scales:{ y:{ beginAtZero:true, grid:{ color:'#F1F5F9' } }, y1:{ position:'right', beginAtZero:true, grid:{ drawOnChartArea:false } } } }
+});` : ""}
+
+${hasTab("performance") && hData.length > 0 ? `
+// 상세 성과 차트1 - 신환/매출
+new Chart(document.getElementById('perfChart1'), {
+  type: 'bar',
+  data: {
+    labels: months6,
+    datasets: [
+      { label:'신환', data: newPat6, backgroundColor: color1+'88', borderColor: color1, borderWidth:2, borderRadius:5, yAxisID:'y' },
+      { label:'매출(만)', data: revenue6, type:'line', borderColor:'#10B981', borderWidth:2, pointRadius:3, tension:0.4, yAxisID:'y1' }
+    ]
+  },
+  options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'top', labels:{ boxWidth:12 } } }, scales:{ y:{ beginAtZero:true, grid:{ color:'#F1F5F9' } }, y1:{ position:'right', beginAtZero:true, grid:{ drawOnChartArea:false } } } }
+});
+// 상세 성과 차트2 - 문의/내원/결제
+new Chart(document.getElementById('perfChart2'), {
+  type: 'line',
+  data: {
+    labels: months6,
+    datasets: [
+      { label:'문의', data: inquiry6, borderColor:'#6366F1', backgroundColor:'#6366F120', borderWidth:2, pointRadius:3, tension:0.4, fill:true },
+      { label:'초진내원', data: firstVisit6, borderColor:'#F59E0B', backgroundColor:'#F59E0B20', borderWidth:2, pointRadius:3, tension:0.4, fill:true },
+      { label:'초진결제', data: firstPayment6, borderColor:'#EC4899', backgroundColor:'#EC489920', borderWidth:2, pointRadius:3, tension:0.4, fill:true },
+    ]
+  },
+  options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'top', labels:{ boxWidth:12 } } }, scales:{ y:{ beginAtZero:true, grid:{ color:'#F1F5F9' } } } }
+});` : ""}
+
+${hasTab("funnel") ? `
+// 전환 퍼널 차트
+new Chart(document.getElementById('funnelChart'), {
+  type: 'bar',
+  data: {
+    labels: ${JSON.stringify(funnelStepsReport.map(s=>s.name))},
+    datasets: [{ label:'인원', data: ${JSON.stringify(funnelStepsReport.map(s=>s.val))}, backgroundColor: ['#0EA5E9','#6366F1','#8B5CF6','#EC4899','#F59E0B','#10B981'].slice(0,${funnelStepsReport.length}), borderRadius:6 }]
+  },
+  options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ x:{ beginAtZero:true, grid:{ color:'#F1F5F9' } } } }
+});` : ""}
+
+${hasTab("channel") && reportChData.length > 0 ? `
+// 채널 유입 차트
+const chLabels = ${JSON.stringify(reportChData.map(c=>c.channel))};
+new Chart(document.getElementById('channelChart1'), {
+  type: 'bar',
+  data: { labels: chLabels, datasets: [{ label:'유입', data: ${JSON.stringify(reportChData.map(c=>c.inflow||0))}, backgroundColor: color1+'88', borderColor: color1, borderWidth:2, borderRadius:6 }] },
+  options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, grid:{ color:'#F1F5F9' } } } }
+});
+// 채널 ROI 차트
+new Chart(document.getElementById('channelChart2'), {
+  type: 'bar',
+  data: { labels: chLabels, datasets: [{ label:'ROI(%)', data: ${JSON.stringify(reportChData.map(c=>c.cost>0?Math.round((c.revenue-c.cost)/c.cost*100):0))}, backgroundColor: ${JSON.stringify(reportChData.map(c=>{const r=c.cost>0?Math.round((c.revenue-c.cost)/c.cost*100):0;return r>300?'#10B98199':r>100?'#F59E0B99':'#EF444499'}))}, borderRadius:6 }] },
+  options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, grid:{ color:'#F1F5F9' } } } }
+});` : ""}
+
+${hasTab("patient") && patientRec && patientRec.channelData && patientRec.channelData.filter(c=>c.count>0).length > 0 ? `
+// 환자 유입 도넛 차트
+const patData = ${JSON.stringify(patientRec.channelData.filter(c=>c.count>0).map(c=>({ label:c.channel, val:c.count })))};
+new Chart(document.getElementById('patientChart'), {
+  type: 'doughnut',
+  data: { labels: patData.map(d=>d.label), datasets: [{ data: patData.map(d=>d.val), backgroundColor: ['#0EA5E9','#6366F1','#10B981','#F59E0B','#EC4899','#8B5CF6','#F97316','#14B8A6'], borderWidth:2, borderColor:'#fff' }] },
+  options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ boxWidth:12, font:{ size:11 } } } } }
+});` : ""}
+
+${hasTab("cost") && monthExpenses.length > 0 ? `
+// 비용 항목별 비중 도넛 차트
+const costByCategory = {};
+${JSON.stringify(monthExpenses)}.forEach(e => {
+  const cat = e.category || '기타';
+  costByCategory[cat] = (costByCategory[cat] || 0) + e.amount;
+});
+const costLabels = Object.keys(costByCategory);
+const costData = Object.values(costByCategory);
+new Chart(document.getElementById('costChart'), {
+  type: 'doughnut',
+  data: { 
+    labels: costLabels, 
+    datasets:[{ 
+      data: costData, 
+      backgroundColor: ['#0EA5E9AA','#6366F1AA','#10B981AA','#F59E0BAA','#EC4899AA','#8B5CF6AA','#F97316AA','#14B8A6AA','#EF4444AA','#FBBF24AA'], 
+      borderWidth:2, borderColor:'#fff' 
+    }] 
+  },
+  options: { 
+    responsive:true, maintainAspectRatio:false, 
+    plugins:{ 
+      legend:{ position:'right', labels:{ boxWidth:12, font:{ size:11 } } }, 
+      tooltip:{ callbacks:{ label: ctx => ctx.label+': '+ctx.raw.toLocaleString()+'만원 ('+Math.round(ctx.raw/costData.reduce((a,b)=>a+b,0)*100)+'%)' } } 
+    } 
+  }
+});` : ""}
+</script>
+</body>
+</html>`
     // 새 창에서 열기
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -4052,10 +4299,22 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
                   <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:8 }}>📅 기준 월</label>
                   {(() => {
                     const months = availMonths;
-                    if (months.length === 0) return <div style={{ color:C.muted, fontSize:12 }}>월별 데이터가 없어요</div>;
+                    const contentMonths = [...new Set((hospital.contentData||[]).map(c=>c.date?.slice(0,7)).filter(Boolean))].sort().reverse();
+                    const kwMonths = [...new Set(sharedKeywordData.map(k=>k.month).filter(Boolean))].sort().reverse();
+                    const allMonths = [...new Set([...months, ...contentMonths, ...kwMonths])].sort().reverse();
+                    if (allMonths.length === 0) return (
+                      <div style={{ background:`${C.yellow}15`, border:`1px solid ${C.yellow}30`, borderRadius:10, padding:14 }}>
+                        <div style={{ color:C.yellow, fontWeight:700, fontSize:13, marginBottom:4 }}>⚠️ 출력할 데이터가 없어요</div>
+                        <div style={{ color:C.muted, fontSize:12 }}>마케팅 현황, 비용관리 등 데이터를 먼저 입력해주세요.</div>
+                      </div>
+                    );
+                    // reportMonth가 allMonths에 없으면 첫 번째로 초기화
+                    if (reportMonth === "" || !allMonths.includes(reportMonth)) {
+                      setTimeout(() => setReportMonth(allMonths[0]), 0);
+                    }
                     return (
                       <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                        {months.map(m => (
+                        {allMonths.map(m => (
                           <button key={m} onClick={() => setReportMonth(m)} style={{
                             background: reportMonth===m ? hospital.color : "#F1F5F9",
                             border: `1px solid ${reportMonth===m ? hospital.color : C.border}`,
@@ -4095,7 +4354,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
                   <button onClick={() => {
                     setShowReportModal(false);
                     exportReport([...reportSections], reportMonth);
-                  }} style={{ flex:1, background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:9, padding:"11px 0", fontSize:13, cursor:"pointer", fontWeight:700 }}>출력하기</button>
+                  }} disabled={!reportMonth} style={{ flex:1, background: !reportMonth ? C.dim : `linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:9, padding:"11px 0", fontSize:13, cursor: !reportMonth ? "not-allowed" : "pointer", fontWeight:700 }}>출력하기</button>
                   <button onClick={() => setShowReportModal(false)} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:9, padding:"11px 16px", fontSize:13, cursor:"pointer" }}>취소</button>
                 </div>
               </div>
@@ -4556,7 +4815,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
         {/* 비용 관리 */}
         {tab === "cost" && <CostTab hospital={hospital} hData={hData} onDataLoad={setSharedCostData} isReadOnly={isReadOnly} />}
         {tab === "meeting" && <MeetingTab hospital={hospital} isReadOnly={isReadOnly} />}
-        {tab === "keyword" && <KeywordRankTab hospital={hospital} isAdmin={isAdmin} onDataLoad={setSharedKeywordData} isReadOnly={isReadOnly} />}
+        {tab === "keyword" && <KeywordRankTab hospital={hospital} isAdmin={isAdmin} onDataLoad={setSharedKeywordData} onSelMonthChange={setSharedKeywordSelMonth} isReadOnly={isReadOnly} />}
         {tab === "schedule" && <HospitalScheduleTab hospital={hospital} globalSchedules={globalSchedules} saveGlobalSchedules={saveGlobalSchedules} isReadOnly={isReadOnly} />}
 
       </div>
