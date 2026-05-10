@@ -1760,7 +1760,7 @@ function ChannelInputForm({ hospital, channelData, onSave, onClose }) {
 
 // ─── 마케팅 현황 탭 ───────────────────────────────────────────
 function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isAdmin }) {
-  const [contents, setContents] = useState(() => initialContents);
+  const [contents, setContents] = useState(() => initialContents || []);
   const [selMonth, setSelMonth] = useState("전체");
   const [contentFilter, setContentFilter] = useState("전체");
   const [showForm, setShowForm] = useState(false);
@@ -1773,6 +1773,11 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
   const [showInflowInput, setShowInflowInput] = useState(false);
   const [inflowForm, setInflowForm] = useState({});
   const [inflowMonth, setInflowMonth] = useState("");
+
+  // hospital.contentData가 외부에서 바뀌면 동기화
+  useEffect(() => {
+    setContents(hospital.contentData || []);
+  }, [hospital.contentData]);
 
   // 월 목록 (콘텐츠에서 추출 + 전체)
   const monthList = useMemo(() => {
@@ -3221,17 +3226,35 @@ function MeetingTab({ hospital, isReadOnly }) {
                               <span style={{ color:C.accent2, fontWeight:700, fontSize:12 }}>{child.date}</span>
                               <span style={{ background:`${C.accent2}15`, color:C.accent2, borderRadius:5, padding:"1px 8px", fontSize:11 }}>{child.type}</span>
                               {child.attendees && <span style={{ color:C.muted, fontSize:11 }}>👤 {child.attendees}</span>}
-                              <button onClick={()=>handleDelete(child.id)} style={{ marginLeft:"auto", background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>삭제</button>
+                              <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
+                                {!isReadOnly && (
+                                  <button onClick={() => handleEdit(child)} style={{ background:`${C.accent2}15`, border:`1px solid ${C.accent2}30`, color:C.accent2, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontWeight:600 }}>수정</button>
+                                )}
+                                {!isReadOnly && (
+                                  <button onClick={() => handleDelete(child.id)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>삭제</button>
+                                )}
+                              </div>
                             </div>
                             <div style={{ color:C.text, fontSize:12, lineHeight:1.6, whiteSpace:"pre-wrap" }}>{child.summary}</div>
                             {child.actions?.length > 0 && (
-                              <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:8 }}>
+                              <div style={{ display:"flex", flexDirection:"column", gap:5, marginTop:8 }}>
                                 {child.actions.map((a,j) => {
                                   const tm = TEAM_LEADERS_META.find(t=>t.team===a.team);
                                   return (
-                                    <span key={j} style={{ background:a.done?`${C.green}15`:`${C.muted}10`, border:`1px solid ${a.done?C.green:C.dim}`, color:a.done?C.green:C.muted, borderRadius:5, padding:"2px 8px", fontSize:10 }}>
-                                      {a.done ? "✓" : "○"} {a.team && <span style={{color:tm?.color||C.accent2,fontWeight:700}}>{a.team} </span>}{a.text}
-                                    </span>
+                                    <div key={j} onClick={() => !isReadOnly && toggleActionDone(child.id, a.id)}
+                                      style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 8px", borderRadius:7,
+                                        background:a.done?`${C.green}10`:"transparent",
+                                        border:`1px solid ${a.done?C.green:C.dim}`,
+                                        cursor: isReadOnly ? "default" : "pointer" }}>
+                                      <div style={{ width:16, height:16, borderRadius:4, flexShrink:0,
+                                        background:a.done?C.green:"transparent",
+                                        border:`2px solid ${a.done?C.green:C.dim}`,
+                                        display:"flex", alignItems:"center", justifyContent:"center" }}>
+                                        {a.done && <span style={{ color:"#0F172A", fontSize:10, fontWeight:900 }}>✓</span>}
+                                      </div>
+                                      {a.team && <span style={{ background:`${tm?.color||C.accent2}20`, color:tm?.color||C.accent2, borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700, flexShrink:0 }}>{a.team}</span>}
+                                      <span style={{ fontSize:11, color:a.done?C.muted:C.text, textDecoration:a.done?"line-through":"none" }}>{a.text}</span>
+                                    </div>
                                   );
                                 })}
                               </div>
