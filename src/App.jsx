@@ -752,7 +752,7 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
         for (const h of hospitals) {
           const res = await supabase.from('meeting_data').select('*').eq('hospital_id', h.id).single();
           if (res.data?.data) {
-            res.data.data.forEach(log => allMeets.push({ ...log, hospitalName:h.name, hospitalColor:h.color }));
+            res.data.data.forEach(log => allMeets.push({ ...log, hospitalName:h.name, hospitalColor:h.color, hospitalId:h.id }));
           }
         }
         setMeetingLogs(allMeets.sort((a,b) => (b.date||"") > (a.date||"") ? 1 : -1));
@@ -775,6 +775,28 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
     const updated = { ...confirmedLogs, [logId]: !confirmedLogs[logId] };
     setConfirmedLogs(updated);
     saveConfirmed(updated);
+  };
+
+  // 내부 미팅 요약에서 액션아이템 체크 (병원별 meeting_data에 반영)
+  const toggleInternalActionDone = async (log, actionId) => {
+    const updatedActions = (log.actions||[]).map(a => a.id === actionId ? { ...a, done: !a.done } : a);
+
+    // meetingLogs state 업데이트
+    setMeetingLogs(prev => prev.map(l =>
+      l.id === log.id && l.hospitalName === log.hospitalName
+        ? { ...l, actions: updatedActions }
+        : l
+    ));
+
+    // 병원별 meeting_data에 저장 (hospitalId 또는 name으로 병원 찾기)
+    try {
+      const h = hospitals.find(h => h.id === log.hospitalId || h.name === log.hospitalName);
+      if (!h) { console.error('병원 못 찾음:', log.hospitalName); return; }
+      const res = await supabase.from('meeting_data').select('*').eq('hospital_id', h.id).single();
+      const all = res.data?.data || [];
+      const updatedAll = all.map(l => l.id === log.id ? { ...l, actions: updatedActions } : l);
+      await supabase.from('meeting_data').upsert({ hospital_id: h.id, data: updatedAll }, { onConflict: 'hospital_id' });
+    } catch(e) { console.error('액션 저장 실패:', e); }
   };
 
   // 전체 병원 미팅 로그 취합
@@ -1011,10 +1033,13 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
                             {log.actions.map((a,j) => {
                               const tm = TEAM_LEADERS_META.find(t => t.team === a.team);
                               return (
-                                <div key={j} style={{ display:"flex", alignItems:"center", gap:6, background: a.done ? `${C.green}10` : "#F8FAFC", border:`1px solid ${a.done ? C.green : C.dim}`, borderRadius:7, padding:"5px 10px" }}>
-                                  <span style={{ color: a.done ? C.green : C.muted, fontSize:12, flexShrink:0 }}>{a.done ? "✓" : "○"}</span>
+                                <div key={j} onClick={() => toggleInternalActionDone(log, a.id)}
+                                  style={{ display:"flex", alignItems:"center", gap:6, background: a.done ? `${C.green}10` : "#F8FAFC", border:`1px solid ${a.done ? C.green : C.dim}`, borderRadius:7, padding:"5px 10px", cursor:"pointer", transition:"all 0.15s" }}>
+                                  <div style={{ width:16, height:16, borderRadius:4, flexShrink:0, background:a.done?C.green:"transparent", border:`2px solid ${a.done?C.green:C.dim}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                                    {a.done && <span style={{ color:"#0F172A", fontSize:10, fontWeight:900 }}>✓</span>}
+                                  </div>
                                   {a.team && <span style={{ background:`${tm?.color||C.accent2}20`, color:tm?.color||C.accent2, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700, flexShrink:0 }}>{a.team}</span>}
-                                  <span style={{ color: a.done ? C.green : C.text, fontSize:12 }}>{a.text}</span>
+                                  <span style={{ color: a.done ? C.muted : C.text, fontSize:12, textDecoration:a.done?"line-through":"none" }}>{a.text}</span>
                                 </div>
                               );
                             })}
