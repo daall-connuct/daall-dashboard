@@ -4121,14 +4121,55 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   <!-- 6. 마케팅 현황 -->
   ${hasTab("marketing") ? `
   <div class="section">
-    <div class="section-title"><span class="accent-bar"></span>마케팅 현황 · 콘텐츠 목록</div>
-    ${monthContents.length > 0 ? `
-    <div style="overflow-x:auto;">
-      <table>
-        <thead><tr><th>채널</th><th>제목</th><th>발행일</th><th>상위노출</th><th>상태</th></tr></thead>
-        <tbody>${contentRows}</tbody>
-      </table>
-    </div>` : `<div class="no-data">해당 월 콘텐츠 데이터가 없어요</div>`}
+    <div class="section-title"><span class="accent-bar"></span>마케팅 현황</div>
+    ${(() => {
+      // 채널별 유입 데이터 (channelData에서 targetMonth 기준)
+      const rawCh = hospital.channelData || {};
+      const chForMonth = !Array.isArray(rawCh) ? (rawCh[targetMonth] || rawCh[targetMonth.slice(0,7)] || []) : rawCh;
+      const prevMonthKey = (() => { const [y,m] = targetMonth.split('-').map(Number); return m===1?`${y-1}-12`:`${y}-${String(m-1).padStart(2,'0')}`; })();
+      const lastYearMonthKey = (() => { const [y,m] = targetMonth.split('-'); return `${+y-1}-${m}`; })();
+      const prevChData = !Array.isArray(rawCh) ? (rawCh[prevMonthKey] || []) : [];
+      const lastYearChData = !Array.isArray(rawCh) ? (rawCh[lastYearMonthKey] || []) : [];
+      const INFLOW_CHANNELS = [
+        { key:"네이버블로그",  label:"블로그",   color:"#03C75A" },
+        { key:"네이버카페",    label:"카페",     color:"#0088FE" },
+        { key:"네이버플레이스",label:"플레이스", color:"#FF6B35" },
+        { key:"인스타그램",    label:"인스타",   color:"#E1306C" },
+        { key:"유튜브",        label:"유튜브",   color:"#FF0000" },
+        { key:"검색광고",      label:"검색광고", color:"#A78BFA" },
+      ];
+      const inflowCards = INFLOW_CHANNELS.map(ch => {
+        const cur = chForMonth.find(c => c.channel === ch.key)?.inflow || 0;
+        const prev = prevChData.find(c => c.channel === ch.key)?.inflow || 0;
+        const lastYear = lastYearChData.find(c => c.channel === ch.key)?.inflow || 0;
+        const diff = cur - prev;
+        const diffYear = cur - lastYear;
+        const diffColor = diff > 0 ? '#10B981' : diff < 0 ? '#EF4444' : '#94A3B8';
+        const diffYearColor = diffYear > 0 ? '#10B981' : diffYear < 0 ? '#EF4444' : '#94A3B8';
+        return `<div class="kpi-card">
+          <div class="kpi-label">${ch.label}</div>
+          <div class="kpi-value" style="color:${ch.color};font-size:20px">${cur.toLocaleString()}</div>
+          ${prev > 0 ? `<div style="color:${diffColor};font-size:10px;font-weight:700;margin-top:3px;">전월 ${diff >= 0 ? '+' : ''}${diff}</div>` : ''}
+          ${lastYear > 0 ? `<div style="color:${diffYearColor};font-size:10px;font-weight:600;">전년동월 ${diffYear >= 0 ? '+' : ''}${diffYear}</div>` : ''}
+        </div>`;
+      }).join("");
+      const hasInflowData = chForMonth.some(c => (c.inflow||0) > 0);
+      return `
+      ${hasInflowData ? `
+      <div style="margin-bottom:20px;">
+        <div style="font-size:12px;color:#64748B;font-weight:700;margin-bottom:10px;">📊 채널별 유입 현황 (${targetMonth})</div>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px;">${inflowCards}</div>
+        <div class="chart-wrap-sm"><canvas id="marketingInflowChart"></canvas></div>
+      </div>` : ""}
+      ${monthContents.length > 0 ? `
+      <div style="font-size:12px;color:#64748B;font-weight:700;margin-bottom:10px;">📋 콘텐츠 목록</div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>채널</th><th>제목</th><th>발행일</th><th>상위노출</th><th>상태</th></tr></thead>
+          <tbody>${contentRows}</tbody>
+        </table>
+      </div>` : `<div class="no-data">해당 월 콘텐츠 데이터가 없어요</div>`}`;
+    })()}
   </div>` : ""}
 
   <!-- 7. 비용 관리 -->
@@ -4235,8 +4276,47 @@ new Chart(document.getElementById('funnelChart'), {
   options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ x:{ beginAtZero:true, grid:{ color:'#F1F5F9' } } } }
 });` : ""}
 
-${hasTab("channel") && reportChData.length > 0 ? `
-// 채널 유입 차트
+${hasTab("marketing") ? `
+// 마케팅 채널별 유입 차트 (전월 비교)
+(function() {
+  const el = document.getElementById('marketingInflowChart');
+  if (!el) return;
+  const rawCh = ${JSON.stringify(!Array.isArray(hospital.channelData||{}) ? hospital.channelData : {})};
+  const targetM = '${targetMonth}';
+  const [y,m] = targetM.split('-').map(Number);
+  const prevM = m===1 ? \`\${y-1}-12\` : \`\${y}-\${String(m-1).padStart(2,'0')}\`;
+  const curData = rawCh[targetM] || [];
+  const prevData = rawCh[prevM] || [];
+  const lastYearM = targetM.split('-')[0] - 1 + '-' + targetM.split('-')[1];
+  const lastYearData = rawCh[lastYearM] || [];
+  const INFLOW_CHANNELS = [
+    { key:"네이버블로그",  label:"블로그",   color:"#03C75A" },
+    { key:"네이버카페",    label:"카페",     color:"#0088FE" },
+    { key:"네이버플레이스",label:"플레이스", color:"#FF6B35" },
+    { key:"인스타그램",    label:"인스타",   color:"#E1306C" },
+    { key:"유튜브",        label:"유튜브",   color:"#FF0000" },
+    { key:"검색광고",      label:"검색광고", color:"#A78BFA" },
+  ];
+  const labels = INFLOW_CHANNELS.map(c => c.label);
+  const curVals = INFLOW_CHANNELS.map(c => curData.find(r=>r.channel===c.key)?.inflow||0);
+  const prevVals = INFLOW_CHANNELS.map(c => prevData.find(r=>r.channel===c.key)?.inflow||0);
+  const lastYearVals = INFLOW_CHANNELS.map(c => lastYearData.find(r=>r.channel===c.key)?.inflow||0);
+  if (curVals.every(v=>v===0) && prevVals.every(v=>v===0)) { el.parentElement.style.display='none'; return; }
+  new Chart(el, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: targetM+' (당월)', data: curVals, backgroundColor: INFLOW_CHANNELS.map(c=>c.color+'99'), borderColor: INFLOW_CHANNELS.map(c=>c.color), borderWidth:2, borderRadius:6 },
+        { label: prevM+' (전월)', data: prevVals, backgroundColor: '#94A3B833', borderColor: '#94A3B8', borderWidth:2, borderRadius:6 },
+        { label: lastYearM+' (전년동월)', data: lastYearVals, backgroundColor: '#F59E0B33', borderColor: '#F59E0B', borderWidth:2, borderRadius:6 },
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'top', labels:{ boxWidth:12 } } }, scales:{ y:{ beginAtZero:true, grid:{ color:'#F1F5F9' } } } }
+  });
+})();` : ""}
+
+${hasTab("channel") && reportChData.length > 0 ? `// 채널 유입 차트
 const chLabels = ${JSON.stringify(reportChData.map(c=>c.channel))};
 new Chart(document.getElementById('channelChart1'), {
   type: 'bar',
