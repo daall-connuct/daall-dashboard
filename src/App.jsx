@@ -743,19 +743,26 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
     load();
   }, []);
 
-  // 미팅 탭 진입 시 전체 병원 미팅 로그 취합
+  // 미팅 탭 진입 시 전체 병원 미팅 로그 취합 (병렬 처리 + 캐시)
+  const [meetingsLoaded, setMeetingsLoaded] = useState(false);
   useEffect(() => {
     if (internalTab !== "meetings") return;
+    if (meetingsLoaded && meetingLogs.length > 0) return; // 캐시 있으면 재로드 안 함
     const loadMeetings = async () => {
       try {
+        // 병렬로 전체 병원 동시 쿼리
+        const results = await Promise.all(
+          hospitals.map(h => supabase.from('meeting_data').select('*').eq('hospital_id', h.id).single())
+        );
         const allMeets = [];
-        for (const h of hospitals) {
-          const res = await supabase.from('meeting_data').select('*').eq('hospital_id', h.id).single();
+        results.forEach((res, i) => {
+          const h = hospitals[i];
           if (res.data?.data) {
             res.data.data.forEach(log => allMeets.push({ ...log, hospitalName:h.name, hospitalColor:h.color, hospitalId:h.id }));
           }
-        }
+        });
         setMeetingLogs(allMeets.sort((a,b) => (b.date||"") > (a.date||"") ? 1 : -1));
+        setMeetingsLoaded(true);
       } catch(e) {}
     };
     loadMeetings();
@@ -781,21 +788,22 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
   const toggleInternalActionDone = async (log, actionId) => {
     const updatedActions = (log.actions||[]).map(a => a.id === actionId ? { ...a, done: !a.done } : a);
 
-    // meetingLogs state 업데이트
-    setMeetingLogs(prev => prev.map(l =>
+    // meetingLogs state 즉시 업데이트
+    const updatedLogs = meetingLogs.map(l =>
       l.id === log.id && l.hospitalName === log.hospitalName
         ? { ...l, actions: updatedActions }
         : l
-    ));
+    );
+    setMeetingLogs(updatedLogs);
 
-    // 병원별 meeting_data에 저장 (hospitalId 또는 name으로 병원 찾기)
+    // 같은 병원의 모든 로그를 모아서 한번에 저장 (추가 읽기 없이)
     try {
       const h = hospitals.find(h => h.id === log.hospitalId || h.name === log.hospitalName);
-      if (!h) { console.error('병원 못 찾음:', log.hospitalName); return; }
-      const res = await supabase.from('meeting_data').select('*').eq('hospital_id', h.id).single();
-      const all = res.data?.data || [];
-      const updatedAll = all.map(l => l.id === log.id ? { ...l, actions: updatedActions } : l);
-      await supabase.from('meeting_data').upsert({ hospital_id: h.id, data: updatedAll }, { onConflict: 'hospital_id' });
+      if (!h) return;
+      const hospitalLogs = updatedLogs
+        .filter(l => l.hospitalId === h.id || l.hospitalName === h.name)
+        .map(({ hospitalName, hospitalColor, hospitalId, ...rest }) => rest); // 내부 필드 제거
+      await supabase.from('meeting_data').upsert({ hospital_id: h.id, data: hospitalLogs }, { onConflict: 'hospital_id' });
     } catch(e) { console.error('액션 저장 실패:', e); }
   };
 
@@ -3738,33 +3746,47 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
 
     // Supabase에서 데이터 직접 가져오기
     let costContracts = [], costExpenses = [], patientRecords = [], kwKeywords = [], reportContents = [];
-    try {
-      const [costRes, patientRes, kwRes, contentRes] = await Promise.all([
-        supabase.from('cost_data').select('*').eq('hospital_id', hospital.id).single(),
-        supabase.from('patient_data').select('*').eq('hospital_id', hospital.id).single(),
-        supabase.from('keyword_data').select('*').eq('hospital_id', hospital.id).single(),
-        supabase.from('content_data').select('*').eq('hospital_id', hospital.id).single(),
-      ]);
-      if (costRes.data?.data) {
-        costContracts = costRes.data.data.contracts || [];
-        costExpenses = costRes.data.data.expenses || [];
-      } else if (sharedCostData) {
-        costContracts = sharedCostData.contracts || [];
-        costExpenses = sharedCostData.expenses || [];
-      }
-      if (patientRes.data?.data) patientRecords = patientRes.data.data;
-      else if (sharedPatientData?.length > 0) patientRecords = sharedPatientData;
-      if (kwRes.data?.data && sharedKeywordData.length === 0) kwKeywords = kwRes.data.data;
-      else kwKeywords = sharedKeywordData.length > 0 ? sharedKeywordData : (kwRes.data?.data || []);
-      if (contentRes.data?.data) reportContents = contentRes.data.data;
-      else reportContents = hospital.contentData || [];
-    } catch(e) {
-      // fallback: 이미 로드된 데이터 사용
-      costContracts = sharedCostData?.contracts || [];
-      costExpenses = sharedCostData?.expenses || [];
-      patientRecords = sharedPatientData || [];
-      kwKeywords = sharedKeywordData || [];
+
+    // 이미 로드된 데이터 우선 사용 → Supabase 쿼리 최소화
+    const hasCostData = sharedCostData && (sharedCostData.contracts?.length > 0 || sharedCostData.expenses?.length > 0);
+    const hasPatientData = sharedPatientData?.length > 0;
+    const hasKwData = sharedKeywordData?.length > 0;
+    const hasContentData = (hospital.contentData||[]).length > 0;
+
+    if (hasCostData && hasPatientData && hasKwData && hasContentData) {
+      // 모두 캐시에 있으면 Supabase 쿼리 스킵
+      costContracts = sharedCostData.contracts || [];
+      costExpenses = sharedCostData.expenses || [];
+      patientRecords = sharedPatientData;
+      kwKeywords = sharedKeywordData;
       reportContents = hospital.contentData || [];
+    } else {
+      // 없는 것만 Supabase에서 로드
+      try {
+        const queries = [];
+        if (!hasCostData) queries.push(supabase.from('cost_data').select('*').eq('hospital_id', hospital.id).single());
+        else queries.push(Promise.resolve({ data: null }));
+        if (!hasPatientData) queries.push(supabase.from('patient_data').select('*').eq('hospital_id', hospital.id).single());
+        else queries.push(Promise.resolve({ data: null }));
+        if (!hasKwData) queries.push(supabase.from('keyword_data').select('*').eq('hospital_id', hospital.id).single());
+        else queries.push(Promise.resolve({ data: null }));
+        if (!hasContentData) queries.push(supabase.from('content_data').select('*').eq('hospital_id', hospital.id).single());
+        else queries.push(Promise.resolve({ data: null }));
+
+        const [costRes, patientRes, kwRes, contentRes] = await Promise.all(queries);
+
+        costContracts = costRes.data?.data?.contracts || sharedCostData?.contracts || [];
+        costExpenses = costRes.data?.data?.expenses || sharedCostData?.expenses || [];
+        patientRecords = patientRes.data?.data || sharedPatientData || [];
+        kwKeywords = sharedKeywordData.length > 0 ? sharedKeywordData : (kwRes.data?.data || []);
+        reportContents = contentRes.data?.data || hospital.contentData || [];
+      } catch(e) {
+        costContracts = sharedCostData?.contracts || [];
+        costExpenses = sharedCostData?.expenses || [];
+        patientRecords = sharedPatientData || [];
+        kwKeywords = sharedKeywordData || [];
+        reportContents = hospital.contentData || [];
+      }
     }
 
     // 1. 통합 요약 KPI
@@ -5170,12 +5192,21 @@ function AppInner() {
 
   const loadHospitals = async () => {
     try {
-      const { data: hospRows } = await supabase.from('hospitals').select('*');
-      const { data: monthlyRows } = await supabase.from('monthly_data').select('*');
-      const { data: channelRows } = await supabase.from('channel_data').select('*');
-      const { data: contentRows } = await supabase.from('content_data').select('*');
-      const { data: meetingRows } = await supabase.from('meeting_data').select('*');
-      const schedRes = await supabase.from('schedule_data').select('*').eq('id', 1).single();
+      // 모든 테이블 병렬 로드
+      const [hospRes, monthlyRes, channelRes, contentRes, meetingRes, schedRes] = await Promise.all([
+        supabase.from('hospitals').select('*'),
+        supabase.from('monthly_data').select('*'),
+        supabase.from('channel_data').select('*'),
+        supabase.from('content_data').select('*'),
+        supabase.from('meeting_data').select('*'),
+        supabase.from('schedule_data').select('*').eq('id', 1).single(),
+      ]);
+
+      const hospRows = hospRes.data;
+      const monthlyRows = monthlyRes.data;
+      const channelRows = channelRes.data;
+      const contentRows = contentRes.data;
+      const meetingRows = meetingRes.data;
       if (schedRes.data?.data) setGlobalSchedules(schedRes.data.data);
 
       if (hospRows && hospRows.length > 0) {
