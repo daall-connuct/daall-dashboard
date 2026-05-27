@@ -4751,6 +4751,9 @@ new Chart(document.getElementById('costChart'), {
         })()}
 
         {tab === "schedule" && <HospitalScheduleTab hospital={hospital} globalSchedules={globalSchedules} saveGlobalSchedules={saveGlobalSchedules} isReadOnly={isReadOnly} />}
+        {tab === "cost" && <CostTab hospital={hospital} hData={hData} onDataLoad={setSharedCostData} isReadOnly={isReadOnly} />}
+        {tab === "meeting" && <MeetingTab hospital={hospital} isReadOnly={isReadOnly} />}
+        {tab === "keyword" && <KeywordRankTab hospital={hospital} isAdmin={isAdmin} onDataLoad={setSharedKeywordData} onSelMonthChange={setSharedKeywordSelMonth} isReadOnly={isReadOnly} />}
         {tab === "marketing" && <MarketingTab hospital={hospital} chData={chData} initialContents={hospital.contentData || []} onUpdateHospital={onUpdateHospital} isAdmin={isAdmin} />}
 
         {/* 새 탭 - 순차적으로 구현 예정 */}
