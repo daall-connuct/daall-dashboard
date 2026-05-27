@@ -197,16 +197,20 @@ const Toast = ({ msg }) => msg ? (
 // ─── 병원 목록 화면 ───────────────────────────────────────────
 const PALETTE = ["#38BDF8","#34D399","#FBBF24","#F472B6","#A78BFA","#FB923C","#2DD4BF","#60A5FA","#E879F9","#4ADE80","#FCD34D","#F87171"];
 const ALL_TABS = [
-  { id:"overview",    label:"통합 요약",   required:false },
-  { id:"performance", label:"상세 성과",   required:false },
-  { id:"channel",     label:"채널 분석",   required:false },
-  { id:"funnel",      label:"전환 분석",   required:false },
-  { id:"patient",     label:"환자 유입",   required:false },
-  { id:"marketing",   label:"마케팅 현황", required:false, defaultOn:true },
-  { id:"keyword",     label:"키워드 현황", required:false, defaultOn:true },
-  { id:"schedule",    label:"일정 관리",   required:false, defaultOn:true },
-  { id:"cost",        label:"비용 관리",   required:false, defaultOn:true },
-  { id:"meeting",     label:"미팅 로그",   required:false, defaultOn:true },
+  // ── 분석 탭 ──────────────────────────────────
+  { id:"overview",  label:"통합 요약",    required:false, defaultOn:true },
+  { id:"ads",       label:"광고 성과",    required:false, defaultOn:true },
+  { id:"inflow",    label:"환자 유입",    required:false, defaultOn:true },
+  { id:"branding",  label:"브랜딩 분석",  required:false, defaultOn:false },
+  { id:"crm",       label:"CRM / 운영",  required:false, defaultOn:false },
+  { id:"ai",        label:"AI 검색",     required:false, defaultOn:false },
+  { id:"growreport",label:"성장 리포트",  required:false, defaultOn:false },
+  // ── 운영 탭 (기존 유지) ──────────────────────
+  { id:"keyword",   label:"키워드 현황",  required:false, defaultOn:true },
+  { id:"marketing", label:"마케팅 현황",  required:false, defaultOn:true },
+  { id:"schedule",  label:"일정 관리",    required:false, defaultOn:true },
+  { id:"cost",      label:"비용 관리",    required:false, defaultOn:true },
+  { id:"meeting",   label:"미팅 로그",    required:false, defaultOn:true },
 ];
 const DEFAULT_TABS = ALL_TABS.filter(t => t.required || t.defaultOn).map(t => t.id);
 
@@ -3613,14 +3617,14 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   const [showChannelInput, setShowChannelInput] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportSections, setReportSections] = useState([
-    { id:"overview",    label:"통합 요약",    checked:true },
-    { id:"performance", label:"상세 성과",    checked:true },
-    { id:"funnel",      label:"전환 분석",    checked:true },
-    { id:"channel",     label:"채널 분석",    checked:true },
-    { id:"patient",     label:"환자 유입",    checked:true },
-    { id:"marketing",   label:"마케팅 현황",  checked:true },
-    { id:"cost",        label:"비용 관리",    checked:true },
-    { id:"keyword",     label:"키워드 현황",  checked:true },
+    { id:"overview",  label:"통합 요약",    checked:true },
+    { id:"ads",       label:"광고 성과",    checked:true },
+    { id:"inflow",    label:"환자 유입",    checked:true },
+    { id:"branding",  label:"브랜딩 분석",  checked:false },
+    { id:"crm",       label:"CRM / 운영",  checked:false },
+    { id:"keyword",   label:"키워드 현황",  checked:true },
+    { id:"marketing", label:"마케팅 현황",  checked:true },
+    { id:"cost",      label:"비용 관리",    checked:true },
   ]);
   const [reportMonth, setReportMonth] = useState("");
 
@@ -3696,20 +3700,23 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   );
 
   const tabs = [
-    { id:"overview",    label:"통합 요약" },
-    { id:"performance", label:"상세 성과" },
-    { id:"channel",     label:"채널 분석" },
-    { id:"funnel",      label:"전환 분석" },
-    { id:"patient",     label:"환자 유입" },
-    { id:"marketing",   label:"마케팅 현황" },
-    { id:"keyword",     label:"키워드 현황" },
-    { id:"schedule",    label:"일정 관리" },
-    { id:"cost",        label:"비용 관리" },
-    { id:"meeting",     label:"미팅 로그" },
+    // ── 분석 탭 ──────────────────────────────────
+    { id:"overview",   label:"📊 통합 요약" },
+    { id:"ads",        label:"📣 광고 성과" },
+    { id:"inflow",     label:"🏥 환자 유입" },
+    { id:"branding",   label:"✨ 브랜딩 분석" },
+    { id:"crm",        label:"💬 CRM / 운영" },
+    { id:"ai",         label:"🤖 AI 검색" },
+    { id:"growreport", label:"📈 성장 리포트" },
+    // ── 운영 탭 ──────────────────────────────────
+    { id:"keyword",    label:"🔍 키워드 현황" },
+    { id:"marketing",  label:"📝 마케팅 현황" },
+    { id:"schedule",   label:"📅 일정 관리" },
+    { id:"cost",       label:"💰 비용 관리" },
+    { id:"meeting",    label:"🗒 미팅 로그" },
   ].filter(t => {
     const enabledTabs = hospital.tabs || DEFAULT_TABS;
     if (!enabledTabs.includes(t.id)) return false;
-    // 실무자는 hospital.juniorTabs에 허용된 탭만
     if (isJunior) {
       const juniorTabs = hospital.juniorTabs || [];
       return juniorTabs.includes(t.id);
@@ -4533,18 +4540,68 @@ new Chart(document.getElementById('costChart'), {
 
         {/* 통합 요약 */}
         {tab === "overview" && (() => {
-          const topChannels = [...chData].sort((a,b)=>b.revenue-a.revenue).slice(0,3);
+          // ── 데이터 계산 ────────────────────────────────
           const totalMktCost = last.marketingCost || 0;
-          const revenueAchieve = hospital.target_revenue ? Math.round((last.revenue||0) / hospital.target_revenue * 100) : 0;
+          const cpl = (last.inquiry||0) > 0 ? Math.round(totalMktCost / last.inquiry) : 0;
+          const roi = totalMktCost > 0 ? Math.round(((last.revenue||0) - totalMktCost) / totalMktCost * 100) : 0;
+          const revenueAchieve = hospital.target_revenue ? Math.round((last.revenue||0) / hospital.target_revenue * 100) : null;
+          const patientAchieve = hospital.target_patients ? Math.round((last.newPatient||0) / hospital.target_patients * 100) : null;
+
+          // 전월 대비 증감
+          const diff = (cur, prv) => prv > 0 ? Math.round(((cur-prv)/prv)*100) : null;
+          const dInquiry = diff(last.inquiry||0, prev?.inquiry||0);
+          const dPatient = diff(last.newPatient||0, prev?.newPatient||0);
+          const dRevenue = diff(last.revenue||0, prev?.revenue||0);
+          const dCost    = diff(last.marketingCost||0, prev?.marketingCost||0);
+          const dCpl     = prev?.inquiry > 0 && prev?.marketingCost > 0
+            ? diff(cpl, Math.round((prev.marketingCost||0)/(prev.inquiry||1))) : null;
+
+          // 주요 채널
+          const rawCh = hospital.channelData || {};
+          const curCh = !Array.isArray(rawCh) ? (rawCh[selMonth] || []) : rawCh;
+          const topChannels = [...curCh].sort((a,b)=>(b.inflow||0)-(a.inflow||0)).slice(0,4);
+          const totalInflow = curCh.reduce((s,c) => s+(c.inflow||0), 0);
+
+          // 콘텐츠 요약
           const contents = hospital.contentData || [];
-          const recentContents = [...contents].sort((a,b)=>b.date>a.date?1:-1).slice(0,3);
-          const topExposedCount = contents.filter(c=>c.topExposed).length;
+          const monthContents = contents.filter(c => c.date?.startsWith(selMonth?.slice(0,7)||""));
+
+          const KPI = ({ label, value, unit, diff, color, sub, achieve }) => (
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20, position:"relative", overflow:"hidden" }}>
+              <div style={{ position:"absolute", top:0, left:0, width:4, height:"100%", background:color||hospital.color, borderRadius:"16px 0 0 16px" }} />
+              <div style={{ paddingLeft:8 }}>
+                <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:6, letterSpacing:0.5 }}>{label}</div>
+                <div style={{ display:"flex", alignItems:"baseline", gap:4 }}>
+                  <span style={{ color:C.text, fontSize:26, fontWeight:900 }}>{value}</span>
+                  <span style={{ color:C.muted, fontSize:12 }}>{unit}</span>
+                </div>
+                {sub && <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>{sub}</div>}
+                {achieve !== null && achieve !== undefined && (
+                  <div style={{ marginTop:6 }}>
+                    <div style={{ background:C.dim, borderRadius:4, height:4, width:"100%" }}>
+                      <div style={{ width:`${Math.min(achieve,100)}%`, height:"100%", background:color||hospital.color, borderRadius:4, transition:"width 0.5s" }} />
+                    </div>
+                    <div style={{ color:color||hospital.color, fontSize:10, fontWeight:700, marginTop:3 }}>목표 {achieve}%</div>
+                  </div>
+                )}
+                {diff !== null && diff !== undefined && (
+                  <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:6 }}>
+                    <span style={{ color: diff>0?C.green:diff<0?C.red:C.muted, fontSize:12, fontWeight:700 }}>
+                      {diff>0?'▲':'▼'} {Math.abs(diff)}%
+                    </span>
+                    <span style={{ color:C.muted, fontSize:10 }}>전월비</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
 
           return (
-            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+              {/* 월 선택 + 데이터 입력 */}
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
                 <MonthSelector />
-                {inputBtn(showPerfInput ? "입력 닫기" : "데이터 입력", () => setShowPerfInput(!showPerfInput))}
+                {isAdmin && inputBtn(showPerfInput ? "입력 닫기" : "데이터 입력", () => setShowPerfInput(!showPerfInput))}
               </div>
               {showPerfInput && (
                 <PerformanceInputForm hospital={hospital} monthlyData={hData}
@@ -4552,218 +4609,147 @@ new Chart(document.getElementById('costChart'), {
                   onClose={() => setShowPerfInput(false)} />
               )}
 
-              {/* KPI 4개 */}
+              {/* 핵심 KPI - 1행 */}
+              <div>
+                <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:10, letterSpacing:1 }}>📊 핵심 성과 지표</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:12 }}>
+                  <KPI label="총 문의수" value={fmt(last.inquiry)} unit="건" diff={dInquiry} color={C.accent} />
+                  <KPI label="신환 수" value={fmt(last.newPatient)} unit="명" diff={dPatient} color={hospital.color} achieve={patientAchieve} />
+                  <KPI label="매출" value={fmt(last.revenue)} unit="만원" diff={dRevenue} color={C.green} achieve={revenueAchieve} />
+                  <KPI label="총 광고비" value={fmt(totalMktCost)} unit="만원" diff={dCost} color={C.orange} />
+                </div>
+              </div>
+
+              {/* 2행 KPI */}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:12 }}>
-                <KPICard label="신환 수" value={fmt(last.newPatient)} unit="명"
-                  sub={`목표 달성 ${Math.round((last.newPatient||0)/(hospital.target_patients||1)*100)}%`}
-                  color={hospital.color}
-                  trend={prev && prev.newPatient ? Math.round(((last.newPatient - prev.newPatient)/prev.newPatient)*100) : undefined} />
-                <KPICard label="매출" value={fmt(last.revenue)} unit="만원"
-                  sub={`객단가 ${fmt(arpu)}만원`} color={C.yellow}
-                  trend={prev && prev.revenue ? Math.round(((last.revenue - prev.revenue)/prev.revenue)*100) : undefined} />
-                <KPICard label="마케팅비" value={fmt(last.marketingCost)} unit="만원" color={C.orange}
-                  trend={prev && prev.marketingCost ? Math.round(((last.marketingCost - prev.marketingCost)/prev.marketingCost)*100) : undefined} />
-                <KPICard label="ROI" value={roi} unit="%" sub={`CPA ${cpaVal}만원/명`} color={roi > 200 ? C.green : C.red} />
+                <KPI label="문의당 비용 (CPL)" value={fmt(cpl)} unit="만원" diff={dCpl} color={C.accent2}
+                  sub={`문의 ${fmt(last.inquiry)}건 기준`} />
+                <KPI label="ROI" value={roi} unit="%" color={roi>=200?C.green:roi>=100?C.yellow:C.red}
+                  sub={`광고비 대비 수익률`} />
+                <KPI label="예약 수" value={fmt(last.reservation)} unit="건" color="#8B5CF6"
+                  sub={`내원 ${fmt(last.visit)}명`} />
+                <KPI label="초진 결제" value={fmt(last.firstPayment)} unit="건" color="#EC4899"
+                  sub={`객단가 ${fmt(last.firstPayment>0?Math.round((last.revenue||0)/(last.firstPayment)):0)}만원`} />
               </div>
 
-              {/* 추이 차트 + 채널별 성과 */}
-              <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:14 }}>
-                {/* 추이 차트 - 이중 Y축 */}
-                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:18 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-                    <SectionTitle>신환 & 매출 추이</SectionTitle>
-                    <div style={{ display:"flex", gap:12 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                        <div style={{ width:10, height:3, borderRadius:2, background:hospital.color }} />
-                        <span style={{ color:C.muted, fontSize:10 }}>신환(명)</span>
-                      </div>
-                      <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                        <div style={{ width:10, height:3, borderRadius:2, background:C.yellow }} />
-                        <span style={{ color:C.muted, fontSize:10 }}>매출(만원)</span>
-                      </div>
-                    </div>
-                  </div>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <AreaChart data={hData} margin={{ top:5, right:16, left:0, bottom:0 }}>
-                      <defs>
-                        <linearGradient id="gp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={hospital.color} stopOpacity={0.25}/><stop offset="100%" stopColor={hospital.color} stopOpacity={0}/></linearGradient>
-                        <linearGradient id="gy" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.yellow} stopOpacity={0.2}/><stop offset="100%" stopColor={C.yellow} stopOpacity={0}/></linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                      <XAxis dataKey="month" stroke={C.muted} tick={{ fill:C.muted, fontSize:10 }} />
-                      <YAxis yAxisId="left"  stroke={hospital.color} tick={{ fill:hospital.color, fontSize:10 }} width={32} tickFormatter={v => v} />
-                      <YAxis yAxisId="right" orientation="right" stroke={C.yellow} tick={{ fill:C.yellow, fontSize:10 }} width={40} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}K` : v} />
-                      <TT formatter={(val, name) => name === "신환(명)" ? [`${val}명`, name] : [`${val}만원`, name]} />
-                      <Area yAxisId="left"  type="monotone" dataKey="newPatient" name="신환(명)"  stroke={hospital.color} fill="url(#gp)" strokeWidth={2.5} dot={{ r:3, fill:hospital.color }} />
-                      <Area yAxisId="right" type="monotone" dataKey="revenue"    name="매출(만원)" stroke={C.yellow}       fill="url(#gy)" strokeWidth={2}   dot={{ r:3, fill:C.yellow }} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-
-                {/* 채널별 성과 TOP3 */}
-                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:18 }}>
-                  <SectionTitle>채널 성과 TOP3</SectionTitle>
-                  <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:8 }}>
-                    {topChannels.length === 0
-                      ? <div style={{ color:C.muted, fontSize:12, textAlign:"center", marginTop:20 }}>채널 데이터를 입력해 주세요</div>
-                      : topChannels.map((ch, i) => {
-                          const chRoi = ch.cost > 0 ? Math.round(((ch.revenue - ch.cost) / ch.cost) * 100) : 0;
-                          const chColor = CHANNEL_META[ch.channel]?.color || CH_COLORS[i];
-                          const maxRev = topChannels[0]?.revenue || 1;
-                          return (
-                            <div key={i}>
-                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                                  <div style={{ width:6, height:6, borderRadius:"50%", background:chColor }} />
-                                  <span style={{ color:C.text, fontSize:12, fontWeight:700 }}>{ch.channel}</span>
-                                </div>
-                                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                                  <span style={{ color:C.muted, fontSize:11 }}>유입 {fmt(ch.inflow)}</span>
-                                  <span style={{ color:chRoi>200?C.green:chRoi>100?C.yellow:C.red, fontSize:11, fontWeight:700 }}>ROI {chRoi}%</span>
-                                </div>
-                              </div>
-                              <div style={{ background:C.dim, borderRadius:3, height:5, overflow:"hidden" }}>
-                                <div style={{ width:`${Math.min((ch.revenue/maxRev)*100,100)}%`, height:"100%", background:`linear-gradient(90deg,${chColor},${chColor}88)`, borderRadius:3 }} />
-                              </div>
-                              <div style={{ textAlign:"right", color:C.yellow, fontSize:11, fontWeight:700, marginTop:2 }}>{fmt(ch.revenue)}만원</div>
-                            </div>
-                          );
-                        })
-                    }
-                  </div>
-                </div>
-              </div>
-
-              {/* 비용 소진 + 콘텐츠 현황 */}
+              {/* 주요 유입 채널 + 콘텐츠 현황 */}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
-
-                {/* 비용 소진 현황 */}
-                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:18 }}>
-                  <SectionTitle>비용 소진 현황</SectionTitle>
-                  <div style={{ marginTop:10 }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
-                      <span style={{ color:C.muted, fontSize:11 }}>이번달 마케팅비</span>
-                      <span style={{ color:C.orange, fontSize:13, fontWeight:800 }}>{fmt(totalMktCost)}만원</span>
+                {/* 주요 유입 채널 */}
+                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+                  <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:14 }}>🔝 주요 유입 채널</div>
+                  {topChannels.length === 0 ? (
+                    <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:"20px 0" }}>채널 유입 데이터를 입력해주세요</div>
+                  ) : (
+                    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                      {topChannels.map((ch,i) => {
+                        const pct = totalInflow > 0 ? Math.round((ch.inflow||0)/totalInflow*100) : 0;
+                        const colors = [hospital.color, C.accent, C.green, C.accent2];
+                        return (
+                          <div key={i}>
+                            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                              <span style={{ color:C.text, fontSize:13, fontWeight:600 }}>{ch.channel}</span>
+                              <span style={{ color:colors[i], fontSize:13, fontWeight:800 }}>{fmt(ch.inflow)} <span style={{ color:C.muted, fontWeight:400, fontSize:11 }}>({pct}%)</span></span>
+                            </div>
+                            <div style={{ background:C.dim, borderRadius:4, height:6 }}>
+                              <div style={{ width:`${pct}%`, height:"100%", background:colors[i], borderRadius:4, transition:"width 0.5s" }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div style={{ color:C.muted, fontSize:11, marginTop:4, textAlign:"right" }}>총 유입 {fmt(totalInflow)}건</div>
                     </div>
-                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
-                      <span style={{ color:C.muted, fontSize:11 }}>매출 목표 달성률</span>
-                      <span style={{ color: revenueAchieve>=100 ? C.green : revenueAchieve>=70 ? C.yellow : C.red, fontSize:13, fontWeight:800 }}>
-                        {revenueAchieve}%
-                      </span>
-                    </div>
-                    {/* 퍼널 미니 요약 */}
-                    <div style={{ background:"#F8FAFC", borderRadius:10, padding:"10px 14px" }}>
-                      <div style={{ color:C.muted, fontSize:11, marginBottom:8 }}>이번달 전환 흐름</div>
-                      {[
-                        { label:"문의", val:last.inquiry, color:C.accent },
-                        { label:"내원", val:last.visit,   color:C.green },
-                        { label:"결제", val:last.payment, color:C.yellow },
-                      ].map((s,i) => (
-                        <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                          <span style={{ color:C.muted, fontSize:11 }}>{s.label}</span>
-                          <span style={{ color:s.color, fontSize:13, fontWeight:700 }}>{fmt(s.val)}건</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  )}
                 </div>
 
-                {/* 콘텐츠 현황 */}
-                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:18 }}>
-                  <SectionTitle>마케팅 콘텐츠 현황</SectionTitle>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, margin:"10px 0 12px" }}>
+                {/* 이번 달 콘텐츠 현황 */}
+                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+                  <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:14 }}>📝 이번 달 콘텐츠 현황</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
                     {[
-                      { label:"총 콘텐츠", val:`${contents.length}건`, color:hospital.color },
-                      { label:"상위노출", val:`${topExposedCount}건`, color:C.green },
-                      { label:"총 클릭", val:`${fmt(contents.reduce((s,c)=>s+(c.clicks||0),0))}`, color:C.yellow },
-                      { label:"채널 수", val:`${new Set(contents.map(c=>c.channel)).size}개`, color:C.accent2 },
-                    ].map((item,i) => (
-                      <div key={i} style={{ background:"#F8FAFC", borderRadius:8, padding:"8px 10px" }}>
-                        <div style={{ color:C.muted, fontSize:10, marginBottom:3 }}>{item.label}</div>
-                        <div style={{ color:item.color, fontSize:15, fontWeight:800 }}>{item.val}</div>
+                      { label:"등록 콘텐츠", value:monthContents.length, unit:"건", color:hospital.color },
+                      { label:"상위 노출", value:monthContents.filter(c=>c.topExposed).length, unit:"건", color:C.green },
+                    ].map((s,i) => (
+                      <div key={i} style={{ background:`${s.color}10`, borderRadius:10, padding:12, textAlign:"center" }}>
+                        <div style={{ color:s.color, fontSize:22, fontWeight:900 }}>{s.value}</div>
+                        <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>{s.label} ({s.unit})</div>
                       </div>
                     ))}
                   </div>
-                  <div style={{ color:C.muted, fontSize:11, marginBottom:6, fontWeight:600 }}>최근 발행</div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-                    {recentContents.length === 0
-                      ? <div style={{ color:C.muted, fontSize:11 }}>콘텐츠 데이터 없음</div>
-                      : recentContents.map((c,i) => {
-                          const cColor = CHANNEL_META[c.channel]?.color || C.muted;
-                          return (
-                            <div key={i} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                              <div style={{ width:5, height:5, borderRadius:"50%", background:cColor, flexShrink:0 }} />
-                              <span style={{ color:C.text, fontSize:11, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.title}</span>
-                              <span style={{ color:C.muted, fontSize:10, flexShrink:0 }}>{c.clicks||0}클릭</span>
-                            </div>
-                          );
-                        })
-                    }
-                  </div>
+                  {monthContents.slice(0,3).map((c,i) => (
+                    <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${C.dim}` }}>
+                      <span style={{ background:`${hospital.color}20`, color:hospital.color, borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, flexShrink:0 }}>{c.channel}</span>
+                      <span style={{ color:C.text, fontSize:12, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.title}</span>
+                      {c.topExposed && <span style={{ color:C.green, fontSize:10, fontWeight:700, flexShrink:0 }}>상위✓</span>}
+                    </div>
+                  ))}
+                  {monthContents.length === 0 && <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:"10px 0" }}>콘텐츠 데이터 없음</div>}
                 </div>
               </div>
+
+              {/* 월별 추이 차트 */}
+              <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+                <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:14 }}>📈 월별 성과 추이 (최근 6개월)</div>
+                {hData.length > 1 ? (
+                  <div style={{ overflowX:"auto" }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                      <thead>
+                        <tr>
+                          {["월","문의","신환","매출(만)","광고비(만)","CPL(만)","ROI"].map(h => (
+                            <th key={h} style={{ color:C.muted, fontWeight:700, padding:"8px 12px", textAlign:"center", borderBottom:`2px solid ${C.border}`, whiteSpace:"nowrap" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...hData].slice(-6).reverse().map((d,i) => {
+                          const dCpl = d.inquiry > 0 ? Math.round((d.marketingCost||0)/d.inquiry) : 0;
+                          const dRoi = d.marketingCost > 0 ? Math.round(((d.revenue||0)-d.marketingCost)/d.marketingCost*100) : 0;
+                          const isSelMonth = d.month === selMonth;
+                          return (
+                            <tr key={i} style={{ background: isSelMonth ? `${hospital.color}08` : "transparent" }}>
+                              <td style={{ padding:"9px 12px", textAlign:"center", fontWeight: isSelMonth?800:600, color: isSelMonth?hospital.color:C.text, borderBottom:`1px solid ${C.dim}` }}>{d.month}</td>
+                              <td style={{ padding:"9px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{fmt(d.inquiry)}</td>
+                              <td style={{ padding:"9px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{fmt(d.newPatient)}</td>
+                              <td style={{ padding:"9px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{fmt(d.revenue)}</td>
+                              <td style={{ padding:"9px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{fmt(d.marketingCost)}</td>
+                              <td style={{ padding:"9px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color: dCpl>0?C.accent2:C.muted }}>{dCpl > 0 ? fmt(dCpl) : '-'}</td>
+                              <td style={{ padding:"9px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color: dRoi>=200?C.green:dRoi>=100?C.yellow:C.red, fontWeight:700 }}>{dRoi > 0 ? dRoi+'%' : '-'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:24 }}>
+                    데이터 입력 후 추이가 표시돼요
+                  </div>
+                )}
+              </div>
+
+              {/* 병원 성장 AI 요약 - 자동 계산 */}
+              {last.inquiry > 0 && (
+                <div style={{ background:`linear-gradient(135deg, ${hospital.color}15, ${C.accent2}10)`, border:`1px solid ${hospital.color}30`, borderRadius:16, padding:20 }}>
+                  <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:12 }}>🤖 병원 성장 요약</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {[
+                      dInquiry !== null && { icon:"📞", text:`문의가 전월 대비 ${dInquiry > 0 ? `${dInquiry}% 증가` : `${Math.abs(dInquiry)}% 감소`}했어요.`, color: dInquiry>0?C.green:C.red },
+                      dPatient !== null && { icon:"👤", text:`신환은 전월 대비 ${dPatient > 0 ? `${dPatient}% 증가` : `${Math.abs(dPatient)}% 감소`}했어요.`, color: dPatient>0?C.green:C.red },
+                      cpl > 0 && { icon:"💰", text:`문의당 광고비(CPL)는 ${fmt(cpl)}만원이에요.`, color: C.text },
+                      roi > 0 && { icon:"📈", text:`광고 ROI는 ${roi}%로 ${roi >= 300 ? "매우 우수해요! 🎉" : roi >= 100 ? "양호한 수준이에요." : "개선이 필요해요."}`, color: roi>=300?C.green:roi>=100?C.yellow:C.red },
+                      topChannels[0] && { icon:"🔝", text:`가장 많은 유입은 "${topChannels[0].channel}" 채널에서 발생했어요.`, color: C.text },
+                    ].filter(Boolean).map((item, i) => (
+                      <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
+                        <span style={{ fontSize:14 }}>{item.icon}</span>
+                        <span style={{ color:item.color, fontSize:13, lineHeight:1.6, fontWeight: item.color===C.text?400:600 }}>{item.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })()}
 
-        {/* 상세 성과 */}
-        {tab === "performance" && (
-          <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
-              <MonthSelector />
-              {inputBtn(showPerfInput ? "입력 닫기" : "데이터 입력", () => setShowPerfInput(!showPerfInput))}
-            </div>
-            {showPerfInput && (
-              <PerformanceInputForm hospital={hospital} monthlyData={hData}
-                onSave={(d) => onUpdateHospital({...hospital, monthlyData:d})}
-                onClose={() => setShowPerfInput(false)} />
-            )}
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:14 }}>
-              <KPICard label="문의" value={fmt(last.inquiry)} unit="건" color={C.accent} />
-              <KPICard label="상담" value={fmt(last.consult)} unit="건" sub={`전환 ${pct(last.consult, last.inquiry)}`} color={C.accent2} />
-              <KPICard label="예약" value={fmt(last.reservation)} unit="건" sub={`전환 ${pct(last.reservation, last.consult)}`} color={C.green} />
-              <KPICard label="내원" value={fmt(last.visit)} unit="명" sub={`전환 ${pct(last.visit, last.reservation)}`} color={C.yellow} />
-              <KPICard label="결제" value={fmt(last.payment)} unit="건" sub={`전환 ${pct(last.payment, last.visit)}`} color={C.orange} />
-              <KPICard label="신환" value={fmt(last.newPatient)} unit="명" color={hospital.color} />
-              <KPICard label="매출" value={fmt(last.revenue)} unit="만원" color={C.yellow} />
-              <KPICard label="ROI" value={roi} unit="%" color={roi > 200 ? C.green : C.red} />
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
-              <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:22 }}>
-                <SectionTitle>월별 신환 & 결제 추이</SectionTitle>
-                <ResponsiveContainer width="100%" height={210}>
-                  <LineChart data={hData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                    <XAxis dataKey="month" stroke={C.muted} tick={{ fill:C.muted, fontSize:11 }} />
-                    <YAxis stroke={C.muted} tick={{ fill:C.muted, fontSize:11 }} />
-                    <TT /><Legend wrapperStyle={{ color:C.muted, fontSize:12 }} />
-                    <Line type="monotone" dataKey="newPatient" name="신환" stroke={hospital.color} strokeWidth={2.5} dot={{ r:4, fill:hospital.color }} />
-                    <Line type="monotone" dataKey="payment" name="결제" stroke={C.orange} strokeWidth={2} dot={{ r:3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:22 }}>
-                <SectionTitle>매출 vs 마케팅비</SectionTitle>
-                <ResponsiveContainer width="100%" height={210}>
-                  <BarChart data={hData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                    <XAxis dataKey="month" stroke={C.muted} tick={{ fill:C.muted, fontSize:11 }} />
-                    <YAxis stroke={C.muted} tick={{ fill:C.muted, fontSize:11 }} />
-                    <TT /><Legend wrapperStyle={{ color:C.muted, fontSize:12 }} />
-                    <Bar dataKey="revenue" name="매출" fill={C.yellow} radius={[4,4,0,0]} />
-                    <Bar dataKey="marketingCost" name="마케팅비" fill={C.orange} radius={[4,4,0,0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 환자 유입 */}
-        {tab === "patient" && <PatientTab hospital={hospital} onDataLoad={setSharedPatientData} />}
-
-        {/* 키워드/SEO */}
-        {/* 마케팅 현황 */}
         {tab === "marketing" && (
           <MarketingTab hospital={hospital} chData={chData} initialContents={hospital.contentData || []} onUpdateHospital={onUpdateHospital} isAdmin={isAdmin} />
         )}
@@ -4967,14 +4953,1881 @@ new Chart(document.getElementById('costChart'), {
         {tab === "meeting" && <MeetingTab hospital={hospital} isReadOnly={isReadOnly} />}
         {tab === "keyword" && <KeywordRankTab hospital={hospital} isAdmin={isAdmin} onDataLoad={setSharedKeywordData} onSelMonthChange={setSharedKeywordSelMonth} isReadOnly={isReadOnly} />}
         {tab === "schedule" && <HospitalScheduleTab hospital={hospital} globalSchedules={globalSchedules} saveGlobalSchedules={saveGlobalSchedules} isReadOnly={isReadOnly} />}
+        {tab === "marketing" && <MarketingTab hospital={hospital} chData={chData} initialContents={hospital.contentData || []} onUpdateHospital={onUpdateHospital} isAdmin={isAdmin} />}
+
+        {/* 새 탭 - 순차적으로 구현 예정 */}
+        {tab === "ads" && <AdsTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "inflow" && <InflowTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "branding" && <BrandingTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "crm" && <CrmTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "ai" && <AiSearchTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "growreport" && <GrowReportTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
 
       </div>
     </div>
   );
 }
 
-// ─── 병원별 일정 관리 탭 ─────────────────────────────────────
-// schedule_data(Supabase)를 단일 소스로 사용 - 내부/팀장/칸반 전부 동기화
+// ─── 새 탭 플레이스홀더 ─────────────────────────────────────────
+function ComingSoonTab({ title, icon, desc }) {
+  return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:60, gap:16 }}>
+      <div style={{ fontSize:48 }}>{icon}</div>
+      <div style={{ color:"#1E293B", fontSize:20, fontWeight:800 }}>{title}</div>
+      <div style={{ color:"#64748B", fontSize:14, textAlign:"center", maxWidth:360, lineHeight:1.8 }}>{desc}</div>
+      <div style={{ background:"#F1F5F9", borderRadius:10, padding:"8px 20px", color:"#94A3B8", fontSize:12, fontWeight:600 }}>준비 중 🔧</div>
+    </div>
+  );
+}
+
+function AdsTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const AD_CHANNELS = [
+    { id:"meta",    label:"메타",    color:"#1877F2", icon:"📘" },
+    { id:"naver",   label:"네이버",  color:"#03C75A", icon:"🟢" },
+    { id:"google",  label:"구글",    color:"#EA4335", icon:"🔴" },
+    { id:"kakao",   label:"카카오",  color:"#FEE500", icon:"🟡" },
+    { id:"youtube", label:"유튜브",  color:"#FF0000", icon:"▶️" },
+  ];
+
+  const initData = () => ({
+    channels: AD_CHANNELS.map(ch => ({
+      id: ch.id, label: ch.label,
+      budget:0, spend:0, impressions:0, clicks:0,
+      inquiry:0, reservation:0, ctr:0, cpl:0, roas:0
+    })),
+    campaigns: [],
+    creatives: [],
+  });
+
+  const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
+  const [savedMsg, setSavedMsg] = useState("");
+  const [activeSection, setActiveSection] = useState("channels"); // channels | campaigns | creatives
+  const [showForm, setShowForm] = useState(false);
+  const [editIdx, setEditIdx] = useState(null);
+
+  const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
+
+  // adsData: { [YYYY-MM]: { channels, campaigns, creatives } }
+  const adsData = hospital.adsData || {};
+  const monthData = adsData[selMonth] || initData();
+
+  const saveMonth = (updated) => {
+    const newAdsData = { ...adsData, [selMonth]: updated };
+    onUpdateHospital({ ...hospital, adsData: newAdsData });
+    toast("저장 완료!");
+  };
+
+  // 채널 데이터 업데이트
+  const updateChannel = (id, field, val) => {
+    const updated = { ...monthData, channels: monthData.channels.map(c => c.id===id ? {...c, [field]: Number(val)||0} : c) };
+    saveMonth(updated);
+  };
+
+  // 캠페인 CRUD
+  const EMPTY_CAMP = { name:"", channel:"meta", budget:0, spend:0, inquiry:0, reservation:0, cpl:0, ctr:0, roas:0, memo:"" };
+  const [campForm, setCampForm] = useState(EMPTY_CAMP);
+
+  const saveCampaign = () => {
+    const camps = [...(monthData.campaigns||[])];
+    if (editIdx !== null) camps[editIdx] = { ...campForm, id: camps[editIdx].id };
+    else camps.push({ ...campForm, id: Date.now() });
+    saveMonth({ ...monthData, campaigns: camps });
+    setCampForm(EMPTY_CAMP); setShowForm(false); setEditIdx(null);
+  };
+
+  const deleteCampaign = (idx) => {
+    const camps = (monthData.campaigns||[]).filter((_,i)=>i!==idx);
+    saveMonth({ ...monthData, campaigns: camps });
+  };
+
+  // 소재 CRUD
+  const EMPTY_CREATIVE = { name:"", channel:"meta", type:"이미지", impressions:0, clicks:0, saves:0, shares:0, ctr:0, inquiry:0, hook:"", memo:"" };
+  const [creativeForm, setCreativeForm] = useState(EMPTY_CREATIVE);
+
+  const saveCreative = () => {
+    const items = [...(monthData.creatives||[])];
+    if (editIdx !== null) items[editIdx] = { ...creativeForm, id: items[editIdx].id };
+    else items.push({ ...creativeForm, id: Date.now() });
+    saveMonth({ ...monthData, creatives: items });
+    setCreativeForm(EMPTY_CREATIVE); setShowForm(false); setEditIdx(null);
+  };
+
+  const deleteCreative = (idx) => {
+    const items = (monthData.creatives||[]).filter((_,i)=>i!==idx);
+    saveMonth({ ...monthData, creatives: items });
+  };
+
+  const fmtN = (n) => (n||0).toLocaleString();
+  const months = [...Array(12)].map((_,i) => { const d=new Date(); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); });
+
+  // 채널 합계
+  const totalSpend = monthData.channels.reduce((s,c)=>s+(c.spend||0),0);
+  const totalInquiry = monthData.channels.reduce((s,c)=>s+(c.inquiry||0),0);
+  const totalReservation = monthData.channels.reduce((s,c)=>s+(c.reservation||0),0);
+  const avgCpl = totalInquiry > 0 ? Math.round(totalSpend/totalInquiry) : 0;
+
+  const SectionBtn = ({ id, label }) => (
+    <button onClick={()=>{setActiveSection(id);setShowForm(false);setEditIdx(null);}} style={{
+      background: activeSection===id ? hospital.color : "transparent",
+      border: `1px solid ${activeSection===id ? hospital.color : C.border}`,
+      color: activeSection===id ? "#0F172A" : C.muted,
+      borderRadius:8, padding:"6px 16px", fontSize:12, cursor:"pointer", fontWeight:700,
+    }}>{label}</button>
+  );
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+
+      {/* 헤더 */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
+        <div style={{ display:"flex", gap:6 }}>
+          {months.slice(0,6).map(m => (
+            <button key={m} onClick={()=>setSelMonth(m)} style={{
+              background: selMonth===m ? `${hospital.color}20` : "transparent",
+              border: `1px solid ${selMonth===m ? hospital.color : C.border}`,
+              color: selMonth===m ? hospital.color : C.muted,
+              borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+            }}>{m.slice(5)}월</button>
+          ))}
+        </div>
+      </div>
+
+      {/* 채널 합계 KPI */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+        {[
+          { label:"총 광고비", value:`${fmtN(totalSpend)}만원`, color:C.orange },
+          { label:"총 문의", value:`${fmtN(totalInquiry)}건`, color:C.accent },
+          { label:"총 예약", value:`${fmtN(totalReservation)}건`, color:C.green },
+          { label:"평균 CPL", value: avgCpl > 0 ? `${fmtN(avgCpl)}만원` : "-", color:C.accent2 },
+        ].map((k,i) => (
+          <div key={i} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:16, textAlign:"center" }}>
+            <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:6 }}>{k.label}</div>
+            <div style={{ color:k.color, fontSize:22, fontWeight:900 }}>{k.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 섹션 탭 */}
+      <div style={{ display:"flex", gap:8 }}>
+        <SectionBtn id="channels" label="📣 채널별 성과" />
+        <SectionBtn id="campaigns" label="🎯 캠페인별 성과" />
+        <SectionBtn id="creatives" label="🎨 소재 분석" />
+      </div>
+
+      {/* 채널별 성과 */}
+      {activeSection === "channels" && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>채널별 광고 성과 · {selMonth}</div>
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+              <thead>
+                <tr>
+                  {["채널","예산(만)","소진(만)","소진율","노출","클릭","CTR","문의","CPL(만)","예약","ROAS"].map(h=>(
+                    <th key={h} style={{ color:C.muted, fontWeight:700, padding:"8px 10px", textAlign:"center", borderBottom:`2px solid ${C.border}`, whiteSpace:"nowrap" }}>{h}</th>
+                  ))}
+                  {!isReadOnly && <th style={{ color:C.muted, fontWeight:700, padding:"8px 10px", borderBottom:`2px solid ${C.border}` }}>입력</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {monthData.channels.map((ch,i) => {
+                  const info = AD_CHANNELS.find(a=>a.id===ch.id);
+                  const spendPct = ch.budget > 0 ? Math.round((ch.spend||0)/ch.budget*100) : 0;
+                  const ctr = ch.impressions > 0 ? ((ch.clicks||0)/ch.impressions*100).toFixed(2) : (ch.ctr||0);
+                  const cpl = ch.inquiry > 0 ? Math.round((ch.spend||0)/ch.inquiry) : (ch.cpl||0);
+                  return (
+                    <EditableChannelRow key={i} ch={ch} info={info} spendPct={spendPct} ctr={ctr} cpl={cpl}
+                      isReadOnly={isReadOnly} onUpdate={(field,val)=>updateChannel(ch.id, field, val)} C={C} inputSt={inputSt} />
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 캠페인별 성과 */}
+      {activeSection === "campaigns" && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+            <div style={{ color:C.text, fontWeight:800, fontSize:14 }}>캠페인별 성과 · {selMonth}</div>
+            {!isReadOnly && <button onClick={()=>{setShowForm(!showForm);setEditIdx(null);setCampForm(EMPTY_CAMP);}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 16px", fontSize:12, cursor:"pointer", fontWeight:700 }}>+ 캠페인 추가</button>}
+          </div>
+
+          {showForm && (
+            <div style={{ background:"#F8FAFC", borderRadius:12, padding:16, marginBottom:16, border:`1px solid ${hospital.color}30` }}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
+                <div>
+                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>캠페인명</label>
+                  <input value={campForm.name} onChange={e=>setCampForm(p=>({...p,name:e.target.value}))} placeholder="캠페인명" style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
+                </div>
+                <div>
+                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>채널</label>
+                  <select value={campForm.channel} onChange={e=>setCampForm(p=>({...p,channel:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, appearance:"none" }}>
+                    {AD_CHANNELS.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>예산(만원)</label>
+                  <input type="number" value={campForm.budget||""} onChange={e=>setCampForm(p=>({...p,budget:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
+                </div>
+                <div>
+                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>소진(만원)</label>
+                  <input type="number" value={campForm.spend||""} onChange={e=>setCampForm(p=>({...p,spend:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
+                </div>
+                <div>
+                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>문의수</label>
+                  <input type="number" value={campForm.inquiry||""} onChange={e=>setCampForm(p=>({...p,inquiry:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
+                </div>
+                <div>
+                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>예약수</label>
+                  <input type="number" value={campForm.reservation||""} onChange={e=>setCampForm(p=>({...p,reservation:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
+                </div>
+                <div>
+                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>CTR(%)</label>
+                  <input type="number" step="0.01" value={campForm.ctr||""} onChange={e=>setCampForm(p=>({...p,ctr:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
+                </div>
+                <div>
+                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>ROAS(%)</label>
+                  <input type="number" value={campForm.roas||""} onChange={e=>setCampForm(p=>({...p,roas:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
+                </div>
+                <div>
+                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>메모</label>
+                  <input value={campForm.memo||""} onChange={e=>setCampForm(p=>({...p,memo:e.target.value}))} placeholder="메모" style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={saveCampaign} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"7px 18px", fontSize:12, cursor:"pointer", fontWeight:700 }}>저장</button>
+                <button onClick={()=>{setShowForm(false);setEditIdx(null);}} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer" }}>취소</button>
+              </div>
+            </div>
+          )}
+
+          {(monthData.campaigns||[]).length === 0 ? (
+            <div style={{ color:C.muted, textAlign:"center", padding:32, fontSize:13 }}>캠페인 데이터를 추가해주세요</div>
+          ) : (
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                <thead>
+                  <tr>{["캠페인명","채널","예산(만)","소진(만)","문의","예약","CPL(만)","CTR(%)","ROAS(%)","메모",""].map(h=>(
+                    <th key={h} style={{ color:C.muted, fontWeight:700, padding:"8px 10px", textAlign:"center", borderBottom:`2px solid ${C.border}`, whiteSpace:"nowrap" }}>{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody>
+                  {(monthData.campaigns||[]).map((camp,i) => {
+                    const chInfo = AD_CHANNELS.find(a=>a.id===camp.channel);
+                    const cpl = camp.inquiry > 0 ? Math.round((camp.spend||0)/camp.inquiry) : (camp.cpl||0);
+                    return (
+                      <tr key={i}>
+                        <td style={{ padding:"8px 10px", fontWeight:700, color:C.text, borderBottom:`1px solid ${C.dim}` }}>{camp.name}</td>
+                        <td style={{ padding:"8px 10px", textAlign:"center", borderBottom:`1px solid ${C.dim}` }}>
+                          <span style={{ background:`${chInfo?.color||C.accent}20`, color:chInfo?.color||C.accent, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{chInfo?.label||camp.channel}</span>
+                        </td>
+                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{fmtN(camp.budget)}</td>
+                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{fmtN(camp.spend)}</td>
+                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.accent, fontWeight:700 }}>{fmtN(camp.inquiry)}</td>
+                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.green, fontWeight:700 }}>{fmtN(camp.reservation)}</td>
+                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.accent2 }}>{cpl > 0 ? fmtN(cpl) : "-"}</td>
+                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{camp.ctr > 0 ? camp.ctr+"%" : "-"}</td>
+                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.green }}>{camp.roas > 0 ? camp.roas+"%" : "-"}</td>
+                        <td style={{ padding:"8px 10px", color:C.muted, fontSize:11, borderBottom:`1px solid ${C.dim}` }}>{camp.memo}</td>
+                        {!isReadOnly && <td style={{ padding:"8px 10px", borderBottom:`1px solid ${C.dim}`, textAlign:"center" }}>
+                          <button onClick={()=>{setCampForm(camp);setEditIdx(i);setShowForm(true);}} style={{ background:`${hospital.color}15`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", marginRight:4 }}>수정</button>
+                          <button onClick={()=>deleteCampaign(i)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>삭제</button>
+                        </td>}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 소재 분석 */}
+      {activeSection === "creatives" && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+            <div style={{ color:C.text, fontWeight:800, fontSize:14 }}>소재 분석 · {selMonth}</div>
+            {!isReadOnly && <button onClick={()=>{setShowForm(!showForm);setEditIdx(null);setCreativeForm(EMPTY_CREATIVE);}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 16px", fontSize:12, cursor:"pointer", fontWeight:700 }}>+ 소재 추가</button>}
+          </div>
+
+          {showForm && (
+            <div style={{ background:"#F8FAFC", borderRadius:12, padding:16, marginBottom:16, border:`1px solid ${hospital.color}30` }}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
+                {[
+                  { label:"소재명", field:"name", type:"text", ph:"소재명" },
+                  { label:"채널", field:"channel", type:"select" },
+                  { label:"유형", field:"type", type:"select2" },
+                  { label:"노출수", field:"impressions", type:"number" },
+                  { label:"클릭수", field:"clicks", type:"number" },
+                  { label:"저장수", field:"saves", type:"number" },
+                  { label:"공유수", field:"shares", type:"number" },
+                  { label:"문의전환", field:"inquiry", type:"number" },
+                  { label:"성과 Hook", field:"hook", type:"text", ph:"성과 좋은 Hook 문구" },
+                ].map(f => (
+                  <div key={f.field}>
+                    <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>{f.label}</label>
+                    {f.type === "select" ? (
+                      <select value={creativeForm[f.field]||""} onChange={e=>setCreativeForm(p=>({...p,[f.field]:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, appearance:"none" }}>
+                        {AD_CHANNELS.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
+                      </select>
+                    ) : f.type === "select2" ? (
+                      <select value={creativeForm[f.field]||""} onChange={e=>setCreativeForm(p=>({...p,[f.field]:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, appearance:"none" }}>
+                        {["이미지","영상","릴스","카드뉴스","텍스트"].map(t=><option key={t}>{t}</option>)}
+                      </select>
+                    ) : (
+                      <input type={f.type} value={creativeForm[f.field]||""} onChange={e=>setCreativeForm(p=>({...p,[f.field]:f.type==="number"?+e.target.value:e.target.value}))} placeholder={f.ph||""} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={saveCreative} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"7px 18px", fontSize:12, cursor:"pointer", fontWeight:700 }}>저장</button>
+                <button onClick={()=>{setShowForm(false);setEditIdx(null);}} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer" }}>취소</button>
+              </div>
+            </div>
+          )}
+
+          {(monthData.creatives||[]).length === 0 ? (
+            <div style={{ color:C.muted, textAlign:"center", padding:32, fontSize:13 }}>소재 데이터를 추가해주세요</div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {(monthData.creatives||[]).sort((a,b)=>(b.inquiry||0)-(a.inquiry||0)).map((cr,i) => {
+                const chInfo = AD_CHANNELS.find(a=>a.id===cr.channel);
+                const ctr = cr.impressions > 0 ? ((cr.clicks||0)/cr.impressions*100).toFixed(2) : 0;
+                return (
+                  <div key={i} style={{ background:"#F8FAFC", borderRadius:12, padding:16, border:`1px solid ${C.border}` }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <span style={{ background:`${chInfo?.color||C.accent}20`, color:chInfo?.color||C.accent, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{chInfo?.label}</span>
+                        <span style={{ background:`${C.accent2}15`, color:C.accent2, borderRadius:5, padding:"2px 8px", fontSize:11 }}>{cr.type}</span>
+                        <span style={{ color:C.text, fontWeight:700, fontSize:13 }}>{cr.name}</span>
+                      </div>
+                      {!isReadOnly && (
+                        <div style={{ display:"flex", gap:6 }}>
+                          <button onClick={()=>{setCreativeForm(cr);setEditIdx(i);setShowForm(true);}} style={{ background:`${hospital.color}15`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>수정</button>
+                          <button onClick={()=>deleteCreative(i)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>삭제</button>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:8 }}>
+                      {[
+                        { label:"노출", value:fmtN(cr.impressions), color:C.muted },
+                        { label:"클릭", value:fmtN(cr.clicks), color:C.accent },
+                        { label:"CTR", value:ctr+"%", color:C.yellow },
+                        { label:"저장", value:fmtN(cr.saves), color:C.green },
+                        { label:"공유", value:fmtN(cr.shares), color:C.accent2 },
+                        { label:"문의전환", value:fmtN(cr.inquiry), color:C.orange },
+                      ].map((s,j) => (
+                        <div key={j} style={{ background:C.surface, borderRadius:8, padding:"8px 10px", textAlign:"center" }}>
+                          <div style={{ color:s.color, fontSize:16, fontWeight:800 }}>{s.value}</div>
+                          <div style={{ color:C.muted, fontSize:10, marginTop:2 }}>{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {cr.hook && (
+                      <div style={{ marginTop:10, background:`${hospital.color}10`, borderRadius:8, padding:"8px 12px" }}>
+                        <span style={{ color:C.muted, fontSize:11 }}>💡 성과 Hook: </span>
+                        <span style={{ color:hospital.color, fontSize:12, fontWeight:700 }}>{cr.hook}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 채널별 인라인 편집 행
+function EditableChannelRow({ ch, info, spendPct, ctr, cpl, isReadOnly, onUpdate, C, inputSt }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ budget:ch.budget||0, spend:ch.spend||0, impressions:ch.impressions||0, clicks:ch.clicks||0, inquiry:ch.inquiry||0, reservation:ch.reservation||0, roas:ch.roas||0 });
+
+  const save = () => {
+    Object.entries(form).forEach(([k,v]) => onUpdate(k, v));
+    setEditing(false);
+  };
+
+  return (
+    <tr style={{ background: editing ? `${info?.color||"#0EA5E9"}08` : "transparent" }}>
+      <td style={{ padding:"10px 12px", fontWeight:700, borderBottom:`1px solid ${C.dim}`, whiteSpace:"nowrap" }}>
+        <span style={{ marginRight:6 }}>{info?.icon}</span>
+        <span style={{ color:info?.color||C.text }}>{info?.label||ch.label}</span>
+      </td>
+      {editing ? (
+        <>
+          {["budget","spend","impressions","clicks","inquiry","reservation","roas"].map(f => (
+            <td key={f} style={{ padding:"6px 8px", borderBottom:`1px solid ${C.dim}` }}>
+              <input type="number" value={form[f]||""} onChange={e=>setForm(p=>({...p,[f]:+e.target.value}))}
+                style={{ ...inputSt, padding:"4px 6px", fontSize:11, width:70, textAlign:"right" }} />
+            </td>
+          ))}
+          <td style={{ padding:"6px 8px", borderBottom:`1px solid ${C.dim}` }}>-</td>
+          <td style={{ padding:"6px 8px", borderBottom:`1px solid ${C.dim}` }}>-</td>
+          <td style={{ padding:"6px 8px", borderBottom:`1px solid ${C.dim}`, textAlign:"center" }}>
+            <button onClick={save} style={{ background:`${info?.color||"#0EA5E9"}`, border:"none", color:"#fff", borderRadius:5, padding:"3px 10px", fontSize:11, cursor:"pointer", marginRight:4 }}>저장</button>
+            <button onClick={()=>setEditing(false)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"3px 8px", fontSize:11, cursor:"pointer" }}>취소</button>
+          </td>
+        </>
+      ) : (
+        <>
+          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{(ch.budget||0).toLocaleString()}</td>
+          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{(ch.spend||0).toLocaleString()}</td>
+          <td style={{ padding:"10px 12px", textAlign:"center", borderBottom:`1px solid ${C.dim}` }}>
+            <div style={{ background:C.dim, borderRadius:4, height:6, width:60, margin:"0 auto 3px" }}>
+              <div style={{ width:`${Math.min(spendPct,100)}%`, height:"100%", background:info?.color||C.accent, borderRadius:4 }} />
+            </div>
+            <span style={{ fontSize:10, color:C.muted }}>{spendPct}%</span>
+          </td>
+          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{(ch.impressions||0).toLocaleString()}</td>
+          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{(ch.clicks||0).toLocaleString()}</td>
+          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.yellow }}>{ctr}%</td>
+          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.accent, fontWeight:700 }}>{(ch.inquiry||0).toLocaleString()}</td>
+          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.accent2 }}>{cpl > 0 ? cpl.toLocaleString() : "-"}</td>
+          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.green }}>{(ch.reservation||0).toLocaleString()}</td>
+          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.green, fontWeight:700 }}>{ch.roas > 0 ? ch.roas+"%" : "-"}</td>
+          {!isReadOnly && <td style={{ padding:"10px 12px", borderBottom:`1px solid ${C.dim}`, textAlign:"center" }}>
+            <button onClick={()=>setEditing(true)} style={{ background:`${info?.color||C.accent}15`, border:`1px solid ${info?.color||C.accent}30`, color:info?.color||C.accent, borderRadius:5, padding:"3px 10px", fontSize:10, cursor:"pointer" }}>입력</button>
+          </td>}
+        </>
+      )}
+    </tr>
+  );
+}
+
+function InflowTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const INFLOW_CHANNELS = ["블로그","플레이스","홈페이지","메타광고","검색광고","소개환자","직접검색","기타"];
+  const TIME_SLOTS = ["09-11시","11-13시","13-15시","15-17시","17-19시","19-21시","21시이후"];
+  const DAYS = ["월","화","수","목","금","토","일"];
+
+  const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
+  const [activeSection, setActiveSection] = useState("channel");
+  const [showForm, setShowForm] = useState(false);
+  const [editIdx, setEditIdx] = useState(null);
+  const [savedMsg, setSavedMsg] = useState("");
+  const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
+
+  const inflowData = hospital.inflowData || {};
+  const monthData = inflowData[selMonth] || { channels:[], regions:[], procedures:[], timeSlots:[], doctors:[] };
+
+  const saveMonth = (updated) => {
+    onUpdateHospital({ ...hospital, inflowData: { ...inflowData, [selMonth]: updated } });
+    toast("저장 완료!");
+  };
+
+  const months = [...Array(6)].map((_,i) => { const d=new Date(); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); });
+  const fmtN = (n) => (n||0).toLocaleString();
+
+  // 각 섹션 폼 상태
+  const EMPTY_CH = { channel:"블로그", inquiry:0, reservation:0, visit:0, memo:"" };
+  const EMPTY_RG = { region:"", inquiry:0, distance:"", lifezone:"", memo:"" };
+  const EMPTY_PR = { name:"", inquiry:0, reservation:0, visit:0, unitPrice:0, memo:"" };
+  const EMPTY_TS = { slot:"09-11시", day:"월", inquiry:0, reservation:0, memo:"" };
+  const EMPTY_DR = { name:"", inquiry:0, reservation:0, review:0, searchVol:0, specialty:"", memo:"" };
+
+  const [form, setForm] = useState({});
+
+  const getEmptyForm = () => {
+    if (activeSection === "channel")   return EMPTY_CH;
+    if (activeSection === "region")    return EMPTY_RG;
+    if (activeSection === "procedure") return EMPTY_PR;
+    if (activeSection === "timeslot")  return EMPTY_TS;
+    if (activeSection === "doctor")    return EMPTY_DR;
+    return {};
+  };
+
+  const getKey = () => {
+    if (activeSection === "channel")   return "channels";
+    if (activeSection === "region")    return "regions";
+    if (activeSection === "procedure") return "procedures";
+    if (activeSection === "timeslot")  return "timeSlots";
+    if (activeSection === "doctor")    return "doctors";
+    return "channels";
+  };
+
+  const saveItem = () => {
+    const key = getKey();
+    const items = [...(monthData[key]||[])];
+    if (editIdx !== null) items[editIdx] = { ...form, id: items[editIdx]?.id || Date.now() };
+    else items.push({ ...form, id: Date.now() });
+    saveMonth({ ...monthData, [key]: items });
+    setForm(getEmptyForm()); setShowForm(false); setEditIdx(null);
+  };
+
+  const deleteItem = (idx) => {
+    const key = getKey();
+    const items = (monthData[key]||[]).filter((_,i)=>i!==idx);
+    saveMonth({ ...monthData, [key]: items });
+  };
+
+  const SectionBtn = ({ id, label }) => (
+    <button onClick={()=>{setActiveSection(id);setShowForm(false);setEditIdx(null);setForm({});}} style={{
+      background: activeSection===id ? hospital.color : "transparent",
+      border: `1px solid ${activeSection===id ? hospital.color : C.border}`,
+      color: activeSection===id ? "#0F172A" : C.muted,
+      borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700,
+    }}>{label}</button>
+  );
+
+  // 합계
+  const totalInquiry = (monthData.channels||[]).reduce((s,c)=>s+(c.inquiry||0),0);
+  const totalVisit   = (monthData.channels||[]).reduce((s,c)=>s+(c.visit||0),0);
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+
+      {/* 월 선택 */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        {months.map(m => (
+          <button key={m} onClick={()=>setSelMonth(m)} style={{
+            background: selMonth===m ? `${hospital.color}20` : "transparent",
+            border: `1px solid ${selMonth===m ? hospital.color : C.border}`,
+            color: selMonth===m ? hospital.color : C.muted,
+            borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+          }}>{m.slice(5)}월</button>
+        ))}
+      </div>
+
+      {/* KPI 요약 */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+        {[
+          { label:"총 문의", value:fmtN(totalInquiry)+"건", color:C.accent },
+          { label:"내원", value:fmtN(totalVisit)+"명", color:hospital.color },
+          { label:"채널 수", value:(monthData.channels||[]).length+"개", color:C.accent2 },
+          { label:"주요 시술", value:(monthData.procedures||[]).length+"개", color:C.green },
+        ].map((k,i) => (
+          <div key={i} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:16, textAlign:"center" }}>
+            <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:6 }}>{k.label}</div>
+            <div style={{ color:k.color, fontSize:22, fontWeight:900 }}>{k.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 섹션 탭 */}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        <SectionBtn id="channel"   label="📡 채널별 유입" />
+        <SectionBtn id="region"    label="🗺 지역별 유입" />
+        <SectionBtn id="procedure" label="💉 시술별 유입" />
+        <SectionBtn id="timeslot"  label="⏰ 시간대별 분석" />
+        <SectionBtn id="doctor"    label="👨‍⚕️ 원장별 분석" />
+      </div>
+
+      {/* 입력 폼 */}
+      {showForm && (
+        <div style={{ background:"#F8FAFC", borderRadius:14, padding:18, border:`1px solid ${hospital.color}30` }}>
+          <div style={{ color:hospital.color, fontWeight:700, fontSize:13, marginBottom:12 }}>
+            {editIdx !== null ? "✏️ 수정" : "+ 추가"}
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:12 }}>
+
+            {/* 채널별 */}
+            {activeSection === "channel" && <>
+              <div>
+                <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>유입 채널</label>
+                <select value={form.channel||""} onChange={e=>setForm(p=>({...p,channel:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, appearance:"none" }}>
+                  {INFLOW_CHANNELS.map(c=><option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>문의수</label><input type="number" value={form.inquiry||""} onChange={e=>setForm(p=>({...p,inquiry:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>예약수</label><input type="number" value={form.reservation||""} onChange={e=>setForm(p=>({...p,reservation:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>내원수</label><input type="number" value={form.visit||""} onChange={e=>setForm(p=>({...p,visit:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>메모</label><input value={form.memo||""} onChange={e=>setForm(p=>({...p,memo:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+            </>}
+
+            {/* 지역별 */}
+            {activeSection === "region" && <>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>지역명</label><input value={form.region||""} onChange={e=>setForm(p=>({...p,region:e.target.value}))} placeholder="예: 강남구" style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>문의수</label><input type="number" value={form.inquiry||""} onChange={e=>setForm(p=>({...p,inquiry:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>거리 기반</label><input value={form.distance||""} onChange={e=>setForm(p=>({...p,distance:e.target.value}))} placeholder="예: 2km 이내" style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>생활권</label><input value={form.lifezone||""} onChange={e=>setForm(p=>({...p,lifezone:e.target.value}))} placeholder="예: 강남 직장인" style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>메모</label><input value={form.memo||""} onChange={e=>setForm(p=>({...p,memo:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+            </>}
+
+            {/* 시술별 */}
+            {activeSection === "procedure" && <>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>시술명</label><input value={form.name||""} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="예: 보톡스" style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>문의수</label><input type="number" value={form.inquiry||""} onChange={e=>setForm(p=>({...p,inquiry:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>예약수</label><input type="number" value={form.reservation||""} onChange={e=>setForm(p=>({...p,reservation:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>내원수</label><input type="number" value={form.visit||""} onChange={e=>setForm(p=>({...p,visit:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>객단가(만원)</label><input type="number" value={form.unitPrice||""} onChange={e=>setForm(p=>({...p,unitPrice:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>메모</label><input value={form.memo||""} onChange={e=>setForm(p=>({...p,memo:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+            </>}
+
+            {/* 시간대별 */}
+            {activeSection === "timeslot" && <>
+              <div>
+                <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>시간대</label>
+                <select value={form.slot||""} onChange={e=>setForm(p=>({...p,slot:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, appearance:"none" }}>
+                  {TIME_SLOTS.map(s=><option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>요일</label>
+                <select value={form.day||""} onChange={e=>setForm(p=>({...p,day:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, appearance:"none" }}>
+                  {DAYS.map(d=><option key={d}>{d}</option>)}
+                </select>
+              </div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>문의수</label><input type="number" value={form.inquiry||""} onChange={e=>setForm(p=>({...p,inquiry:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>예약수</label><input type="number" value={form.reservation||""} onChange={e=>setForm(p=>({...p,reservation:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>메모</label><input value={form.memo||""} onChange={e=>setForm(p=>({...p,memo:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+            </>}
+
+            {/* 원장별 */}
+            {activeSection === "doctor" && <>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>원장명</label><input value={form.name||""} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="예: 홍길동 원장" style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>문의수</label><input type="number" value={form.inquiry||""} onChange={e=>setForm(p=>({...p,inquiry:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>예약수</label><input type="number" value={form.reservation||""} onChange={e=>setForm(p=>({...p,reservation:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>후기수</label><input type="number" value={form.review||""} onChange={e=>setForm(p=>({...p,review:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>검색량</label><input type="number" value={form.searchVol||""} onChange={e=>setForm(p=>({...p,searchVol:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>전문 시술</label><input value={form.specialty||""} onChange={e=>setForm(p=>({...p,specialty:e.target.value}))} placeholder="예: 보톡스, 필러" style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+            </>}
+          </div>
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={saveItem} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"7px 18px", fontSize:12, cursor:"pointer", fontWeight:700 }}>저장</button>
+            <button onClick={()=>{setShowForm(false);setEditIdx(null);}} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer" }}>취소</button>
+          </div>
+        </div>
+      )}
+
+      {/* 데이터 표시 */}
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <div style={{ color:C.text, fontWeight:800, fontSize:14 }}>
+            {activeSection === "channel" && "📡 채널별 유입 분석"}
+            {activeSection === "region" && "🗺 지역별 유입 분석"}
+            {activeSection === "procedure" && "💉 시술별 유입 분석"}
+            {activeSection === "timeslot" && "⏰ 시간대별 문의 분석"}
+            {activeSection === "doctor" && "👨‍⚕️ 원장별 분석"}
+          </div>
+          {!isReadOnly && (
+            <button onClick={()=>{setShowForm(!showForm);setEditIdx(null);setForm(getEmptyForm());}} style={{
+              background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none",
+              color:"#0F172A", borderRadius:8, padding:"6px 16px", fontSize:12, cursor:"pointer", fontWeight:700,
+            }}>+ 추가</button>
+          )}
+        </div>
+
+        {/* 채널별 */}
+        {activeSection === "channel" && (
+          (monthData.channels||[]).length === 0 ? <div style={{ color:C.muted, textAlign:"center", padding:32, fontSize:13 }}>채널 유입 데이터를 추가해주세요</div> :
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {[...(monthData.channels||[])].sort((a,b)=>(b.inquiry||0)-(a.inquiry||0)).map((ch,i) => {
+              const pct = totalInquiry > 0 ? Math.round((ch.inquiry||0)/totalInquiry*100) : 0;
+              const visitRate = ch.inquiry > 0 ? Math.round((ch.visit||0)/(ch.inquiry||1)*100) : 0;
+              const colors = [hospital.color, C.accent, C.green, C.accent2, C.orange, C.yellow, "#8B5CF6", "#EC4899"];
+              return (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 0", borderBottom:`1px solid ${C.dim}` }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:colors[i%colors.length], flexShrink:0 }} />
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                      <span style={{ color:C.text, fontWeight:700, fontSize:13 }}>{ch.channel}</span>
+                      <span style={{ color:colors[i%colors.length], fontWeight:800, fontSize:13 }}>{fmtN(ch.inquiry)}건 <span style={{ color:C.muted, fontSize:11, fontWeight:400 }}>({pct}%)</span></span>
+                    </div>
+                    <div style={{ background:C.dim, borderRadius:4, height:6, marginBottom:4 }}>
+                      <div style={{ width:`${pct}%`, height:"100%", background:colors[i%colors.length], borderRadius:4 }} />
+                    </div>
+                    <div style={{ display:"flex", gap:12 }}>
+                      <span style={{ color:C.muted, fontSize:11 }}>예약 {fmtN(ch.reservation)}건</span>
+                      <span style={{ color:C.muted, fontSize:11 }}>내원 {fmtN(ch.visit)}명</span>
+                      <span style={{ color:visitRate>=50?C.green:C.muted, fontSize:11, fontWeight:visitRate>=50?700:400 }}>내원율 {visitRate}%</span>
+                      {ch.memo && <span style={{ color:C.muted, fontSize:11 }}>💬 {ch.memo}</span>}
+                    </div>
+                  </div>
+                  {!isReadOnly && (
+                    <div style={{ display:"flex", gap:4 }}>
+                      <button onClick={()=>{setForm(ch);setEditIdx(i);setShowForm(true);}} style={{ background:`${hospital.color}15`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:5, padding:"3px 8px", fontSize:10, cursor:"pointer" }}>수정</button>
+                      <button onClick={()=>deleteItem(i)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"3px 8px", fontSize:10, cursor:"pointer" }}>삭제</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* 지역별 */}
+        {activeSection === "region" && (
+          (monthData.regions||[]).length === 0 ? <div style={{ color:C.muted, textAlign:"center", padding:32, fontSize:13 }}>지역 유입 데이터를 추가해주세요</div> :
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+              <thead><tr>{["지역","문의","거리 기반","생활권","메모",""].map(h=><th key={h} style={{ color:C.muted, fontWeight:700, padding:"8px 12px", textAlign:"center", borderBottom:`2px solid ${C.border}` }}>{h}</th>)}</tr></thead>
+              <tbody>
+                {[...(monthData.regions||[])].sort((a,b)=>(b.inquiry||0)-(a.inquiry||0)).map((r,i) => (
+                  <tr key={i}>
+                    <td style={{ padding:"9px 12px", fontWeight:700, color:C.text, borderBottom:`1px solid ${C.dim}` }}>{r.region}</td>
+                    <td style={{ padding:"9px 12px", textAlign:"center", borderBottom:`1px solid ${C.dim}`, color:C.accent, fontWeight:700 }}>{fmtN(r.inquiry)}건</td>
+                    <td style={{ padding:"9px 12px", textAlign:"center", borderBottom:`1px solid ${C.dim}`, color:C.muted }}>{r.distance||"-"}</td>
+                    <td style={{ padding:"9px 12px", textAlign:"center", borderBottom:`1px solid ${C.dim}`, color:C.muted }}>{r.lifezone||"-"}</td>
+                    <td style={{ padding:"9px 12px", color:C.muted, fontSize:11, borderBottom:`1px solid ${C.dim}` }}>{r.memo}</td>
+                    {!isReadOnly && <td style={{ padding:"9px 12px", borderBottom:`1px solid ${C.dim}`, textAlign:"center" }}>
+                      <button onClick={()=>{setForm(r);setEditIdx(i);setShowForm(true);}} style={{ background:`${hospital.color}15`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", marginRight:4 }}>수정</button>
+                      <button onClick={()=>deleteItem(i)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>삭제</button>
+                    </td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 시술별 */}
+        {activeSection === "procedure" && (
+          (monthData.procedures||[]).length === 0 ? <div style={{ color:C.muted, textAlign:"center", padding:32, fontSize:13 }}>시술 유입 데이터를 추가해주세요</div> :
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12 }}>
+            {[...(monthData.procedures||[])].sort((a,b)=>(b.inquiry||0)-(a.inquiry||0)).map((pr,i) => {
+              const reserveRate = pr.inquiry > 0 ? Math.round((pr.reservation||0)/pr.inquiry*100) : 0;
+              const visitRate = pr.reservation > 0 ? Math.round((pr.visit||0)/pr.reservation*100) : 0;
+              return (
+                <div key={i} style={{ background:"#F8FAFC", borderRadius:12, padding:16, border:`1px solid ${C.border}` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                    <span style={{ color:C.text, fontWeight:800, fontSize:14 }}>{pr.name}</span>
+                    {!isReadOnly && (
+                      <div style={{ display:"flex", gap:4 }}>
+                        <button onClick={()=>{setForm(pr);setEditIdx(i);setShowForm(true);}} style={{ background:`${hospital.color}15`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>수정</button>
+                        <button onClick={()=>deleteItem(i)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>삭제</button>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
+                    {[
+                      { label:"문의", value:fmtN(pr.inquiry)+"건", color:C.accent },
+                      { label:"예약률", value:reserveRate+"%", color:C.green },
+                      { label:"내원률", value:visitRate+"%", color:hospital.color },
+                      { label:"객단가", value:pr.unitPrice>0?fmtN(pr.unitPrice)+"만":"-", color:C.yellow },
+                    ].map((s,j) => (
+                      <div key={j} style={{ background:C.surface, borderRadius:8, padding:"8px", textAlign:"center" }}>
+                        <div style={{ color:s.color, fontSize:15, fontWeight:800 }}>{s.value}</div>
+                        <div style={{ color:C.muted, fontSize:10, marginTop:2 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {pr.memo && <div style={{ color:C.muted, fontSize:11, marginTop:8 }}>💬 {pr.memo}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* 시간대별 */}
+        {activeSection === "timeslot" && (
+          (monthData.timeSlots||[]).length === 0 ? <div style={{ color:C.muted, textAlign:"center", padding:32, fontSize:13 }}>시간대별 데이터를 추가해주세요</div> :
+          <div>
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                <thead><tr>{["시간대","요일","문의","예약","메모",""].map(h=><th key={h} style={{ color:C.muted, fontWeight:700, padding:"8px 12px", textAlign:"center", borderBottom:`2px solid ${C.border}` }}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {[...(monthData.timeSlots||[])].sort((a,b)=>(b.inquiry||0)-(a.inquiry||0)).map((ts,i) => (
+                    <tr key={i}>
+                      <td style={{ padding:"9px 12px", fontWeight:700, textAlign:"center", borderBottom:`1px solid ${C.dim}`, color:hospital.color }}>{ts.slot}</td>
+                      <td style={{ padding:"9px 12px", textAlign:"center", borderBottom:`1px solid ${C.dim}` }}>{ts.day}요일</td>
+                      <td style={{ padding:"9px 12px", textAlign:"center", borderBottom:`1px solid ${C.dim}`, color:C.accent, fontWeight:700 }}>{fmtN(ts.inquiry)}건</td>
+                      <td style={{ padding:"9px 12px", textAlign:"center", borderBottom:`1px solid ${C.dim}`, color:C.green }}>{fmtN(ts.reservation)}건</td>
+                      <td style={{ padding:"9px 12px", color:C.muted, fontSize:11, borderBottom:`1px solid ${C.dim}` }}>{ts.memo}</td>
+                      {!isReadOnly && <td style={{ padding:"9px 12px", borderBottom:`1px solid ${C.dim}`, textAlign:"center" }}>
+                        <button onClick={()=>{setForm(ts);setEditIdx(i);setShowForm(true);}} style={{ background:`${hospital.color}15`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", marginRight:4 }}>수정</button>
+                        <button onClick={()=>deleteItem(i)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>삭제</button>
+                      </td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* 원장별 */}
+        {activeSection === "doctor" && (
+          (monthData.doctors||[]).length === 0 ? <div style={{ color:C.muted, textAlign:"center", padding:32, fontSize:13 }}>원장별 데이터를 추가해주세요</div> :
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12 }}>
+            {(monthData.doctors||[]).map((dr,i) => {
+              const reserveRate = dr.inquiry > 0 ? Math.round((dr.reservation||0)/dr.inquiry*100) : 0;
+              return (
+                <div key={i} style={{ background:"#F8FAFC", borderRadius:12, padding:16, border:`1px solid ${C.border}` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                    <div>
+                      <span style={{ color:C.text, fontWeight:800, fontSize:14 }}>{dr.name}</span>
+                      {dr.specialty && <span style={{ background:`${hospital.color}15`, color:hospital.color, borderRadius:5, padding:"1px 8px", fontSize:11, marginLeft:8 }}>{dr.specialty}</span>}
+                    </div>
+                    {!isReadOnly && (
+                      <div style={{ display:"flex", gap:4 }}>
+                        <button onClick={()=>{setForm(dr);setEditIdx(i);setShowForm(true);}} style={{ background:`${hospital.color}15`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>수정</button>
+                        <button onClick={()=>deleteItem(i)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>삭제</button>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
+                    {[
+                      { label:"문의", value:fmtN(dr.inquiry)+"건", color:C.accent },
+                      { label:"예약률", value:reserveRate+"%", color:C.green },
+                      { label:"후기", value:fmtN(dr.review)+"건", color:C.yellow },
+                      { label:"검색량", value:fmtN(dr.searchVol), color:C.accent2 },
+                    ].map((s,j) => (
+                      <div key={j} style={{ background:C.surface, borderRadius:8, padding:"8px", textAlign:"center" }}>
+                        <div style={{ color:s.color, fontSize:15, fontWeight:800 }}>{s.value}</div>
+                        <div style={{ color:C.muted, fontSize:10, marginTop:2 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {dr.memo && <div style={{ color:C.muted, fontSize:11, marginTop:8 }}>💬 {dr.memo}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
+  const [savedMsg, setSavedMsg] = useState("");
+  const [activeSection, setActiveSection] = useState("search");
+  const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
+
+  const months = [...Array(6)].map((_,i)=>{ const d=new Date(); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); });
+  const fmtN = (n) => (n||0).toLocaleString();
+
+  const brandingData = hospital.brandingData || {};
+  const monthData = brandingData[selMonth] || {
+    search: { hospital:0, doctor:0, procedures:[], relatedKeywords:[] },
+    sns: { instaFollowers:0, instaLikes:0, instaComments:0, instaSaves:0, instaShares:0, reelsViews:0, reelsPlays:0 },
+    content: { blogAvgTime:0, blogCtr:0, topContents:[], inflowKeywords:[] },
+    trust: { reviewCount:0, reviewRate:0, avgRating:0, directSearchChange:0, reVisitRate:0 },
+  };
+
+  const saveMonth = (updated) => {
+    onUpdateHospital({ ...hospital, brandingData: { ...brandingData, [selMonth]: updated } });
+    toast("저장 완료!");
+  };
+
+  // 각 섹션 데이터 업데이트
+  const updateField = (section, field, val) => {
+    saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: isNaN(+val) ? val : +val } });
+  };
+
+  // 배열 항목 추가/삭제
+  const addItem = (section, field, item) => {
+    const arr = [...(monthData[section][field]||[]), { id:Date.now(), ...item }];
+    saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: arr } });
+  };
+
+  const removeItem = (section, field, id) => {
+    const arr = (monthData[section][field]||[]).filter(i=>i.id!==id);
+    saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: arr } });
+  };
+
+  const [procForm, setProcForm] = useState({ name:"", searchVol:0 });
+  const [kwForm, setKwForm] = useState({ keyword:"", vol:0, rank:"" });
+  const [topForm, setTopForm] = useState({ title:"", views:0, ctr:0, channel:"" });
+  const [inflowKwForm, setInflowKwForm] = useState({ keyword:"", sessions:0 });
+
+  const SectionBtn = ({ id, label }) => (
+    <button onClick={()=>setActiveSection(id)} style={{
+      background: activeSection===id ? hospital.color : "transparent",
+      border: `1px solid ${activeSection===id ? hospital.color : C.border}`,
+      color: activeSection===id ? "#0F172A" : C.muted,
+      borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700,
+    }}>{label}</button>
+  );
+
+  const NumInput = ({ label, section, field, unit="" }) => (
+    <div style={{ background:"#F8FAFC", borderRadius:10, padding:14 }}>
+      <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:6 }}>{label}</label>
+      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+        <input type="number" value={monthData[section][field]||""} disabled={isReadOnly}
+          onChange={e => updateField(section, field, e.target.value)}
+          style={{ ...inputSt, padding:"6px 10px", fontSize:14, fontWeight:700, width:100, textAlign:"right" }} />
+        {unit && <span style={{ color:C.muted, fontSize:12 }}>{unit}</span>}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+
+      {/* 월 선택 */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        {months.map(m => (
+          <button key={m} onClick={()=>setSelMonth(m)} style={{
+            background: selMonth===m ? `${hospital.color}20` : "transparent",
+            border: `1px solid ${selMonth===m ? hospital.color : C.border}`,
+            color: selMonth===m ? hospital.color : C.muted,
+            borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+          }}>{m.slice(5)}월</button>
+        ))}
+      </div>
+
+      {/* 섹션 탭 */}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        <SectionBtn id="search"  label="🔍 브랜드 검색량" />
+        <SectionBtn id="sns"     label="📱 SNS 반응" />
+        <SectionBtn id="content" label="📝 콘텐츠 반응" />
+        <SectionBtn id="trust"   label="⭐ 브랜드 신뢰도" />
+      </div>
+
+      {/* 브랜드 검색량 */}
+      {activeSection === "search" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+            <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>🔍 브랜드 검색량 현황</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12, marginBottom:20 }}>
+              <NumInput label="병원명 검색량" section="search" field="hospital" unit="회/월" />
+              <NumInput label="원장명 검색량" section="search" field="doctor" unit="회/월" />
+            </div>
+
+            {/* 시술 연관 검색량 */}
+            <div style={{ marginBottom:16 }}>
+              <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:10 }}>시술 연관 검색량</div>
+              {!isReadOnly && (
+                <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                  <input value={procForm.name} onChange={e=>setProcForm(p=>({...p,name:e.target.value}))} placeholder="시술명" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1 }} />
+                  <input type="number" value={procForm.searchVol||""} onChange={e=>setProcForm(p=>({...p,searchVol:+e.target.value}))} placeholder="검색량" style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:100 }} />
+                  <button onClick={()=>{ if(procForm.name) { addItem("search","procedures",procForm); setProcForm({name:"",searchVol:0}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
+                </div>
+              )}
+              <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                {(monthData.search.procedures||[]).map((p,i) => (
+                  <div key={p.id||i} style={{ background:`${hospital.color}10`, border:`1px solid ${hospital.color}30`, borderRadius:8, padding:"6px 14px", display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ color:C.text, fontSize:12, fontWeight:700 }}>{p.name}</span>
+                    <span style={{ color:hospital.color, fontSize:12, fontWeight:800 }}>{fmtN(p.searchVol)}회</span>
+                    {!isReadOnly && <button onClick={()=>removeItem("search","procedures",p.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12, padding:0 }}>×</button>}
+                  </div>
+                ))}
+                {(monthData.search.procedures||[]).length === 0 && <span style={{ color:C.muted, fontSize:12 }}>시술 검색량을 추가해주세요</span>}
+              </div>
+            </div>
+
+            {/* 연관 키워드 */}
+            <div>
+              <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:10 }}>주요 연관 키워드</div>
+              {!isReadOnly && (
+                <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                  <input value={kwForm.keyword} onChange={e=>setKwForm(p=>({...p,keyword:e.target.value}))} placeholder="키워드" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:2 }} />
+                  <input type="number" value={kwForm.vol||""} onChange={e=>setKwForm(p=>({...p,vol:+e.target.value}))} placeholder="검색량" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1 }} />
+                  <input value={kwForm.rank} onChange={e=>setKwForm(p=>({...p,rank:e.target.value}))} placeholder="순위" style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:70 }} />
+                  <button onClick={()=>{ if(kwForm.keyword){ addItem("search","relatedKeywords",kwForm); setKwForm({keyword:"",vol:0,rank:""}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
+                </div>
+              )}
+              {(monthData.search.relatedKeywords||[]).length > 0 && (
+                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                  <thead><tr>{["키워드","검색량","순위",""].map(h=><th key={h} style={{ color:C.muted, fontWeight:700, padding:"6px 10px", textAlign:"center", borderBottom:`2px solid ${C.border}` }}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {(monthData.search.relatedKeywords||[]).map((kw,i) => (
+                      <tr key={kw.id||i}>
+                        <td style={{ padding:"7px 10px", fontWeight:600, borderBottom:`1px solid ${C.dim}` }}>{kw.keyword}</td>
+                        <td style={{ padding:"7px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.accent }}>{fmtN(kw.vol)}회</td>
+                        <td style={{ padding:"7px 10px", textAlign:"center", borderBottom:`1px solid ${C.dim}`, color:C.green, fontWeight:700 }}>{kw.rank||"-"}</td>
+                        {!isReadOnly && <td style={{ padding:"7px 10px", textAlign:"center", borderBottom:`1px solid ${C.dim}` }}><button onClick={()=>removeItem("search","relatedKeywords",kw.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer" }}>×</button></td>}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SNS 반응 */}
+      {activeSection === "sns" && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📱 SNS 반응 현황</div>
+          <div style={{ marginBottom:16 }}>
+            <div style={{ color:C.accent2, fontWeight:700, fontSize:13, marginBottom:10 }}>📸 인스타그램</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+              <NumInput label="팔로워" section="sns" field="instaFollowers" unit="명" />
+              <NumInput label="좋아요 (평균)" section="sns" field="instaLikes" />
+              <NumInput label="댓글 (평균)" section="sns" field="instaComments" />
+              <NumInput label="저장 (평균)" section="sns" field="instaSaves" />
+              <NumInput label="공유 (평균)" section="sns" field="instaShares" />
+            </div>
+          </div>
+          <div>
+            <div style={{ color:"#FF0000", fontWeight:700, fontSize:13, marginBottom:10 }}>▶️ 릴스</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
+              <NumInput label="릴스 조회수 (평균)" section="sns" field="reelsViews" unit="회" />
+              <NumInput label="릴스 재생수 (평균)" section="sns" field="reelsPlays" unit="회" />
+            </div>
+          </div>
+          {/* SNS 요약 카드 */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginTop:20 }}>
+            {[
+              { label:"팔로워", value:fmtN(monthData.sns.instaFollowers)+"명", color:"#E1306C" },
+              { label:"평균 좋아요", value:fmtN(monthData.sns.instaLikes), color:C.accent },
+              { label:"평균 저장", value:fmtN(monthData.sns.instaSaves), color:C.green },
+              { label:"릴스 조회", value:fmtN(monthData.sns.reelsViews)+"회", color:"#FF0000" },
+            ].map((k,i) => (
+              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:12, padding:14, textAlign:"center" }}>
+                <div style={{ color:k.color, fontSize:20, fontWeight:900 }}>{k.value}</div>
+                <div style={{ color:C.muted, fontSize:11, marginTop:3 }}>{k.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 콘텐츠 반응 */}
+      {activeSection === "content" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+            <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📝 블로그 지표</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
+              <NumInput label="평균 체류시간 (초)" section="content" field="blogAvgTime" unit="초" />
+              <NumInput label="평균 CTR (%)" section="content" field="blogCtr" unit="%" />
+            </div>
+          </div>
+
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+            <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:10 }}>🏆 인기 콘텐츠</div>
+            {!isReadOnly && (
+              <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+                <input value={topForm.title} onChange={e=>setTopForm(p=>({...p,title:e.target.value}))} placeholder="콘텐츠 제목" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:3, minWidth:120 }} />
+                <input value={topForm.channel} onChange={e=>setTopForm(p=>({...p,channel:e.target.value}))} placeholder="채널" style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:80 }} />
+                <input type="number" value={topForm.views||""} onChange={e=>setTopForm(p=>({...p,views:+e.target.value}))} placeholder="조회수" style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:80 }} />
+                <input type="number" value={topForm.ctr||""} onChange={e=>setTopForm(p=>({...p,ctr:+e.target.value}))} placeholder="CTR%" style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:70 }} />
+                <button onClick={()=>{ if(topForm.title){ addItem("content","topContents",topForm); setTopForm({title:"",views:0,ctr:0,channel:""}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
+              </div>
+            )}
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {(monthData.content.topContents||[]).map((tc,i) => (
+                <div key={tc.id||i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", background:"#F8FAFC", borderRadius:8 }}>
+                  <span style={{ color:hospital.color, fontWeight:800, fontSize:13 }}>#{i+1}</span>
+                  {tc.channel && <span style={{ background:`${hospital.color}15`, color:hospital.color, borderRadius:5, padding:"1px 8px", fontSize:11 }}>{tc.channel}</span>}
+                  <span style={{ color:C.text, fontSize:12, flex:1 }}>{tc.title}</span>
+                  <span style={{ color:C.accent, fontSize:12, fontWeight:700 }}>{fmtN(tc.views)}회</span>
+                  {tc.ctr > 0 && <span style={{ color:C.green, fontSize:12 }}>CTR {tc.ctr}%</span>}
+                  {!isReadOnly && <button onClick={()=>removeItem("content","topContents",tc.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer" }}>×</button>}
+                </div>
+              ))}
+              {(monthData.content.topContents||[]).length === 0 && <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:12 }}>인기 콘텐츠를 추가해주세요</div>}
+            </div>
+          </div>
+
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+            <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:10 }}>🔑 유입 키워드</div>
+            {!isReadOnly && (
+              <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                <input value={inflowKwForm.keyword} onChange={e=>setInflowKwForm(p=>({...p,keyword:e.target.value}))} placeholder="키워드" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:2 }} />
+                <input type="number" value={inflowKwForm.sessions||""} onChange={e=>setInflowKwForm(p=>({...p,sessions:+e.target.value}))} placeholder="유입수" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1 }} />
+                <button onClick={()=>{ if(inflowKwForm.keyword){ addItem("content","inflowKeywords",inflowKwForm); setInflowKwForm({keyword:"",sessions:0}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
+              </div>
+            )}
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+              {(monthData.content.inflowKeywords||[]).map((kw,i) => (
+                <div key={kw.id||i} style={{ background:`${C.accent2}10`, border:`1px solid ${C.accent2}30`, borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ color:C.text, fontSize:12 }}>{kw.keyword}</span>
+                  <span style={{ color:C.accent2, fontSize:11, fontWeight:700 }}>{fmtN(kw.sessions)}</span>
+                  {!isReadOnly && <button onClick={()=>removeItem("content","inflowKeywords",kw.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>×</button>}
+                </div>
+              ))}
+              {(monthData.content.inflowKeywords||[]).length === 0 && <span style={{ color:C.muted, fontSize:12 }}>유입 키워드를 추가해주세요</span>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 브랜드 신뢰도 */}
+      {activeSection === "trust" && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>⭐ 브랜드 신뢰도 지표</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12, marginBottom:20 }}>
+            <NumInput label="신규 리뷰 수" section="trust" field="reviewCount" unit="건" />
+            <NumInput label="리뷰 증가율 (%)" section="trust" field="reviewRate" unit="%" />
+            <NumInput label="평균 평점" section="trust" field="avgRating" unit="점" />
+            <NumInput label="직접검색 증가율 (%)" section="trust" field="directSearchChange" unit="%" />
+            <NumInput label="재방문 증가율 (%)" section="trust" field="reVisitRate" unit="%" />
+          </div>
+          {/* 신뢰도 요약 */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+            {[
+              { label:"리뷰 증가율", value:(monthData.trust.reviewRate||0)+"%", color: (monthData.trust.reviewRate||0)>0?C.green:C.red },
+              { label:"평균 평점", value:(monthData.trust.avgRating||0)+"점", color: (monthData.trust.avgRating||0)>=4?C.green:(monthData.trust.avgRating||0)>=3?C.yellow:C.red },
+              { label:"직접검색 변화", value:((monthData.trust.directSearchChange||0)>0?"+":"")+(monthData.trust.directSearchChange||0)+"%", color:(monthData.trust.directSearchChange||0)>=0?C.green:C.red },
+            ].map((k,i) => (
+              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:12, padding:16, textAlign:"center" }}>
+                <div style={{ color:k.color, fontSize:24, fontWeight:900 }}>{k.value}</div>
+                <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>{k.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CrmTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
+  const [activeSection, setActiveSection] = useState("consult");
+  const [savedMsg, setSavedMsg] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editIdx, setEditIdx] = useState(null);
+  const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
+
+  const months = [...Array(6)].map((_,i)=>{ const d=new Date(); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); });
+  const fmtN = (n) => (n||0).toLocaleString();
+  const pct = (a,b) => b>0 ? Math.round(a/b*100) : 0;
+
+  const crmData = hospital.crmData || {};
+  const emptyMonth = {
+    consult: { totalCalls:0, connected:0, missed:0, avgResponseSec:0, convertRate:0 },
+    reservation: { total:0, noShow:0, sameCancel:0, reBook:0 },
+    retention: { reVisit:0, cycleKeep:0, vipRatio:0, longTermRatio:0 },
+    review: { writeRate:0, naverCount:0, kakaoCount:0, googleCount:0, blogCount:0, inflowImpact:0 },
+    ops: { issues:[], complaints:[], sopItems:[] },
+  };
+  const monthData = crmData[selMonth] || emptyMonth;
+
+  const saveMonth = (updated) => {
+    onUpdateHospital({ ...hospital, crmData: { ...crmData, [selMonth]: updated } });
+    toast("저장 완료!");
+  };
+
+  const updateField = (section, field, val) => {
+    saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: isNaN(+val)?val:+val } });
+  };
+
+  // CS 이슈/컴플레인/SOP 항목 CRUD
+  const addOpsItem = (field, item) => {
+    const arr = [...(monthData.ops[field]||[]), { id:Date.now(), ...item }];
+    saveMonth({ ...monthData, ops: { ...monthData.ops, [field]: arr } });
+  };
+  const toggleOpsItem = (field, id) => {
+    const arr = (monthData.ops[field]||[]).map(i => i.id===id ? {...i, done:!i.done} : i);
+    saveMonth({ ...monthData, ops: { ...monthData.ops, [field]: arr } });
+  };
+  const removeOpsItem = (field, id) => {
+    const arr = (monthData.ops[field]||[]).filter(i=>i.id!==id);
+    saveMonth({ ...monthData, ops: { ...monthData.ops, [field]: arr } });
+  };
+
+  const [issueForm, setIssueForm] = useState({ text:"", severity:"보통" });
+  const [sopForm, setSopForm] = useState({ text:"" });
+
+  const SectionBtn = ({ id, label }) => (
+    <button onClick={()=>{setActiveSection(id);setShowForm(false);}} style={{
+      background: activeSection===id ? hospital.color : "transparent",
+      border: `1px solid ${activeSection===id ? hospital.color : C.border}`,
+      color: activeSection===id ? "#0F172A" : C.muted,
+      borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700,
+    }}>{label}</button>
+  );
+
+  const NumCard = ({ label, value, unit="", color, sub="" }) => (
+    <div style={{ background:"#F8FAFC", borderRadius:12, padding:14, textAlign:"center", border:`1px solid ${C.border}` }}>
+      <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:6 }}>{label}</div>
+      <div style={{ color:color||C.text, fontSize:22, fontWeight:900 }}>{value}<span style={{ fontSize:12, fontWeight:400, marginLeft:2, color:C.muted }}>{unit}</span></div>
+      {sub && <div style={{ color:C.muted, fontSize:10, marginTop:3 }}>{sub}</div>}
+    </div>
+  );
+
+  const NumInput = ({ label, section, field, unit="" }) => (
+    <div style={{ background:"#F8FAFC", borderRadius:10, padding:12 }}>
+      <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:5 }}>{label}</label>
+      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+        <input type="number" value={monthData[section][field]||""} disabled={isReadOnly}
+          onChange={e=>updateField(section,field,e.target.value)}
+          style={{ ...inputSt, padding:"5px 8px", fontSize:14, fontWeight:700, width:90, textAlign:"right" }} />
+        {unit && <span style={{ color:C.muted, fontSize:12 }}>{unit}</span>}
+      </div>
+    </div>
+  );
+
+  // 연결률, 부재율 계산
+  const connectRate = pct(monthData.consult.connected||0, monthData.consult.totalCalls||0);
+  const missedRate  = pct(monthData.consult.missed||0,    monthData.consult.totalCalls||0);
+  const noShowRate  = pct(monthData.reservation.noShow||0, monthData.reservation.total||0);
+  const cancelRate  = pct(monthData.reservation.sameCancel||0, monthData.reservation.total||0);
+  const reBookRate  = pct(monthData.reservation.reBook||0, monthData.reservation.total||0);
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+
+      {/* 월 선택 */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        {months.map(m => (
+          <button key={m} onClick={()=>setSelMonth(m)} style={{
+            background: selMonth===m?`${hospital.color}20`:"transparent",
+            border:`1px solid ${selMonth===m?hospital.color:C.border}`,
+            color: selMonth===m?hospital.color:C.muted,
+            borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+          }}>{m.slice(5)}월</button>
+        ))}
+      </div>
+
+      {/* 섹션 탭 */}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        <SectionBtn id="consult"     label="📞 상담 운영" />
+        <SectionBtn id="reservation" label="📅 예약 관리" />
+        <SectionBtn id="retention"   label="🔄 환자 유지율" />
+        <SectionBtn id="review"      label="⭐ 후기 관리" />
+        <SectionBtn id="ops"         label="🛡 운영 안정성" />
+      </div>
+
+      {/* 상담 운영 */}
+      {activeSection === "consult" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+            <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📞 상담 운영 현황</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
+              <NumInput label="총 인입 건수" section="consult" field="totalCalls" unit="건" />
+              <NumInput label="연결 건수" section="consult" field="connected" unit="건" />
+              <NumInput label="부재중 건수" section="consult" field="missed" unit="건" />
+              <NumInput label="평균 응답 시간 (초)" section="consult" field="avgResponseSec" unit="초" />
+              <NumInput label="상담 전환율 (%)" section="consult" field="convertRate" unit="%" />
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+              <NumCard label="총 인입" value={fmtN(monthData.consult.totalCalls)} unit="건" color={C.accent} />
+              <NumCard label="상담 연결률" value={connectRate} unit="%" color={connectRate>=80?C.green:connectRate>=60?C.yellow:C.red} sub={`연결 ${fmtN(monthData.consult.connected)}건`} />
+              <NumCard label="부재중 비율" value={missedRate} unit="%" color={missedRate<=20?C.green:missedRate<=40?C.yellow:C.red} sub={`부재 ${fmtN(monthData.consult.missed)}건`} />
+              <NumCard label="상담 전환율" value={monthData.consult.convertRate||0} unit="%" color={(monthData.consult.convertRate||0)>=30?C.green:C.yellow} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 예약 관리 */}
+      {activeSection === "reservation" && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📅 예약 관리 현황</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10, marginBottom:16 }}>
+            <NumInput label="총 예약 수" section="reservation" field="total" unit="건" />
+            <NumInput label="예약 후 미내원 수" section="reservation" field="noShow" unit="건" />
+            <NumInput label="당일 취소 수" section="reservation" field="sameCancel" unit="건" />
+            <NumInput label="재예약 수" section="reservation" field="reBook" unit="건" />
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+            <NumCard label="총 예약" value={fmtN(monthData.reservation.total)} unit="건" color={C.accent} />
+            <NumCard label="노쇼율" value={noShowRate} unit="%" color={noShowRate<=10?C.green:noShowRate<=20?C.yellow:C.red} sub={`${fmtN(monthData.reservation.noShow)}건`} />
+            <NumCard label="당일 취소율" value={cancelRate} unit="%" color={cancelRate<=10?C.green:cancelRate<=20?C.yellow:C.red} sub={`${fmtN(monthData.reservation.sameCancel)}건`} />
+            <NumCard label="재예약률" value={reBookRate} unit="%" color={reBookRate>=30?C.green:C.yellow} sub={`${fmtN(monthData.reservation.reBook)}건`} />
+          </div>
+        </div>
+      )}
+
+      {/* 환자 유지율 */}
+      {activeSection === "retention" && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>🔄 환자 유지율</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10, marginBottom:16 }}>
+            <NumInput label="재내원률 (%)" section="retention" field="reVisit" unit="%" />
+            <NumInput label="시술 주기 유지율 (%)" section="retention" field="cycleKeep" unit="%" />
+            <NumInput label="VIP 환자 비율 (%)" section="retention" field="vipRatio" unit="%" />
+            <NumInput label="장기 환자 비율 (%)" section="retention" field="longTermRatio" unit="%" />
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+            {[
+              { label:"재내원률", val:monthData.retention.reVisit||0, good:50 },
+              { label:"주기 유지율", val:monthData.retention.cycleKeep||0, good:60 },
+              { label:"VIP 비율", val:monthData.retention.vipRatio||0, good:20 },
+              { label:"장기 환자", val:monthData.retention.longTermRatio||0, good:30 },
+            ].map((k,i) => (
+              <NumCard key={i} label={k.label} value={k.val} unit="%" color={k.val>=k.good?C.green:k.val>=k.good*0.7?C.yellow:C.muted} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 후기 관리 */}
+      {activeSection === "review" && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>⭐ 후기 관리 현황</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
+            <NumInput label="후기 작성률 (%)" section="review" field="writeRate" unit="%" />
+            <NumInput label="네이버 리뷰" section="review" field="naverCount" unit="건" />
+            <NumInput label="카카오 리뷰" section="review" field="kakaoCount" unit="건" />
+            <NumInput label="구글 리뷰" section="review" field="googleCount" unit="건" />
+            <NumInput label="블로그 후기" section="review" field="blogCount" unit="건" />
+            <NumInput label="후기 유입 영향도 (%)" section="review" field="inflowImpact" unit="%" />
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10 }}>
+            {[
+              { label:"작성률", val:monthData.review.writeRate||0, unit:"%", color:C.green },
+              { label:"네이버", val:fmtN(monthData.review.naverCount), unit:"건", color:"#03C75A" },
+              { label:"카카오", val:fmtN(monthData.review.kakaoCount), unit:"건", color:"#FEE500" },
+              { label:"구글", val:fmtN(monthData.review.googleCount), unit:"건", color:"#EA4335" },
+              { label:"유입 영향도", val:monthData.review.inflowImpact||0, unit:"%", color:C.accent2 },
+            ].map((k,i) => (
+              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:12, padding:14, textAlign:"center" }}>
+                <div style={{ color:k.color, fontSize:20, fontWeight:900 }}>{k.val}<span style={{ fontSize:11, fontWeight:400 }}>{k.unit}</span></div>
+                <div style={{ color:C.muted, fontSize:11, marginTop:3 }}>{k.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 운영 안정성 */}
+      {activeSection === "ops" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          {/* CS 이슈 */}
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+              <div style={{ color:C.text, fontWeight:800, fontSize:14 }}>🚨 CS 이슈 / 컴플레인</div>
+            </div>
+            {!isReadOnly && (
+              <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+                <input value={issueForm.text} onChange={e=>setIssueForm(p=>({...p,text:e.target.value}))} placeholder="이슈 내용" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:3 }} />
+                <select value={issueForm.severity} onChange={e=>setIssueForm(p=>({...p,severity:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1, appearance:"none" }}>
+                  {["낮음","보통","높음","긴급"].map(s=><option key={s}>{s}</option>)}
+                </select>
+                <button onClick={()=>{ if(issueForm.text){ addOpsItem("issues",{...issueForm,done:false}); setIssueForm({text:"",severity:"보통"}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
+              </div>
+            )}
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {(monthData.ops.issues||[]).length === 0 && <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:12 }}>등록된 이슈가 없어요 👍</div>}
+              {(monthData.ops.issues||[]).map((issue,i) => {
+                const sevColor = issue.severity==="긴급"?C.red:issue.severity==="높음"?C.orange:issue.severity==="보통"?C.yellow:C.green;
+                return (
+                  <div key={issue.id||i} onClick={()=>!isReadOnly&&toggleOpsItem("issues",issue.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:issue.done?`${C.green}08`:"#FFF8F8", border:`1px solid ${issue.done?C.green:sevColor}30`, borderRadius:10, cursor:"pointer" }}>
+                    <div style={{ width:16, height:16, borderRadius:4, flexShrink:0, background:issue.done?C.green:"transparent", border:`2px solid ${issue.done?C.green:sevColor}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      {issue.done && <span style={{ color:"#fff", fontSize:10, fontWeight:900 }}>✓</span>}
+                    </div>
+                    <span style={{ background:`${sevColor}15`, color:sevColor, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700, flexShrink:0 }}>{issue.severity}</span>
+                    <span style={{ color:issue.done?C.muted:C.text, fontSize:12, textDecoration:issue.done?"line-through":"none", flex:1 }}>{issue.text}</span>
+                    {!isReadOnly && <button onClick={e=>{e.stopPropagation();removeOpsItem("issues",issue.id);}} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>×</button>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* SOP 체크 */}
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+              <div style={{ color:C.text, fontWeight:800, fontSize:14 }}>📋 SOP 체크 현황</div>
+              {(monthData.ops.sopItems||[]).length > 0 && (
+                <span style={{ color:C.green, fontSize:12, fontWeight:700 }}>
+                  {(monthData.ops.sopItems||[]).filter(s=>s.done).length}/{(monthData.ops.sopItems||[]).length} 완료
+                </span>
+              )}
+            </div>
+            {!isReadOnly && (
+              <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+                <input value={sopForm.text} onChange={e=>setSopForm(p=>({...p,text:e.target.value}))} placeholder="SOP 항목 입력" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1 }}
+                  onKeyDown={e=>{ if(e.key==="Enter" && sopForm.text){ addOpsItem("sopItems",{...sopForm,done:false}); setSopForm({text:""}); }}} />
+                <button onClick={()=>{ if(sopForm.text){ addOpsItem("sopItems",{...sopForm,done:false}); setSopForm({text:""}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
+              </div>
+            )}
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {(monthData.ops.sopItems||[]).length === 0 && <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:12 }}>SOP 항목을 추가해주세요</div>}
+              {(monthData.ops.sopItems||[]).map((sop,i) => (
+                <div key={sop.id||i} onClick={()=>!isReadOnly&&toggleOpsItem("sopItems",sop.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", background:sop.done?`${C.green}08`:"#F8FAFC", border:`1px solid ${sop.done?C.green:C.dim}`, borderRadius:9, cursor:"pointer" }}>
+                  <div style={{ width:16, height:16, borderRadius:4, flexShrink:0, background:sop.done?C.green:"transparent", border:`2px solid ${sop.done?C.green:C.dim}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    {sop.done && <span style={{ color:"#fff", fontSize:10, fontWeight:900 }}>✓</span>}
+                  </div>
+                  <span style={{ color:sop.done?C.muted:C.text, fontSize:12, textDecoration:sop.done?"line-through":"none", flex:1 }}>{sop.text}</span>
+                  {!isReadOnly && <button onClick={e=>{e.stopPropagation();removeOpsItem("sopItems",sop.id);}} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>×</button>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AiSearchTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
+  const [activeSection, setActiveSection] = useState("exposure");
+  const [savedMsg, setSavedMsg] = useState("");
+  const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
+
+  const months = [...Array(6)].map((_,i)=>{ const d=new Date(); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); });
+  const fmtN = (n) => (n||0).toLocaleString();
+
+  const aiData = hospital.aiData || {};
+  const emptyMonth = {
+    exposure: { chatgpt:false, googleAi:false, perplexity:false, naverAi:false, chatgptNote:"", googleAiNote:"", perplexityNote:"", naverAiNote:"" },
+    geo: { columns:0, faqs:0, procedurePages:0, doctorContents:0, googleIndexed:0, naverExposed:0 },
+    influence: { naver:0, google:0, aiSearch:0, entityNote:"" },
+    trust: { directSearchUp:0, reviewGrowth:0, externalMentions:0, brandCitation:0, expertScore:0 },
+    growth: { aiInflowChange:0, brandAwareness:0, specialtyRelevance:0, kwConnectionNote:"" },
+  };
+  const monthData = aiData[selMonth] || emptyMonth;
+
+  const saveMonth = (updated) => {
+    onUpdateHospital({ ...hospital, aiData: { ...aiData, [selMonth]: updated } });
+    toast("저장 완료!");
+  };
+
+  const updateField = (section, field, val) => {
+    const parsed = val === true || val === false ? val : isNaN(+val) ? val : +val;
+    saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: parsed } });
+  };
+
+  const SectionBtn = ({ id, label }) => (
+    <button onClick={()=>setActiveSection(id)} style={{
+      background: activeSection===id ? hospital.color : "transparent",
+      border: `1px solid ${activeSection===id ? hospital.color : C.border}`,
+      color: activeSection===id ? "#0F172A" : C.muted,
+      borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700,
+    }}>{label}</button>
+  );
+
+  const NumInput = ({ label, section, field, unit="" }) => (
+    <div style={{ background:"#F8FAFC", borderRadius:10, padding:12 }}>
+      <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:5 }}>{label}</label>
+      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+        <input type="number" value={monthData[section][field]||""} disabled={isReadOnly}
+          onChange={e=>updateField(section,field,e.target.value)}
+          style={{ ...inputSt, padding:"5px 8px", fontSize:14, fontWeight:700, width:90, textAlign:"right" }} />
+        {unit && <span style={{ color:C.muted, fontSize:12 }}>{unit}</span>}
+      </div>
+    </div>
+  );
+
+  // 노출 여부 토글 카드
+  const ExposureCard = ({ label, field, note, noteField, icon, color }) => {
+    const isOn = monthData.exposure[field];
+    return (
+      <div style={{ background:C.surface, border:`2px solid ${isOn?color:C.border}`, borderRadius:14, padding:18, transition:"all 0.2s" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:22 }}>{icon}</span>
+            <span style={{ color:C.text, fontWeight:800, fontSize:14 }}>{label}</span>
+          </div>
+          {!isReadOnly && (
+            <div onClick={()=>updateField("exposure",field,!isOn)} style={{
+              width:44, height:24, borderRadius:12, cursor:"pointer", transition:"all 0.2s",
+              background: isOn ? color : C.dim, position:"relative",
+            }}>
+              <div style={{
+                width:18, height:18, borderRadius:"50%", background:"#fff",
+                position:"absolute", top:3, left: isOn?23:3, transition:"left 0.2s",
+                boxShadow:"0 1px 3px rgba(0,0,0,0.2)",
+              }} />
+            </div>
+          )}
+        </div>
+        <div style={{
+          display:"flex", alignItems:"center", gap:8, padding:"8px 12px",
+          background: isOn?`${color}10`:"#F1F5F9", borderRadius:8,
+          border: `1px solid ${isOn?color:C.dim}`,
+        }}>
+          <span style={{ fontSize:14 }}>{isOn?"✅":"❌"}</span>
+          <span style={{ color:isOn?color:C.muted, fontSize:13, fontWeight:isOn?700:400 }}>
+            {isOn?"노출 중":"미노출"}
+          </span>
+        </div>
+        {!isReadOnly && (
+          <input value={monthData.exposure[noteField]||""}
+            onChange={e=>updateField("exposure",noteField,e.target.value)}
+            placeholder="노출 내용 메모"
+            style={{ ...inputSt, padding:"6px 10px", fontSize:11, marginTop:10, width:"100%" }} />
+        )}
+        {isReadOnly && monthData.exposure[noteField] && (
+          <div style={{ color:C.muted, fontSize:11, marginTop:8 }}>💬 {monthData.exposure[noteField]}</div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+
+      {/* 월 선택 */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        {months.map(m => (
+          <button key={m} onClick={()=>setSelMonth(m)} style={{
+            background: selMonth===m?`${hospital.color}20`:"transparent",
+            border:`1px solid ${selMonth===m?hospital.color:C.border}`,
+            color: selMonth===m?hospital.color:C.muted,
+            borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+          }}>{m.slice(5)}월</button>
+        ))}
+      </div>
+
+      {/* 섹션 탭 */}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        <SectionBtn id="exposure"  label="🤖 AI 검색 노출" />
+        <SectionBtn id="geo"       label="📚 GEO 자산 현황" />
+        <SectionBtn id="influence" label="🌐 플랫폼 영향력" />
+        <SectionBtn id="trust"     label="🛡 AI 신뢰도 지표" />
+        <SectionBtn id="growth"    label="📈 GEO 성장 흐름" />
+      </div>
+
+      {/* AI 검색 노출 */}
+      {activeSection === "exposure" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div style={{ color:C.muted, fontSize:12, background:`${C.accent}10`, borderRadius:10, padding:"10px 14px", border:`1px solid ${C.accent}20` }}>
+            💡 AI 검색 엔진에서 병원이 언급/노출되는지 직접 확인 후 토글해주세요
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:14 }}>
+            <ExposureCard label="ChatGPT" field="chatgpt" noteField="chatgptNote" icon="🤖" color="#10A37F" />
+            <ExposureCard label="Google AI (SGE)" field="googleAi" noteField="googleAiNote" icon="🔍" color="#4285F4" />
+            <ExposureCard label="Perplexity" field="perplexity" noteField="perplexityNote" icon="🟣" color="#6366F1" />
+            <ExposureCard label="네이버 AI 검색" field="naverAi" noteField="naverAiNote" icon="🟢" color="#03C75A" />
+          </div>
+          {/* 노출 요약 */}
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:16 }}>
+            <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:10 }}>📊 AI 검색 노출 현황 요약</div>
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              {[
+                { label:"ChatGPT", on:monthData.exposure.chatgpt, color:"#10A37F" },
+                { label:"Google AI", on:monthData.exposure.googleAi, color:"#4285F4" },
+                { label:"Perplexity", on:monthData.exposure.perplexity, color:"#6366F1" },
+                { label:"네이버 AI", on:monthData.exposure.naverAi, color:"#03C75A" },
+              ].map((p,i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:6, background:`${p.on?p.color:"#94A3B8"}10`, borderRadius:8, padding:"6px 12px", border:`1px solid ${p.on?p.color:"#94A3B8"}30` }}>
+                  <span style={{ fontSize:12 }}>{p.on?"✅":"❌"}</span>
+                  <span style={{ color:p.on?p.color:"#94A3B8", fontSize:12, fontWeight:700 }}>{p.label}</span>
+                </div>
+              ))}
+              <div style={{ marginLeft:"auto", color:hospital.color, fontWeight:800, fontSize:16 }}>
+                {[monthData.exposure.chatgpt,monthData.exposure.googleAi,monthData.exposure.perplexity,monthData.exposure.naverAi].filter(Boolean).length}/4 노출
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GEO 자산 현황 */}
+      {activeSection === "geo" && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:6 }}>📚 GEO 자산 현황</div>
+          <div style={{ color:C.muted, fontSize:12, marginBottom:16 }}>AI 검색 최적화를 위한 콘텐츠 자산 현황을 입력하세요</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:20 }}>
+            <NumInput label="의료 칼럼 수" section="geo" field="columns" unit="개" />
+            <NumInput label="FAQ 수" section="geo" field="faqs" unit="개" />
+            <NumInput label="시술 상세 페이지 수" section="geo" field="procedurePages" unit="개" />
+            <NumInput label="원장 콘텐츠 수" section="geo" field="doctorContents" unit="개" />
+            <NumInput label="구글 색인 페이지 수" section="geo" field="googleIndexed" unit="개" />
+            <NumInput label="네이버 노출 콘텐츠 수" section="geo" field="naverExposed" unit="개" />
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:10 }}>
+            {[
+              { label:"칼럼", val:monthData.geo.columns||0, color:"#0EA5E9" },
+              { label:"FAQ", val:monthData.geo.faqs||0, color:"#6366F1" },
+              { label:"시술 페이지", val:monthData.geo.procedurePages||0, color:"#10B981" },
+              { label:"원장 콘텐츠", val:monthData.geo.doctorContents||0, color:"#F59E0B" },
+              { label:"구글 색인", val:monthData.geo.googleIndexed||0, color:"#4285F4" },
+              { label:"네이버 노출", val:monthData.geo.naverExposed||0, color:"#03C75A" },
+            ].map((k,i) => (
+              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:12, padding:14, textAlign:"center" }}>
+                <div style={{ color:k.color, fontSize:22, fontWeight:900 }}>{fmtN(k.val)}</div>
+                <div style={{ color:C.muted, fontSize:10, marginTop:3 }}>{k.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 플랫폼 영향력 */}
+      {activeSection === "influence" && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>🌐 플랫폼 영향력</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:20 }}>
+            <NumInput label="네이버 영향력 지수 (1~100)" section="influence" field="naver" />
+            <NumInput label="구글 영향력 지수 (1~100)" section="influence" field="google" />
+            <NumInput label="AI 검색 영향력 지수 (1~100)" section="influence" field="aiSearch" />
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }}>
+            {[
+              { label:"네이버 영향력", val:monthData.influence.naver||0, color:"#03C75A", max:100 },
+              { label:"구글 영향력", val:monthData.influence.google||0, color:"#4285F4", max:100 },
+              { label:"AI 검색 영향력", val:monthData.influence.aiSearch||0, color:"#6366F1", max:100 },
+            ].map((k,i) => (
+              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:14, padding:18, textAlign:"center" }}>
+                <div style={{ color:k.color, fontSize:32, fontWeight:900 }}>{k.val}</div>
+                <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>{k.label}</div>
+                <div style={{ background:C.dim, borderRadius:4, height:6, marginTop:10 }}>
+                  <div style={{ width:`${Math.min(k.val,100)}%`, height:"100%", background:k.color, borderRadius:4 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ background:"#F8FAFC", borderRadius:10, padding:12 }}>
+            <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:5 }}>브랜드 엔티티 연결 분석 메모</label>
+            <textarea value={monthData.influence.entityNote||""} disabled={isReadOnly}
+              onChange={e=>updateField("influence","entityNote",e.target.value)}
+              placeholder="예: 네이버 지식백과 등록 완료, 구글 Knowledge Panel 미구축 등"
+              style={{ ...inputSt, padding:"8px 10px", fontSize:12, width:"100%", resize:"vertical", minHeight:80 }} />
+          </div>
+        </div>
+      )}
+
+      {/* AI 신뢰도 지표 */}
+      {activeSection === "trust" && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>🛡 AI 신뢰도 지표</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:20 }}>
+            <NumInput label="직접검색 증가 (%)" section="trust" field="directSearchUp" unit="%" />
+            <NumInput label="리뷰 증가율 (%)" section="trust" field="reviewGrowth" unit="%" />
+            <NumInput label="외부 언급량" section="trust" field="externalMentions" unit="건" />
+            <NumInput label="브랜드 인용 증가" section="trust" field="brandCitation" unit="건" />
+            <NumInput label="콘텐츠 전문성 지수 (1~100)" section="trust" field="expertScore" />
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10 }}>
+            {[
+              { label:"직접검색 증가", val:(monthData.trust.directSearchUp||0)+"%", color:(monthData.trust.directSearchUp||0)>0?C.green:C.red },
+              { label:"리뷰 증가율", val:(monthData.trust.reviewGrowth||0)+"%", color:(monthData.trust.reviewGrowth||0)>0?C.green:C.muted },
+              { label:"외부 언급", val:fmtN(monthData.trust.externalMentions)+"건", color:C.accent },
+              { label:"브랜드 인용", val:fmtN(monthData.trust.brandCitation)+"건", color:C.accent2 },
+              { label:"전문성 지수", val:monthData.trust.expertScore||0, color:(monthData.trust.expertScore||0)>=70?C.green:(monthData.trust.expertScore||0)>=40?C.yellow:C.muted },
+            ].map((k,i) => (
+              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:12, padding:14, textAlign:"center" }}>
+                <div style={{ color:k.color, fontSize:18, fontWeight:900 }}>{k.val}</div>
+                <div style={{ color:C.muted, fontSize:10, marginTop:3 }}>{k.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* GEO 성장 흐름 */}
+      {activeSection === "growth" && (
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📈 GEO 성장 흐름</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }}>
+            <NumInput label="AI 검색 유입 변화 (%)" section="growth" field="aiInflowChange" unit="%" />
+            <NumInput label="브랜드 인식 변화 (%)" section="growth" field="brandAwareness" unit="%" />
+            <NumInput label="전문분야 연관성 점수 (1~100)" section="growth" field="specialtyRelevance" />
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
+            {[
+              { label:"AI 유입 변화", val:((monthData.growth.aiInflowChange||0)>0?"+":"")+(monthData.growth.aiInflowChange||0)+"%", color:(monthData.growth.aiInflowChange||0)>0?C.green:C.red },
+              { label:"브랜드 인식", val:((monthData.growth.brandAwareness||0)>0?"+":"")+(monthData.growth.brandAwareness||0)+"%", color:(monthData.growth.brandAwareness||0)>0?C.green:C.muted },
+              { label:"전문성 연관성", val:(monthData.growth.specialtyRelevance||0)+"점", color:(monthData.growth.specialtyRelevance||0)>=70?C.green:(monthData.growth.specialtyRelevance||0)>=40?C.yellow:C.muted },
+            ].map((k,i) => (
+              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:14, padding:18, textAlign:"center" }}>
+                <div style={{ color:k.color, fontSize:28, fontWeight:900 }}>{k.val}</div>
+                <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>{k.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ background:"#F8FAFC", borderRadius:10, padding:12 }}>
+            <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:5 }}>질환/시술 키워드 연결 강화 메모</label>
+            <textarea value={monthData.growth.kwConnectionNote||""} disabled={isReadOnly}
+              onChange={e=>updateField("growth","kwConnectionNote",e.target.value)}
+              placeholder="예: 보톡스 관련 AI 검색 노출 증가, 리프팅 시술 연관 키워드 강화 필요 등"
+              style={{ ...inputSt, padding:"8px 10px", fontSize:12, width:"100%", resize:"vertical", minHeight:80 }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GrowReportTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
+  const [activeSection, setActiveSection] = useState("status");
+  const [savedMsg, setSavedMsg] = useState("");
+  const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
+
+  const months = [...Array(6)].map((_,i)=>{ const d=new Date(); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); });
+
+  const growData = hospital.growData || {};
+  const emptyMonth = {
+    status: { stage:"", kpiSummary:"", strength:"", weakness:"" },
+    problems: { inflow:"", reservation:"", crm:"", branding:"", ops:"" },
+    improvements: { ads:"", content:"", crm:"", ops:"", branding:"" },
+    strategy: {
+      focusProcedure:"", seasonStrategy:"", newCampaign:"",
+      geoAeo:"", brandingDirection:"", opsActionPlan:"",
+    },
+  };
+  const monthData = growData[selMonth] || emptyMonth;
+
+  const saveMonth = (updated) => {
+    onUpdateHospital({ ...hospital, growData: { ...growData, [selMonth]: updated } });
+    toast("저장 완료!");
+  };
+
+  const updateField = (section, field, val) => {
+    saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: val } });
+  };
+
+  const SectionBtn = ({ id, label }) => (
+    <button onClick={()=>setActiveSection(id)} style={{
+      background: activeSection===id ? hospital.color : "transparent",
+      border: `1px solid ${activeSection===id ? hospital.color : C.border}`,
+      color: activeSection===id ? "#0F172A" : C.muted,
+      borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700,
+    }}>{label}</button>
+  );
+
+  const TextArea = ({ label, section, field, placeholder, rows=3, color }) => (
+    <div style={{ background:"#F8FAFC", borderRadius:12, padding:14, border:`1px solid ${color?color+"30":C.border}` }}>
+      <label style={{ color:color||C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:6 }}>{label}</label>
+      <textarea
+        value={monthData[section][field]||""}
+        disabled={isReadOnly}
+        onChange={e=>updateField(section,field,e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        style={{ ...inputSt, padding:"8px 10px", fontSize:12, width:"100%", resize:"vertical", lineHeight:1.7, minHeight:rows*24 }}
+      />
+    </div>
+  );
+
+  const STAGES = ["인지 단계","성장 단계","도약 단계","안정 단계","확장 단계"];
+  const STAGE_COLORS = [C.muted, C.accent, C.yellow, C.green, hospital.color];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+
+      {/* 월 선택 */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        {months.map(m => (
+          <button key={m} onClick={()=>setSelMonth(m)} style={{
+            background: selMonth===m?`${hospital.color}20`:"transparent",
+            border:`1px solid ${selMonth===m?hospital.color:C.border}`,
+            color: selMonth===m?hospital.color:C.muted,
+            borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+          }}>{m.slice(5)}월</button>
+        ))}
+      </div>
+
+      {/* 섹션 탭 */}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        <SectionBtn id="status"       label="🏥 현재 병원 상태" />
+        <SectionBtn id="problems"     label="⚠️ 문제 지점" />
+        <SectionBtn id="improvements" label="🔧 개선 방향" />
+        <SectionBtn id="strategy"     label="🎯 다음달 전략" />
+      </div>
+
+      {/* 현재 병원 상태 */}
+      {activeSection === "status" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          {/* 성장 단계 선택 */}
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+            <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:14 }}>📍 현재 성장 단계</div>
+            <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:16 }}>
+              {STAGES.map((stage,i) => {
+                const isSelected = monthData.status.stage === stage;
+                return (
+                  <button key={stage} onClick={()=>!isReadOnly&&updateField("status","stage",stage)} style={{
+                    background: isSelected?STAGE_COLORS[i]:C.surface,
+                    border:`2px solid ${isSelected?STAGE_COLORS[i]:C.border}`,
+                    color: isSelected?"#0F172A":C.muted,
+                    borderRadius:10, padding:"8px 18px", fontSize:13, cursor:isReadOnly?"default":"pointer", fontWeight:700,
+                  }}>{i+1}단계 · {stage}</button>
+                );
+              })}
+            </div>
+            {monthData.status.stage && (
+              <div style={{ background:`${hospital.color}10`, borderRadius:10, padding:"10px 14px", border:`1px solid ${hospital.color}30` }}>
+                <span style={{ color:hospital.color, fontWeight:700, fontSize:13 }}>현재: {monthData.status.stage}</span>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+            <TextArea label="📊 핵심 성장 지표 요약" section="status" field="kpiSummary" rows={4}
+              placeholder="예: 이번 달 신환 32명 달성, 전월 대비 15% 증가. CPL 8만원으로 안정화. 블로그 유입 1위 키워드 3개 확보." />
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              <TextArea label="💪 강점 분석" section="status" field="strength" rows={2} color={C.green}
+                placeholder="예: 네이버 플레이스 상위 유지, 원장 브랜딩 강함, 재내원률 높음" />
+              <TextArea label="⚡ 약점 분석" section="status" field="weakness" rows={2} color={C.red}
+                placeholder="예: 메타광고 전환율 낮음, 상담 연결률 60% 미달, 유튜브 콘텐츠 부재" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 문제 지점 */}
+      {activeSection === "problems" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div style={{ background:`${C.red}08`, border:`1px solid ${C.red}20`, borderRadius:12, padding:"10px 16px" }}>
+            <span style={{ color:C.red, fontSize:12 }}>⚠️ 이번 달 발견된 문제 지점을 영역별로 기록해주세요</span>
+          </div>
+          {[
+            { field:"inflow",      label:"📡 유입 문제",      color:C.accent,  ph:"예: 블로그 유입 감소, 플레이스 순위 하락, 특정 채널 문의 급감" },
+            { field:"reservation", label:"📅 예약 전환 문제", color:C.orange,  ph:"예: 노쇼율 25% 이상, 상담 전환률 저조, 예약 후 취소 증가" },
+            { field:"crm",         label:"💬 CRM 문제",       color:C.yellow,  ph:"예: 재내원 관리 미흡, VIP 환자 이탈, 후기 작성 유도 부족" },
+            { field:"branding",    label:"✨ 브랜딩 문제",    color:C.accent2, ph:"예: 직접검색 정체, SNS 반응 저조, 경쟁 병원 대비 인지도 낮음" },
+            { field:"ops",         label:"🛡 운영 문제",      color:C.red,     ph:"예: 부재중 비율 40% 초과, CS 이슈 반복, 응대 품질 불균일" },
+          ].map(item => (
+            <TextArea key={item.field} label={item.label} section="problems" field={item.field}
+              rows={3} color={item.color} placeholder={item.ph} />
+          ))}
+        </div>
+      )}
+
+      {/* 개선 방향 */}
+      {activeSection === "improvements" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div style={{ background:`${C.green}08`, border:`1px solid ${C.green}20`, borderRadius:12, padding:"10px 16px" }}>
+            <span style={{ color:C.green, fontSize:12 }}>🔧 문제 지점에 대한 구체적인 개선 방향을 작성해주세요</span>
+          </div>
+          {[
+            { field:"ads",      label:"📣 광고 개선",         color:C.accent,  ph:"예: 메타 광고 소재 교체, 네이버 키워드 입찰 최적화, 구글 캠페인 신규 세팅" },
+            { field:"content",  label:"📝 콘텐츠 개선",       color:"#03C75A", ph:"예: 블로그 포스팅 주 3회, 인스타 릴스 2회, 시술 FAQ 페이지 5개 추가" },
+            { field:"crm",      label:"💬 CRM 개선",          color:C.yellow,  ph:"예: 부재중 콜백 시스템 도입, 재예약 문자 발송 자동화, VIP 관리 DB 구축" },
+            { field:"ops",      label:"🛡 원내 운영 개선",    color:C.orange,  ph:"예: 상담 스크립트 재정비, 직원 응대 교육, CS 이슈 처리 매뉴얼 업데이트" },
+            { field:"branding", label:"✨ 브랜딩 강화",       color:C.accent2, ph:"예: 원장 유튜브 채널 개설, 네이버 블로그 전문성 콘텐츠 강화, 구글 리뷰 증가 캠페인" },
+          ].map(item => (
+            <TextArea key={item.field} label={item.label} section="improvements" field={item.field}
+              rows={3} color={item.color} placeholder={item.ph} />
+          ))}
+        </div>
+      )}
+
+      {/* 다음달 전략 */}
+      {activeSection === "strategy" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div style={{ background:`${hospital.color}08`, border:`1px solid ${hospital.color}20`, borderRadius:12, padding:"10px 16px" }}>
+            <span style={{ color:hospital.color, fontSize:12 }}>🎯 다음 달 집중 전략을 수립해주세요</span>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <TextArea label="💉 집중 시술 전략" section="strategy" field="focusProcedure" rows={3} color={hospital.color}
+              ph="예: 6월 집중 시술 - 보톡스/필러 패키지. 신환 타겟 30대 여성. 목표 문의 50건." />
+            <TextArea label="🌸 시즌 전략" section="strategy" field="seasonStrategy" rows={3} color={C.accent}
+              ph="예: 여름 시즌 대비 제모/색소 강화. 6월 15일부터 여름 프로모션 진행." />
+            <TextArea label="🚀 신규 캠페인" section="strategy" field="newCampaign" rows={3} color={C.green}
+              ph="예: 메타 신규 캠페인 2개 런칭. 영상 소재 3종 제작. 일예산 10만원 테스트." />
+            <TextArea label="🤖 GEO / AEO 전략" section="strategy" field="geoAeo" rows={3} color={C.accent2}
+              ph="예: FAQ 10개 추가 작성. ChatGPT 노출 위한 전문 칼럼 3편. 구글 색인 페이지 20개 확대." />
+            <TextArea label="✨ 브랜딩 방향" section="strategy" field="brandingDirection" rows={3} color="#8B5CF6"
+              ph="예: 원장 인스타 팔로워 1천 돌파 목표. 릴스 4편 제작. 네이버 인플루언서 콜라보 1건." />
+            <TextArea label="📋 운영 개선 액션플랜" section="strategy" field="opsActionPlan" rows={3} color={C.orange}
+              ph="예: 1주차: 상담 스크립트 개편. 2주차: 직원 교육. 3주차: 부재중 콜백 시스템 도입." />
+          </div>
+
+          {/* 전략 미리보기 카드 */}
+          {Object.values(monthData.strategy).some(v=>v) && (
+            <div style={{ background:C.surface, border:`2px solid ${hospital.color}`, borderRadius:16, padding:20, marginTop:4 }}>
+              <div style={{ color:hospital.color, fontWeight:900, fontSize:15, marginBottom:14 }}>📋 {selMonth} 다음달 전략 요약</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {[
+                  { label:"집중 시술", val:monthData.strategy.focusProcedure, icon:"💉" },
+                  { label:"시즌 전략", val:monthData.strategy.seasonStrategy, icon:"🌸" },
+                  { label:"신규 캠페인", val:monthData.strategy.newCampaign, icon:"🚀" },
+                  { label:"GEO/AEO", val:monthData.strategy.geoAeo, icon:"🤖" },
+                  { label:"브랜딩", val:monthData.strategy.brandingDirection, icon:"✨" },
+                  { label:"운영 액션플랜", val:monthData.strategy.opsActionPlan, icon:"📋" },
+                ].filter(i=>i.val).map((item,i) => (
+                  <div key={i} style={{ display:"flex", gap:10, padding:"8px 0", borderBottom:`1px solid ${C.dim}` }}>
+                    <span style={{ fontSize:14, flexShrink:0 }}>{item.icon}</span>
+                    <div>
+                      <span style={{ color:C.muted, fontSize:11, fontWeight:700 }}>{item.label} · </span>
+                      <span style={{ color:C.text, fontSize:12 }}>{item.val.slice(0,80)}{item.val.length>80?"...":""}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HospitalScheduleTab({ hospital, globalSchedules, saveGlobalSchedules, isReadOnly }) {
   const schedules = (globalSchedules||[]).filter(s => s.hospitalId === hospital.id || s.hospital === hospital.name);
   const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
@@ -5224,8 +7077,9 @@ function AppInner() {
             channelData: channel?.data || [],
             contentData: content?.data || [],
             meetingData: meeting?.data || [],
-            // 기존 병원에 새 탭(schedule 등) 자동 추가
-            tabs: h.tabs ? [...new Set([...h.tabs, 'schedule'])] : DEFAULT_TABS,
+            // 기존 병원에 새 탭 자동 추가
+            const newTabIds = ['schedule','ads','inflow','branding','crm','ai','growreport'];
+            tabs: h.tabs ? [...new Set([...h.tabs, ...newTabIds])] : DEFAULT_TABS,
           };
         });
         setHospitals(loaded);
@@ -5268,8 +7122,8 @@ function AppInner() {
 
   const saveHospitalToSupabase = async (h) => {
     try {
-      const { monthlyData, channelData, contentData, meetingData, ...hospData } = h;
-      await supabase.from('hospitals').upsert({ id: h.id, data: hospData });
+      const { monthlyData, channelData, contentData, meetingData, adsData, inflowData, brandingData, crmData, aiData, growData, ...hospData } = h;
+      await supabase.from('hospitals').upsert({ id: h.id, data: { ...hospData, adsData:adsData||{}, inflowData:inflowData||{}, brandingData:brandingData||{}, crmData:crmData||{}, aiData:aiData||{}, growData:growData||{} } });
       await supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData || [] }, { onConflict: 'hospital_id' });
       await supabase.from('channel_data').upsert({ hospital_id: h.id, data: channelData || [] }, { onConflict: 'hospital_id' });
       await supabase.from('content_data').upsert({ hospital_id: h.id, data: contentData || [] }, { onConflict: 'hospital_id' });
