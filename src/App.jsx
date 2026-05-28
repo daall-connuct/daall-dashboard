@@ -3333,7 +3333,7 @@ function CostTab({ hospital, hData, onDataLoad }) {
   const [showContractForm, setShowContractForm] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [expenseForm, setExpenseForm] = useState({month:selMonth,category:"marketing_blog",amount:"",memo:"",date:""});
-  const [contractForm, setContractForm] = useState({month:selMonth,amount:""});
+  const [contractForm, setContractForm] = useState({month:selMonth,amount:"",deferred:""});
   const [editExpId, setEditExpId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [savedMsg, setSavedMsg] = useState("");
@@ -3365,11 +3365,14 @@ function CostTab({ hospital, hData, onDataLoad }) {
     } catch(e) { console.error('비용관리 저장 실패:', e); }
   };
 
-  const contractAmt = contracts.find(c=>c.month===selMonth)?.amount||0;
+  const contractRec = contracts.find(c=>c.month===selMonth);
+  const contractAmt = contractRec?.amount||0;
+  const deferredAmt = contractRec?.deferred||0;
+  const totalContractAmt = contractAmt + deferredAmt;
   const monthExpenses = expenses.filter(e=>e.month===selMonth);
   const totalSpent = monthExpenses.reduce((s,e)=>s+e.amount,0);
-  const remaining = contractAmt - totalSpent;
-  const spentRate = contractAmt > 0 ? Math.round((totalSpent/contractAmt)*100) : 0;
+  const remaining = totalContractAmt - totalSpent;
+  const spentRate = totalContractAmt > 0 ? Math.round((totalSpent/totalContractAmt)*100) : 0;
 
   const categoryStats = COST_CATEGORIES.map(cat => ({...cat, amount: monthExpenses.filter(e=>e.category===cat.id).reduce((s,e)=>s+e.amount,0)})).filter(c=>c.amount>0);
   const groupStats = ["마케팅","디자인","CS"].map(g => ({
@@ -3386,12 +3389,13 @@ function CostTab({ hospital, hData, onDataLoad }) {
   const handleSaveContract = () => {
     if (!contractForm.month||!contractForm.amount) return;
     const exists = contracts.find(c=>c.month===contractForm.month);
+    const newEntry = { month:contractForm.month, amount:+contractForm.amount, deferred:+contractForm.deferred||0 };
     const newContracts = exists
-      ? contracts.map(c=>c.month===contractForm.month?{...c,amount:+contractForm.amount}:c)
-      : [...contracts,{month:contractForm.month,amount:+contractForm.amount}].sort((a,b)=>a.month>b.month?1:-1);
+      ? contracts.map(c=>c.month===contractForm.month ? newEntry : c)
+      : [...contracts, newEntry].sort((a,b)=>a.month>b.month?1:-1);
     setContracts(newContracts);
     saveToSupabase(newContracts, expenses);
-    logActivity("계약금 저장", hospital.name, `${contractForm.month} ${contractForm.amount}만원`);
+    logActivity("계약금 저장", hospital.name, `${contractForm.month} 선불${contractForm.amount}만원 후불${contractForm.deferred||0}만원`);
     setShowContractForm(false); toast("계약금 저장 완료!");
   };
 
@@ -3438,8 +3442,16 @@ function CostTab({ hospital, hData, onDataLoad }) {
           <div style={{color:C.accent2,fontSize:13,fontWeight:700,marginBottom:14}}>월 계약금 등록</div>
           <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
             <div style={{flex:1,minWidth:140}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>월 *</label><input type="month" value={contractForm.month} onChange={e=>setContractForm({...contractForm,month:e.target.value})} style={inputSt}/></div>
-            <div style={{flex:2,minWidth:180}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>계약금 (만원) *</label><input type="number" placeholder="3500" value={contractForm.amount} onChange={e=>setContractForm({...contractForm,amount:e.target.value})} style={inputSt}/></div>
+            <div style={{flex:2,minWidth:180}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>선불 금액 (만원) *</label><input type="number" placeholder="3500" value={contractForm.amount} onChange={e=>setContractForm({...contractForm,amount:e.target.value})} style={inputSt}/></div>
+            <div style={{flex:2,minWidth:180}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>후불 금액 (만원)</label><input type="number" placeholder="0" value={contractForm.deferred} onChange={e=>setContractForm({...contractForm,deferred:e.target.value})} style={{...inputSt,borderColor:C.orange}}/></div>
           </div>
+          {(+contractForm.amount > 0 || +contractForm.deferred > 0) && (
+            <div style={{display:"flex",gap:10,marginTop:10,padding:"8px 12px",background:`${C.accent2}10`,borderRadius:8}}>
+              <span style={{color:C.muted,fontSize:12}}>총 계약금:</span>
+              <span style={{color:C.accent2,fontSize:12,fontWeight:800}}>{((+contractForm.amount||0)+(+contractForm.deferred||0)).toLocaleString()}만원</span>
+              <span style={{color:C.muted,fontSize:11}}>(선불 {(+contractForm.amount||0).toLocaleString()} + 후불 {(+contractForm.deferred||0).toLocaleString()})</span>
+            </div>
+          )}
           <div style={{display:"flex",gap:10,marginTop:14}}>
             <button onClick={handleSaveContract} style={{background:`linear-gradient(135deg,${C.accent2},${C.accent})`,border:"none",color:"#0F172A",borderRadius:9,padding:"9px 22px",fontSize:13,cursor:"pointer",fontWeight:700}}>저장</button>
             <button onClick={()=>setShowContractForm(false)} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:9,padding:"9px 16px",fontSize:13,cursor:"pointer"}}>취소</button>
@@ -3469,17 +3481,24 @@ function CostTab({ hospital, hData, onDataLoad }) {
       )}
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
-        <KPICard label="이번달 계약금" value={fmt(contractAmt)} unit="만원" color={C.accent2}/>
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:16}}>
+          <div style={{color:C.muted,fontSize:11,fontWeight:700,marginBottom:6}}>이번달 계약금</div>
+          <div style={{color:C.accent2,fontSize:22,fontWeight:900}}>{fmt(totalContractAmt)}<span style={{fontSize:12,color:C.muted,fontWeight:400}}> 만원</span></div>
+          <div style={{display:"flex",gap:8,marginTop:6}}>
+            <span style={{background:`${C.accent2}15`,color:C.accent2,borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700}}>선불 {fmt(contractAmt)}</span>
+            {deferredAmt>0&&<span style={{background:`${C.orange}15`,color:C.orange,borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700}}>후불 {fmt(deferredAmt)}</span>}
+          </div>
+        </div>
         <KPICard label="총 소진 금액" value={fmt(totalSpent)} unit="만원" sub={`${spentRate}% 소진`} color={hospital.color}/>
         <KPICard label="잔액" value={fmt(Math.max(remaining,0))} unit="만원" color={remaining>=0?C.green:C.red} sub={remaining<0?"초과 집행!":undefined}/>
         <KPICard label="소진율" value={spentRate} unit="%" color={spentRate>90?C.red:spentRate>70?C.yellow:C.green}/>
       </div>
 
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:24}}>
-        <SectionTitle sub={`${+selMonth.slice(5)}월 계약금 ${fmt(contractAmt)}만원 기준`}>소진 현황</SectionTitle>
+        <SectionTitle sub={`선불 ${fmt(contractAmt)}만원 + 후불 ${fmt(deferredAmt)}만원 = 총 ${fmt(totalContractAmt)}만원`}>소진 현황</SectionTitle>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
           <span style={{color:C.muted,fontSize:13}}>소진 금액</span>
-          <span style={{color:hospital.color,fontWeight:800,fontSize:15}}>{fmt(totalSpent)}만원 / {fmt(contractAmt)}만원</span>
+          <span style={{color:hospital.color,fontWeight:800,fontSize:15}}>{fmt(totalSpent)}만원 / {fmt(totalContractAmt)}만원</span>
         </div>
         <div style={{background:C.dim,borderRadius:8,height:20,overflow:"hidden"}}>
           <div style={{width:`${Math.min(spentRate,100)}%`,height:"100%",background:`linear-gradient(90deg,${hospital.color},${C.accent2})`,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:10}}>
@@ -3489,11 +3508,11 @@ function CostTab({ hospital, hData, onDataLoad }) {
         <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
           <span style={{color:C.muted,fontSize:12}}>0만원</span>
           <span style={{color:remaining>=0?C.green:C.red,fontSize:12,fontWeight:700}}>잔액 {fmt(Math.abs(remaining))}만원 {remaining<0?"(초과)":"남음"}</span>
-          <span style={{color:C.muted,fontSize:12}}>{fmt(contractAmt)}만원</span>
+          <span style={{color:C.muted,fontSize:12}}>{fmt(totalContractAmt)}만원</span>
         </div>
         <div style={{marginTop:18,display:"flex",flexDirection:"column",gap:10}}>
           {groupStats.filter(g=>g.amount>0).map((g,i)=>{
-            const r=contractAmt>0?Math.round((g.amount/contractAmt)*100):0;
+            const r=totalContractAmt>0?Math.round((g.amount/totalContractAmt)*100):0;
             return (<div key={i}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
                 <span style={{color:C.text,fontSize:12,fontWeight:600}}>{g.name}</span>
