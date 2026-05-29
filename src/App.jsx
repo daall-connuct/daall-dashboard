@@ -197,20 +197,18 @@ const Toast = ({ msg }) => msg ? (
 // ─── 병원 목록 화면 ───────────────────────────────────────────
 const PALETTE = ["#38BDF8","#34D399","#FBBF24","#F472B6","#A78BFA","#FB923C","#2DD4BF","#60A5FA","#E879F9","#4ADE80","#FCD34D","#F87171"];
 const ALL_TABS = [
-  // ── 분석 탭 ──────────────────────────────────
-  { id:"overview",  label:"통합 요약",    required:false, defaultOn:true },
-  { id:"ads",       label:"광고 성과",    required:false, defaultOn:true },
-  { id:"inflow",    label:"환자 유입",    required:false, defaultOn:true },
-  { id:"branding",  label:"브랜딩 분석",  required:false, defaultOn:false },
-  { id:"crm",       label:"CRM / 운영",  required:false, defaultOn:false },
-  { id:"ai",        label:"AI 검색",     required:false, defaultOn:false },
-  { id:"growreport",label:"성장 리포트",  required:false, defaultOn:false },
-  // ── 운영 탭 (기존 유지) ──────────────────────
-  { id:"keyword",   label:"키워드 현황",  required:false, defaultOn:true },
-  { id:"marketing", label:"마케팅 현황",  required:false, defaultOn:true },
-  { id:"schedule",  label:"일정 관리",    required:false, defaultOn:true },
-  { id:"cost",      label:"비용 관리",    required:false, defaultOn:true },
-  { id:"meeting",   label:"미팅 로그",    required:false, defaultOn:true },
+  { id:"overview",   label:"통합 요약",    required:false, defaultOn:true },
+  { id:"growreport", label:"성장 리포트",  required:false, defaultOn:true },
+  { id:"inflow",     label:"환자 유입",    required:false, defaultOn:true },
+  { id:"ads",        label:"광고 성과",    required:false, defaultOn:true },
+  { id:"branding",   label:"브랜딩 분석",  required:false, defaultOn:false },
+  { id:"ai",         label:"AI 검색",     required:false, defaultOn:false },
+  { id:"keyword",    label:"키워드 현황",  required:false, defaultOn:true },
+  { id:"marketing",  label:"마케팅 현황",  required:false, defaultOn:true },
+  { id:"crm",        label:"CRM / 운영",  required:false, defaultOn:false },
+  { id:"schedule",   label:"일정 관리",    required:false, defaultOn:true },
+  { id:"meeting",    label:"미팅 로그",    required:false, defaultOn:true },
+  { id:"cost",       label:"비용 관리",    required:false, defaultOn:true },
 ];
 const DEFAULT_TABS = ALL_TABS.filter(t => t.required || t.defaultOn).map(t => t.id);
 
@@ -3719,20 +3717,18 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   );
 
   const tabs = [
-    // ── 분석 탭 ──────────────────────────────────
     { id:"overview",   label:"📊 통합 요약" },
-    { id:"ads",        label:"📣 광고 성과" },
-    { id:"inflow",     label:"🏥 환자 유입" },
-    { id:"branding",   label:"✨ 브랜딩 분석" },
-    { id:"crm",        label:"💬 CRM / 운영" },
-    { id:"ai",         label:"🤖 AI 검색" },
     { id:"growreport", label:"📈 성장 리포트" },
-    // ── 운영 탭 ──────────────────────────────────
+    { id:"inflow",     label:"👥 환자 유입" },
+    { id:"ads",        label:"📣 광고 성과" },
+    { id:"branding",   label:"⭐ 브랜딩 분석" },
+    { id:"ai",         label:"🤖 AI 검색" },
     { id:"keyword",    label:"🔍 키워드 현황" },
-    { id:"marketing",  label:"📝 마케팅 현황" },
+    { id:"marketing",  label:"📋 마케팅 현황" },
+    { id:"crm",        label:"💬 CRM / 운영" },
     { id:"schedule",   label:"📅 일정 관리" },
+    { id:"meeting",    label:"📝 미팅 로그" },
     { id:"cost",       label:"💰 비용 관리" },
-    { id:"meeting",    label:"🗒 미팅 로그" },
   ].filter(t => {
     const enabledTabs = hospital.tabs || DEFAULT_TABS;
     if (!enabledTabs.includes(t.id)) return false;
