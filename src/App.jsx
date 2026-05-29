@@ -522,9 +522,8 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
             <div style={{ gridColumn:"1/-1" }}>
               <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>👤 실무자 허용 탭 <span style={{ color:C.muted, fontWeight:400 }}>(실무자 등급 계정에만 적용)</span></label>
               <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                {(form.tabs || DEFAULT_TABS).map(tabId => {
-                  const tabInfo = ALL_TABS.find(t => t.id === tabId);
-                  if (!tabInfo) return null;
+                {ALL_TABS.filter(t => (form.tabs || DEFAULT_TABS).includes(t.id)).map(t => {
+                  const tabId = t.id;
                   const isAllowed = (form.juniorTabs || []).includes(tabId);
                   return (
                     <div key={tabId} onClick={() => {
@@ -538,7 +537,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
                       color: isAllowed ? C.green : C.muted,
                     }}>
                       <span>{isAllowed ? "✓" : "○"}</span>
-                      <span>{tabInfo.label}</span>
+                      <span>{t.label}</span>
                     </div>
                   );
                 })}
