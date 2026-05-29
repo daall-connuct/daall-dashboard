@@ -6160,99 +6160,90 @@ function CrmTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
 
 function AiSearchTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
   const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
-  const [activeSection, setActiveSection] = useState("exposure");
   const [savedMsg, setSavedMsg] = useState("");
   const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
-
   const months = [...Array(6)].map((_,i)=>{ const d=new Date(); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); });
-  const fmtN = (n) => (n||0).toLocaleString();
 
   const aiData = hospital.aiData || {};
   const emptyMonth = {
-    exposure: { chatgpt:false, googleAi:false, perplexity:false, naverAi:false, chatgptNote:"", googleAiNote:"", perplexityNote:"", naverAiNote:"" },
-    geo: { columns:0, faqs:0, procedurePages:0, doctorContents:0, googleIndexed:0, naverExposed:0 },
-    influence: { naver:0, google:0, aiSearch:0, entityNote:"" },
-    trust: { directSearchUp:0, reviewGrowth:0, externalMentions:0, brandCitation:0, expertScore:0 },
-    growth: { aiInflowChange:0, brandAwareness:0, specialtyRelevance:0, kwConnectionNote:"" },
+    exposure: { chatgpt:false, googleAi:false, perplexity:false, naverAi:false },
+    notes: { chatgpt:"", googleAi:"", perplexity:"", naverAi:"" },
+    geo: {
+      column:false, faq:false, procedurePage:false, doctorContent:false,
+      googleIndex:false, naverExposed:false
+    },
+    geoMemo: "",
+    trust: { directSearch:false, reviewGrow:false, externalMention:false },
+    trustMemo: "",
+    monthMemo: "",
   };
-  const monthData = aiData[selMonth] || emptyMonth;
+  const monthData = { ...emptyMonth, ...aiData[selMonth] };
 
   const saveMonth = (updated) => {
     onUpdateHospital({ ...hospital, aiData: { ...aiData, [selMonth]: updated } });
     toast("저장 완료!");
   };
 
-  const updateField = (section, field, val) => {
-    const parsed = val === true || val === false ? val : isNaN(+val) ? val : +val;
-    saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: parsed } });
+  const toggle = (section, field) => {
+    if (isReadOnly) return;
+    saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: !monthData[section][field] } });
   };
 
-  const SectionBtn = ({ id, label }) => (
-    <button onClick={()=>setActiveSection(id)} style={{
-      background: activeSection===id ? hospital.color : "transparent",
-      border: `1px solid ${activeSection===id ? hospital.color : C.border}`,
-      color: activeSection===id ? "#0F172A" : C.muted,
-      borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700,
-    }}>{label}</button>
-  );
+  const updateNote = (field, val) => {
+    if (isReadOnly) return;
+    saveMonth({ ...monthData, notes: { ...monthData.notes, [field]: val } });
+  };
 
-  const NumInput = ({ label, section, field, unit="" }) => (
-    <div style={{ background:"#F8FAFC", borderRadius:10, padding:12 }}>
-      <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:5 }}>{label}</label>
-      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-        <input type="number" value={monthData[section][field]||""} disabled={isReadOnly}
-          onChange={e=>updateField(section,field,e.target.value)}
-          style={{ ...inputSt, padding:"5px 8px", fontSize:14, fontWeight:700, width:90, textAlign:"right" }} />
-        {unit && <span style={{ color:C.muted, fontSize:12 }}>{unit}</span>}
+  const AI_PLATFORMS = [
+    { key:"chatgpt",    label:"ChatGPT",           color:"#10A37F", icon:"🤖",
+      how:"chatgpt.com 접속 → 병원명/원장명 검색 → AI 답변에 언급 여부 확인" },
+    { key:"googleAi",  label:"Google AI (SGE)",    color:"#4285F4", icon:"🔍",
+      how:"google.com 검색 → 상단 AI Overviews 영역에 병원 언급 여부 확인" },
+    { key:"perplexity",label:"Perplexity",          color:"#6366F1", icon:"🟣",
+      how:"perplexity.ai 접속 → 시술명 + 지역 검색 → 답변에 병원 언급 여부 확인" },
+    { key:"naverAi",   label:"네이버 AI 검색",      color:"#03C75A", icon:"🟢",
+      how:"네이버 검색 → 상단 AI 답변 영역에 병원/원장 언급 여부 확인" },
+  ];
+
+  const GEO_ITEMS = [
+    { key:"column",        label:"의료 칼럼",           desc:"전문성 있는 의료 정보 글" },
+    { key:"faq",           label:"FAQ 페이지",           desc:"자주 묻는 질문 페이지" },
+    { key:"procedurePage", label:"시술 상세 페이지",     desc:"시술별 상세 설명 페이지" },
+    { key:"doctorContent", label:"원장 소개 콘텐츠",     desc:"원장 전문성 콘텐츠" },
+    { key:"googleIndex",   label:"구글 색인",            desc:"구글에 페이지 등록 여부" },
+    { key:"naverExposed",  label:"네이버 노출 콘텐츠",   desc:"네이버 검색 노출 콘텐츠" },
+  ];
+
+  const TRUST_ITEMS = [
+    { key:"directSearch",    label:"직접 검색 증가", desc:"병원명을 직접 검색하는 비율이 늘었나요?" },
+    { key:"reviewGrow",      label:"리뷰 증가",      desc:"이번 달 리뷰 수가 증가했나요?" },
+    { key:"externalMention", label:"외부 언급",       desc:"타 사이트/블로그에서 병원이 언급됐나요?" },
+  ];
+
+  const exposedCount = [monthData.exposure.chatgpt, monthData.exposure.googleAi,
+    monthData.exposure.perplexity, monthData.exposure.naverAi].filter(Boolean).length;
+  const geoCount = Object.values(monthData.geo).filter(Boolean).length;
+
+  const ToggleRow = ({ on, onToggle, label, sub, color="#0EA5E9" }) => (
+    <div onClick={onToggle} style={{
+      display:"flex", alignItems:"center", gap:12, padding:"12px 16px",
+      background: on ? `${color}10` : "#F8FAFC",
+      border: `1px solid ${on ? color : C.dim}`,
+      borderRadius:10, cursor: isReadOnly ? "default" : "pointer",
+      transition:"all 0.15s",
+    }}>
+      <div style={{ width:44, height:24, borderRadius:12, background: on ? color : C.dim, position:"relative", flexShrink:0 }}>
+        <div style={{ width:18, height:18, borderRadius:"50%", background:"#fff",
+          position:"absolute", top:3, left: on?23:3, transition:"left 0.2s",
+          boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
       </div>
+      <div style={{ flex:1 }}>
+        <div style={{ color: on ? color : C.text, fontSize:13, fontWeight: on ? 700 : 500 }}>{label}</div>
+        {sub && <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>{sub}</div>}
+      </div>
+      <span style={{ color: on ? color : C.muted, fontSize:12, fontWeight:700 }}>{on ? "노출 중" : "미노출"}</span>
     </div>
   );
-
-  // 노출 여부 토글 카드
-  const ExposureCard = ({ label, field, note, noteField, icon, color }) => {
-    const isOn = monthData.exposure[field];
-    return (
-      <div style={{ background:C.surface, border:`2px solid ${isOn?color:C.border}`, borderRadius:14, padding:18, transition:"all 0.2s" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ fontSize:22 }}>{icon}</span>
-            <span style={{ color:C.text, fontWeight:800, fontSize:14 }}>{label}</span>
-          </div>
-          {!isReadOnly && (
-            <div onClick={()=>updateField("exposure",field,!isOn)} style={{
-              width:44, height:24, borderRadius:12, cursor:"pointer", transition:"all 0.2s",
-              background: isOn ? color : C.dim, position:"relative",
-            }}>
-              <div style={{
-                width:18, height:18, borderRadius:"50%", background:"#fff",
-                position:"absolute", top:3, left: isOn?23:3, transition:"left 0.2s",
-                boxShadow:"0 1px 3px rgba(0,0,0,0.2)",
-              }} />
-            </div>
-          )}
-        </div>
-        <div style={{
-          display:"flex", alignItems:"center", gap:8, padding:"8px 12px",
-          background: isOn?`${color}10`:"#F1F5F9", borderRadius:8,
-          border: `1px solid ${isOn?color:C.dim}`,
-        }}>
-          <span style={{ fontSize:14 }}>{isOn?"✅":"❌"}</span>
-          <span style={{ color:isOn?color:C.muted, fontSize:13, fontWeight:isOn?700:400 }}>
-            {isOn?"노출 중":"미노출"}
-          </span>
-        </div>
-        {!isReadOnly && (
-          <input value={monthData.exposure[noteField]||""}
-            onChange={e=>updateField("exposure",noteField,e.target.value)}
-            placeholder="노출 내용 메모"
-            style={{ ...inputSt, padding:"6px 10px", fontSize:11, marginTop:10, width:"100%" }} />
-        )}
-        {isReadOnly && monthData.exposure[noteField] && (
-          <div style={{ color:C.muted, fontSize:11, marginTop:8 }}>💬 {monthData.exposure[noteField]}</div>
-        )}
-      </div>
-    );
-  };
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
@@ -6270,173 +6261,122 @@ function AiSearchTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
         ))}
       </div>
 
-      {/* 섹션 탭 */}
-      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-        <SectionBtn id="exposure"  label="🤖 AI 검색 노출" />
-        <SectionBtn id="geo"       label="📚 GEO 자산 현황" />
-        <SectionBtn id="influence" label="🌐 플랫폼 영향력" />
-        <SectionBtn id="trust"     label="🛡 AI 신뢰도 지표" />
-        <SectionBtn id="growth"    label="📈 GEO 성장 흐름" />
+      {/* 요약 KPI */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+        {[
+          { label:"AI 검색 노출", value:`${exposedCount}/4`, color: exposedCount>=3?C.green:exposedCount>=1?C.yellow:C.muted, sub:"플랫폼" },
+          { label:"GEO 자산", value:`${geoCount}/6`, color: geoCount>=5?C.green:geoCount>=3?C.yellow:C.muted, sub:"항목 보유" },
+          { label:"신뢰도 지표", value:`${Object.values(monthData.trust).filter(Boolean).length}/3`, color:C.accent, sub:"항목 달성" },
+        ].map((k,i) => (
+          <div key={i} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:16, textAlign:"center" }}>
+            <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:6 }}>{k.label}</div>
+            <div style={{ color:k.color, fontSize:26, fontWeight:900 }}>{k.value}</div>
+            <div style={{ color:C.muted, fontSize:11, marginTop:3 }}>{k.sub}</div>
+          </div>
+        ))}
       </div>
 
-      {/* AI 검색 노출 */}
-      {activeSection === "exposure" && (
-        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          <div style={{ color:C.muted, fontSize:12, background:`${C.accent}10`, borderRadius:10, padding:"10px 14px", border:`1px solid ${C.accent}20` }}>
-            💡 AI 검색 엔진에서 병원이 언급/노출되는지 직접 확인 후 토글해주세요
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:14 }}>
-            <ExposureCard label="ChatGPT" field="chatgpt" noteField="chatgptNote" icon="🤖" color="#10A37F" />
-            <ExposureCard label="Google AI (SGE)" field="googleAi" noteField="googleAiNote" icon="🔍" color="#4285F4" />
-            <ExposureCard label="Perplexity" field="perplexity" noteField="perplexityNote" icon="🟣" color="#6366F1" />
-            <ExposureCard label="네이버 AI 검색" field="naverAi" noteField="naverAiNote" icon="🟢" color="#03C75A" />
-          </div>
-          {/* 노출 요약 */}
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:16 }}>
-            <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:10 }}>📊 AI 검색 노출 현황 요약</div>
-            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-              {[
-                { label:"ChatGPT", on:monthData.exposure.chatgpt, color:"#10A37F" },
-                { label:"Google AI", on:monthData.exposure.googleAi, color:"#4285F4" },
-                { label:"Perplexity", on:monthData.exposure.perplexity, color:"#6366F1" },
-                { label:"네이버 AI", on:monthData.exposure.naverAi, color:"#03C75A" },
-              ].map((p,i) => (
-                <div key={i} style={{ display:"flex", alignItems:"center", gap:6, background:`${p.on?p.color:"#94A3B8"}10`, borderRadius:8, padding:"6px 12px", border:`1px solid ${p.on?p.color:"#94A3B8"}30` }}>
-                  <span style={{ fontSize:12 }}>{p.on?"✅":"❌"}</span>
-                  <span style={{ color:p.on?p.color:"#94A3B8", fontSize:12, fontWeight:700 }}>{p.label}</span>
+      {/* AI 검색 노출 확인 */}
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:6 }}>🤖 AI 검색 노출 여부</div>
+        <div style={{ color:C.muted, fontSize:12, marginBottom:16 }}>각 플랫폼에서 직접 검색 후 병원/원장 언급 여부를 체크해주세요</div>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {AI_PLATFORMS.map(p => (
+            <div key={p.key}>
+              <ToggleRow
+                on={monthData.exposure[p.key]}
+                onToggle={()=>toggle("exposure", p.key)}
+                label={`${p.icon} ${p.label}`}
+                sub={p.how}
+                color={p.color}
+              />
+              {monthData.exposure[p.key] && (
+                <div style={{ marginTop:6, marginLeft:12 }}>
+                  <input value={monthData.notes[p.key]||""} disabled={isReadOnly}
+                    onChange={e=>updateNote(p.key, e.target.value)}
+                    placeholder="어떤 내용으로 노출됐는지 메모 (선택)"
+                    style={{ ...inputSt, padding:"6px 10px", fontSize:11, width:"100%" }} />
                 </div>
-              ))}
-              <div style={{ marginLeft:"auto", color:hospital.color, fontWeight:800, fontSize:16 }}>
-                {[monthData.exposure.chatgpt,monthData.exposure.googleAi,monthData.exposure.perplexity,monthData.exposure.naverAi].filter(Boolean).length}/4 노출
-              </div>
+              )}
             </div>
-          </div>
+          ))}
         </div>
-      )}
+      </div>
 
-      {/* GEO 자산 현황 */}
-      {activeSection === "geo" && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:6 }}>📚 GEO 자산 현황</div>
-          <div style={{ color:C.muted, fontSize:12, marginBottom:16 }}>AI 검색 최적화를 위한 콘텐츠 자산 현황을 입력하세요</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:20 }}>
-            <NumInput label="의료 칼럼 수" section="geo" field="columns" unit="개" />
-            <NumInput label="FAQ 수" section="geo" field="faqs" unit="개" />
-            <NumInput label="시술 상세 페이지 수" section="geo" field="procedurePages" unit="개" />
-            <NumInput label="원장 콘텐츠 수" section="geo" field="doctorContents" unit="개" />
-            <NumInput label="구글 색인 페이지 수" section="geo" field="googleIndexed" unit="개" />
-            <NumInput label="네이버 노출 콘텐츠 수" section="geo" field="naverExposed" unit="개" />
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:10 }}>
-            {[
-              { label:"칼럼", val:monthData.geo.columns||0, color:"#0EA5E9" },
-              { label:"FAQ", val:monthData.geo.faqs||0, color:"#6366F1" },
-              { label:"시술 페이지", val:monthData.geo.procedurePages||0, color:"#10B981" },
-              { label:"원장 콘텐츠", val:monthData.geo.doctorContents||0, color:"#F59E0B" },
-              { label:"구글 색인", val:monthData.geo.googleIndexed||0, color:"#4285F4" },
-              { label:"네이버 노출", val:monthData.geo.naverExposed||0, color:"#03C75A" },
-            ].map((k,i) => (
-              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:12, padding:14, textAlign:"center" }}>
-                <div style={{ color:k.color, fontSize:22, fontWeight:900 }}>{fmtN(k.val)}</div>
-                <div style={{ color:C.muted, fontSize:10, marginTop:3 }}>{k.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 플랫폼 영향력 */}
-      {activeSection === "influence" && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>🌐 플랫폼 영향력</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:20 }}>
-            <NumInput label="네이버 영향력 지수 (1~100)" section="influence" field="naver" />
-            <NumInput label="구글 영향력 지수 (1~100)" section="influence" field="google" />
-            <NumInput label="AI 검색 영향력 지수 (1~100)" section="influence" field="aiSearch" />
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }}>
-            {[
-              { label:"네이버 영향력", val:monthData.influence.naver||0, color:"#03C75A", max:100 },
-              { label:"구글 영향력", val:monthData.influence.google||0, color:"#4285F4", max:100 },
-              { label:"AI 검색 영향력", val:monthData.influence.aiSearch||0, color:"#6366F1", max:100 },
-            ].map((k,i) => (
-              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:14, padding:18, textAlign:"center" }}>
-                <div style={{ color:k.color, fontSize:32, fontWeight:900 }}>{k.val}</div>
-                <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>{k.label}</div>
-                <div style={{ background:C.dim, borderRadius:4, height:6, marginTop:10 }}>
-                  <div style={{ width:`${Math.min(k.val,100)}%`, height:"100%", background:k.color, borderRadius:4 }} />
+      {/* GEO 자산 체크리스트 */}
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:6 }}>📚 GEO 자산 현황</div>
+        <div style={{ color:C.muted, fontSize:12, marginBottom:16 }}>AI 검색 최적화에 필요한 콘텐츠 자산 보유 여부를 체크해주세요</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
+          {GEO_ITEMS.map(item => {
+            const on = monthData.geo[item.key];
+            return (
+              <div key={item.key} onClick={()=>toggle("geo", item.key)} style={{
+                display:"flex", alignItems:"center", gap:10, padding:"10px 14px",
+                background: on?`${C.green}10`:"#F8FAFC",
+                border:`1px solid ${on?C.green:C.dim}`,
+                borderRadius:10, cursor: isReadOnly?"default":"pointer",
+              }}>
+                <div style={{ width:20, height:20, borderRadius:5, flexShrink:0,
+                  background:on?C.green:"transparent", border:`2px solid ${on?C.green:C.dim}`,
+                  display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {on && <span style={{ color:"#fff", fontSize:11, fontWeight:900 }}>✓</span>}
+                </div>
+                <div>
+                  <div style={{ color:on?C.text:C.muted, fontSize:12, fontWeight:on?700:400 }}>{item.label}</div>
+                  <div style={{ color:C.muted, fontSize:10, marginTop:1 }}>{item.desc}</div>
                 </div>
               </div>
-            ))}
-          </div>
-          <div style={{ background:"#F8FAFC", borderRadius:10, padding:12 }}>
-            <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:5 }}>브랜드 엔티티 연결 분석 메모</label>
-            <textarea value={monthData.influence.entityNote||""} disabled={isReadOnly}
-              onChange={e=>updateField("influence","entityNote",e.target.value)}
-              placeholder="예: 네이버 지식백과 등록 완료, 구글 Knowledge Panel 미구축 등"
-              style={{ ...inputSt, padding:"8px 10px", fontSize:12, width:"100%", resize:"vertical", minHeight:80 }} />
-          </div>
+            );
+          })}
         </div>
-      )}
+        {!isReadOnly && (
+          <textarea value={monthData.geoMemo||""} onChange={e=>saveMonth({...monthData, geoMemo:e.target.value})}
+            placeholder="GEO 자산 관련 메모 (보완 계획, 현황 등)"
+            rows={2} style={{ ...inputSt, padding:"8px 10px", fontSize:12, width:"100%", resize:"vertical" }} />
+        )}
+        {isReadOnly && monthData.geoMemo && <div style={{ color:C.muted, fontSize:12 }}>💬 {monthData.geoMemo}</div>}
+      </div>
 
-      {/* AI 신뢰도 지표 */}
-      {activeSection === "trust" && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>🛡 AI 신뢰도 지표</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:20 }}>
-            <NumInput label="직접검색 증가 (%)" section="trust" field="directSearchUp" unit="%" />
-            <NumInput label="리뷰 증가율 (%)" section="trust" field="reviewGrowth" unit="%" />
-            <NumInput label="외부 언급량" section="trust" field="externalMentions" unit="건" />
-            <NumInput label="브랜드 인용 증가" section="trust" field="brandCitation" unit="건" />
-            <NumInput label="콘텐츠 전문성 지수 (1~100)" section="trust" field="expertScore" />
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10 }}>
-            {[
-              { label:"직접검색 증가", val:(monthData.trust.directSearchUp||0)+"%", color:(monthData.trust.directSearchUp||0)>0?C.green:C.red },
-              { label:"리뷰 증가율", val:(monthData.trust.reviewGrowth||0)+"%", color:(monthData.trust.reviewGrowth||0)>0?C.green:C.muted },
-              { label:"외부 언급", val:fmtN(monthData.trust.externalMentions)+"건", color:C.accent },
-              { label:"브랜드 인용", val:fmtN(monthData.trust.brandCitation)+"건", color:C.accent2 },
-              { label:"전문성 지수", val:monthData.trust.expertScore||0, color:(monthData.trust.expertScore||0)>=70?C.green:(monthData.trust.expertScore||0)>=40?C.yellow:C.muted },
-            ].map((k,i) => (
-              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:12, padding:14, textAlign:"center" }}>
-                <div style={{ color:k.color, fontSize:18, fontWeight:900 }}>{k.val}</div>
-                <div style={{ color:C.muted, fontSize:10, marginTop:3 }}>{k.label}</div>
-              </div>
-            ))}
-          </div>
+      {/* AI 신뢰도 */}
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:6 }}>🛡 AI 신뢰도 지표</div>
+        <div style={{ color:C.muted, fontSize:12, marginBottom:16 }}>이번 달 해당 여부를 체크해주세요</div>
+        <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
+          {TRUST_ITEMS.map(item => {
+            const on = monthData.trust[item.key];
+            return (
+              <ToggleRow key={item.key}
+                on={on}
+                onToggle={()=>toggle("trust", item.key)}
+                label={item.label}
+                sub={item.desc}
+                color={C.accent2}
+              />
+            );
+          })}
         </div>
-      )}
+        {!isReadOnly && (
+          <textarea value={monthData.trustMemo||""} onChange={e=>saveMonth({...monthData, trustMemo:e.target.value})}
+            placeholder="신뢰도 관련 메모 (외부 언급 출처, 직접검색 변화 등)"
+            rows={2} style={{ ...inputSt, padding:"8px 10px", fontSize:12, width:"100%", resize:"vertical" }} />
+        )}
+        {isReadOnly && monthData.trustMemo && <div style={{ color:C.muted, fontSize:12 }}>💬 {monthData.trustMemo}</div>}
+      </div>
 
-      {/* GEO 성장 흐름 */}
-      {activeSection === "growth" && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📈 GEO 성장 흐름</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }}>
-            <NumInput label="AI 검색 유입 변화 (%)" section="growth" field="aiInflowChange" unit="%" />
-            <NumInput label="브랜드 인식 변화 (%)" section="growth" field="brandAwareness" unit="%" />
-            <NumInput label="전문분야 연관성 점수 (1~100)" section="growth" field="specialtyRelevance" />
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
-            {[
-              { label:"AI 유입 변화", val:((monthData.growth.aiInflowChange||0)>0?"+":"")+(monthData.growth.aiInflowChange||0)+"%", color:(monthData.growth.aiInflowChange||0)>0?C.green:C.red },
-              { label:"브랜드 인식", val:((monthData.growth.brandAwareness||0)>0?"+":"")+(monthData.growth.brandAwareness||0)+"%", color:(monthData.growth.brandAwareness||0)>0?C.green:C.muted },
-              { label:"전문성 연관성", val:(monthData.growth.specialtyRelevance||0)+"점", color:(monthData.growth.specialtyRelevance||0)>=70?C.green:(monthData.growth.specialtyRelevance||0)>=40?C.yellow:C.muted },
-            ].map((k,i) => (
-              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:14, padding:18, textAlign:"center" }}>
-                <div style={{ color:k.color, fontSize:28, fontWeight:900 }}>{k.val}</div>
-                <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>{k.label}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ background:"#F8FAFC", borderRadius:10, padding:12 }}>
-            <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:5 }}>질환/시술 키워드 연결 강화 메모</label>
-            <textarea value={monthData.growth.kwConnectionNote||""} disabled={isReadOnly}
-              onChange={e=>updateField("growth","kwConnectionNote",e.target.value)}
-              placeholder="예: 보톡스 관련 AI 검색 노출 증가, 리프팅 시술 연관 키워드 강화 필요 등"
-              style={{ ...inputSt, padding:"8px 10px", fontSize:12, width:"100%", resize:"vertical", minHeight:80 }} />
-          </div>
-        </div>
-      )}
+      {/* 이번 달 총 메모 */}
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:10 }}>📝 이번 달 AI/GEO 종합 메모</div>
+        {!isReadOnly ? (
+          <textarea value={monthData.monthMemo||""} onChange={e=>saveMonth({...monthData, monthMemo:e.target.value})}
+            placeholder="이번 달 AI 검색 관련 특이사항, 개선 계획, 다음 달 액션 등 자유롭게 기록해주세요"
+            rows={4} style={{ ...inputSt, padding:"8px 10px", fontSize:12, width:"100%", resize:"vertical" }} />
+        ) : (
+          monthData.monthMemo
+            ? <div style={{ color:C.text, fontSize:13, lineHeight:1.8, whiteSpace:"pre-wrap" }}>{monthData.monthMemo}</div>
+            : <div style={{ color:C.muted, fontSize:13 }}>메모 없음</div>
+        )}
+      </div>
     </div>
   );
 }
