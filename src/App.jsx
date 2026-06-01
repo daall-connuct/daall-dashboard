@@ -1127,23 +1127,6 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
                     {hospitals.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
                   </select>
                 </div>
-                <div style={{ marginBottom:8 }}>
-                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>담당자</label>
-                  <select value={schedForm.assignee||""} onChange={e => {
-                    const assignee = e.target.value;
-                    const color = getAssigneeColor(assignee) || C.accent;
-                    setSchedForm(p=>({...p, assignee, color}));
-                  }} style={{ ...inputSt, padding:"6px 10px", fontSize:12, appearance:"none" }}>
-                    <option value="">담당자 선택 (선택)</option>
-                    {["대표님","서보영","김혜지","박다은","홍동호"].map(a => <option key={a} value={a}>{a}</option>)}
-                  </select>
-                  {schedForm.assignee && (
-                    <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:5 }}>
-                      <div style={{ width:10, height:10, borderRadius:"50%", background:getAssigneeColor(schedForm.assignee)||C.accent }} />
-                      <span style={{ color:C.muted, fontSize:11 }}>색상 자동 적용</span>
-                    </div>
-                  )}
-                </div>
                 <div style={{ marginBottom:12 }}>
                   <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>메모</label>
                   <input type="text" value={schedForm.memo} placeholder="메모 (선택)" onChange={e=>setSchedForm(p=>({...p,memo:e.target.value}))}
@@ -1209,7 +1192,6 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
                               ? <span style={{ background:`${C.accent}15`, color:C.accent, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:600 }}>🏥 {s.hospital}</span>
                               : <span style={{ background:`${C.accent2}15`, color:C.accent2, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:600 }}>🏢 내부</span>
                             }
-                            {s.assignee && <span style={{ background:`${C.green}15`, color:C.green, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:600 }}>👤 {s.assignee}</span>}
                           </div>
                           <div style={{ color:C.muted, fontSize:11, marginBottom:s.memo?3:0 }}>📅 {s.date}</div>
                           {s.memo && <div style={{ color:C.text, fontSize:12, lineHeight:1.6, background:"#F8FAFC", borderRadius:6, padding:"6px 8px", marginTop:4 }}>💬 {s.memo}</div>}
@@ -6659,18 +6641,6 @@ function HospitalScheduleTab({ hospital, globalSchedules, saveGlobalSchedules, i
                 style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
             </div>
           </div>
-          <div style={{ marginBottom:10 }}>
-            <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>담당자</label>
-            <select value={form.assignee||""} onChange={e=>setForm(p=>({...p,assignee:e.target.value}))}
-              style={{ ...inputSt, padding:"6px 10px", fontSize:12, appearance:"none" }}>
-              <option value="">담당자 선택 (선택)</option>
-              {["대표님","서보영","김혜지","박다은","홍동호"].map(a=><option key={a} value={a}>{a}</option>)}
-            </select>
-            {form.assignee && <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4 }}>
-              <div style={{ width:10, height:10, borderRadius:"50%", background:getAssigneeColor(form.assignee)||hospital.color }} />
-              <span style={{ color:C.muted, fontSize:11 }}>색상 자동 적용</span>
-            </div>}
-          </div>
           <div style={{ marginBottom:14 }}>
             <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>메모</label>
             <input type="text" value={form.memo} placeholder="메모 (선택)" onChange={e=>setForm(p=>({...p,memo:e.target.value}))}
@@ -6749,7 +6719,6 @@ function HospitalScheduleTab({ hospital, globalSchedules, saveGlobalSchedules, i
                         })()}
                       </div>
                       <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>📅 {s.date}</div>
-                      {s.assignee && <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>👤 {s.assignee}</div>}
                       {s.memo && <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>💬 {s.memo}</div>}
                     </div>
                     <div style={{ display:"flex", gap:4, flexShrink:0 }}>
