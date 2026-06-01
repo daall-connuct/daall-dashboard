@@ -839,7 +839,7 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
   const [deleteSchedConfirm, setDeleteSchedConfirm] = useState(null);
   const [calHospitalFilter, setCalHospitalFilter] = useState("전체");
   const [editSchedId, setEditSchedId] = useState(null);
-  const [editSchedForm, setEditSchedForm] = useState({ date:"", title:"", hospital:"", memo:"", assignee:"" });
+  const [editSchedForm, setEditSchedForm] = useState({ date:"", title:"", hospital:"", memo:"", schedType:"regular", color:"" });
 
   const addSchedule = () => {
     if (!schedForm.date || !schedForm.title) return;
@@ -856,18 +856,17 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
   };
 
   const updateInternalSchedule = () => {
-    const color = getAssigneeColor(editSchedForm.assignee) || C.accent;
+    const color = editSchedForm.schedType ? getSchedTypeColor(editSchedForm.schedType) : C.accent;
     const updated = schedules.map(s => s.id === editSchedId ? { ...s, ...editSchedForm, color } : s);
     saveGlobalSchedules(updated);
-    // 칸반에서 연동된 카드도 같이 수정
     const sched = updated.find(s => s.id === editSchedId);
     const updatedKanban = kanbanCards.map(c =>
       c.fromSchedule && c.schedDate === sched?.date
-        ? { ...c, text:`[${editSchedForm.date}] ${editSchedForm.title}`, hospital:editSchedForm.hospital, assignee:editSchedForm.assignee||c.assignee, schedDate:editSchedForm.date }
+        ? { ...c, text:`[${editSchedForm.date}] ${editSchedForm.title}`, hospital:editSchedForm.hospital, schedDate:editSchedForm.date }
         : c
     );
     setKanbanCards(updatedKanban); saveKanban(updatedKanban);
-    setEditSchedId(null); toast("일정 수정 완료! 칸반도 반영됐어요.");
+    setEditSchedId(null); toast("일정 수정 완료!");
   };
 
   const deleteSchedule = (id) => {
@@ -1073,7 +1072,7 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
                 const isToday = dateStr === new Date().toISOString().slice(0,10);
                 const dayOfWeek = i % 7;
                 return (
-                  <div key={i} style={{ minHeight:70, background: isToday ? `${C.accent}10` : "#F8FAFC", borderRadius:8, padding:4, border: isToday ? `1px solid ${C.accent}40` : `1px solid ${C.border}`, opacity: d ? 1 : 0 }}>
+                  <div key={i} style={{ height:80, background: isToday ? `${C.accent}10` : "#F8FAFC", borderRadius:8, padding:4, border: isToday ? `1px solid ${C.accent}40` : `1px solid ${C.border}`, opacity: d ? 1 : 0, overflow:"hidden" }}>
                     {d && <>
                       <div style={{ color: isToday ? C.accent : dayOfWeek===0 ? C.red : dayOfWeek===6 ? C.accent2 : C.text, fontSize:11, fontWeight: isToday ? 800 : 500, marginBottom:2 }}>{d}</div>
                       {daySchedules.map((s,j) => (
@@ -1146,8 +1145,26 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
                   <div key={s.id} style={{ padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
                     {editSchedId === s.id ? (
                       /* 수정 폼 */
-                      <div style={{ background:"#F8FAFC", borderRadius:10, padding:12, border:`1px solid ${C.accent2}40` }}>
-                        <div style={{ color:C.accent2, fontSize:11, fontWeight:700, marginBottom:8 }}>✏️ 일정 수정</div>
+                      <div style={{ background:"#F8FAFC", borderRadius:10, padding:14, border:`1px solid ${C.accent2}40` }}>
+                        <div style={{ color:C.accent2, fontSize:11, fontWeight:700, marginBottom:10 }}>✏️ 일정 수정</div>
+                        {/* 유형 선택 */}
+                        <div style={{ marginBottom:10 }}>
+                          <label style={{ color:C.muted, fontSize:10, display:"block", marginBottom:5 }}>일정 유형</label>
+                          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                            {SCHED_TYPES.map(t => {
+                              const isOn = (editSchedForm.schedType||"regular") === t.id;
+                              return (
+                                <button key={t.id} onClick={()=>setEditSchedForm(p=>({...p,schedType:t.id,color:t.color}))} style={{
+                                  background:isOn?`${t.color}20`:"transparent",
+                                  border:`2px solid ${isOn?t.color:C.dim}`,
+                                  color:isOn?t.color:C.muted,
+                                  borderRadius:7, padding:"4px 10px", fontSize:10, cursor:"pointer", fontWeight:isOn?700:400,
+                                  display:"flex", alignItems:"center", gap:3,
+                                }}>{t.icon} {t.label}</button>
+                              );
+                            })}
+                          </div>
+                        </div>
                         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
                           <div>
                             <label style={{ color:C.muted, fontSize:10, display:"block", marginBottom:2 }}>날짜</label>
@@ -1161,17 +1178,12 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
                           </div>
                         </div>
                         <select value={editSchedForm.hospital||""} onChange={e=>setEditSchedForm(p=>({...p,hospital:e.target.value}))}
-                          style={{ ...inputSt, marginBottom:8, padding:"5px 8px", fontSize:12, appearance:"none" }}>
+                          style={{ ...inputSt, marginBottom:8, padding:"5px 8px", fontSize:12, appearance:"none", width:"100%" }}>
                           <option value="">병원 선택 (선택)</option>
                           {hospitals.map(h=><option key={h.id} value={h.name}>{h.name}</option>)}
                         </select>
-                        <select value={editSchedForm.assignee||""} onChange={e=>setEditSchedForm(p=>({...p,assignee:e.target.value}))}
-                          style={{ ...inputSt, marginBottom:8, padding:"5px 8px", fontSize:12, appearance:"none" }}>
-                          <option value="">담당자 선택 (선택)</option>
-                          {["대표님","서보영","김혜지","박다은","홍동호"].map(a=><option key={a} value={a}>{a}</option>)}
-                        </select>
                         <input type="text" value={editSchedForm.memo||""} onChange={e=>setEditSchedForm(p=>({...p,memo:e.target.value}))}
-                          placeholder="메모 (선택)" style={{ ...inputSt, marginBottom:10, padding:"5px 8px", fontSize:12 }} />
+                          placeholder="메모 (선택)" style={{ ...inputSt, marginBottom:10, padding:"5px 8px", fontSize:12, width:"100%" }} />
                         <div style={{ display:"flex", gap:6 }}>
                           <button onClick={updateInternalSchedule} style={{ background:`linear-gradient(135deg,${C.accent2},${C.accent})`, border:"none", color:"#0F172A", borderRadius:6, padding:"5px 14px", fontSize:11, cursor:"pointer", fontWeight:700 }}>저장</button>
                           <button onClick={() => setEditSchedId(null)} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:6, padding:"5px 10px", fontSize:11, cursor:"pointer" }}>취소</button>
@@ -1197,7 +1209,7 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
                           {s.memo && <div style={{ color:C.text, fontSize:12, lineHeight:1.6, background:"#F8FAFC", borderRadius:6, padding:"6px 8px", marginTop:4 }}>💬 {s.memo}</div>}
                         </div>
                         <div style={{ display:"flex", gap:4, flexShrink:0 }}>
-                          <button onClick={() => { setEditSchedId(s.id); setEditSchedForm({ date:s.date, title:s.title, hospital:s.hospital||"", memo:s.memo||"", assignee:s.assignee||"" }); }}
+                          <button onClick={() => { setEditSchedId(s.id); setEditSchedForm({ date:s.date, title:s.title, hospital:s.hospital||"", memo:s.memo||"", schedType:s.schedType||"regular", color:s.color||"" }); }}
                             style={{ background:`${C.accent2}10`, border:`1px solid ${C.accent2}30`, color:C.accent2, borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", fontWeight:600 }}>수정</button>
                           {deleteSchedConfirm === s.id
                             ? <button onClick={() => deleteSchedule(s.id)} style={{ background:`${C.red}15`, border:`1px solid ${C.red}`, color:C.red, borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer" }}>확인</button>
@@ -6668,7 +6680,7 @@ function HospitalScheduleTab({ hospital, globalSchedules, saveGlobalSchedules, i
               const isToday = dateStr === new Date().toISOString().slice(0,10);
               const dow = i % 7;
               return (
-                <div key={i} style={{ minHeight:64, background:isToday?`${hospital.color}10`:"#F8FAFC", borderRadius:8, padding:4, border:isToday?`1px solid ${hospital.color}40`:`1px solid ${C.border}`, opacity:d?1:0 }}>
+                <div key={i} style={{ height:80, background:isToday?`${hospital.color}10`:"#F8FAFC", borderRadius:8, padding:4, border:isToday?`1px solid ${hospital.color}40`:`1px solid ${C.border}`, opacity:d?1:0, overflow:"hidden" }}>
                   {d && <>
                     <div style={{ color:isToday?hospital.color:dow===0?C.red:dow===6?C.accent2:C.text, fontSize:11, fontWeight:isToday?800:500, marginBottom:2 }}>{d}</div>
                     {dayScheds.map((s,j) => (
