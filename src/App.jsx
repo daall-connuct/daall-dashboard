@@ -3329,7 +3329,7 @@ function CostTab({ hospital, hData, onDataLoad }) {
   const [selMonth, setSelMonth] = useState(currentYm);
   const [showContractForm, setShowContractForm] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
-  const [expenseForm, setExpenseForm] = useState({month:selMonth,category:"marketing_blog",amount:"",memo:"",date:""});
+  const [expenseForm, setExpenseForm] = useState({month:selMonth,category:"marketing_blog",amount:"",memo:"",date:"",isDeferred:false});
   const [contractForm, setContractForm] = useState({month:selMonth,amount:"",deferred:""});
   const [editExpId, setEditExpId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -3366,7 +3366,8 @@ function CostTab({ hospital, hData, onDataLoad }) {
   const contractAmt = contractRec?.amount||0;
   const deferredAmt = contractRec?.deferred||0;
   const monthExpenses = expenses.filter(e=>e.month===selMonth);
-  const totalSpent = monthExpenses.reduce((s,e)=>s+e.amount,0);
+  const totalSpent = monthExpenses.filter(e=>!e.isDeferred).reduce((s,e)=>s+e.amount,0);
+  const totalDeferred = monthExpenses.filter(e=>e.isDeferred).reduce((s,e)=>s+e.amount,0);
   const remaining = contractAmt - totalSpent;
   const spentRate = contractAmt > 0 ? Math.round((totalSpent/contractAmt)*100) : 0;
 
@@ -3466,6 +3467,22 @@ function CostTab({ hospital, hData, onDataLoad }) {
               </select>
             </div>
             <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>금액 (만원) *</label><input type="number" placeholder="500" value={expenseForm.amount} onChange={e=>setExpenseForm({...expenseForm,amount:e.target.value})} style={inputSt}/></div>
+          </div>
+          {/* 후불 여부 토글 */}
+          <div onClick={()=>setExpenseForm({...expenseForm,isDeferred:!expenseForm.isDeferred})}
+            style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,padding:"10px 14px",
+              background:expenseForm.isDeferred?`${C.orange}10`:"transparent",
+              border:`1px solid ${expenseForm.isDeferred?C.orange:C.dim}`,
+              borderRadius:10,cursor:"pointer"}}>
+            <div style={{width:20,height:20,borderRadius:5,flexShrink:0,
+              background:expenseForm.isDeferred?C.orange:"transparent",
+              border:`2px solid ${expenseForm.isDeferred?C.orange:C.dim}`,
+              display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {expenseForm.isDeferred&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}
+            </div>
+            <span style={{color:expenseForm.isDeferred?C.orange:C.muted,fontSize:12,fontWeight:expenseForm.isDeferred?700:400}}>
+              💳 후불 항목 (계약금 소진 계산에서 제외)
+            </span>
           </div>
           <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>메모</label><KInput type="text" placeholder="예: 6월 블로그 포스팅 8건" value={expenseForm.memo} onChange={e=>setExpenseForm({...expenseForm,memo:e.target.value})} style={inputSt}/></div>
           <div style={{display:"flex",gap:10}}>
@@ -3582,13 +3599,16 @@ function CostTab({ hospital, hData, onDataLoad }) {
                 if (filtered.length === 0) return <tr><td colSpan={6} style={{padding:"32px",textAlign:"center",color:C.muted}}>소진 내역이 없어요.</td></tr>;
                 return filtered.map(e => {
                   const cat=COST_CATEGORIES.find(c=>c.id===e.category)||{label:e.category,color:C.muted,group:"-"};
-                  return (<tr key={e.id} style={{borderBottom:`1px solid ${C.dim}`}}
+                  return (<tr key={e.id} style={{borderBottom:`1px solid ${C.dim}`, background: e.isDeferred?`${C.orange}05`:"transparent"}}
                     onMouseEnter={ev=>ev.currentTarget.style.background=`${hospital.color}08`}
-                    onMouseLeave={ev=>ev.currentTarget.style.background="transparent"}>
+                    onMouseLeave={ev=>ev.currentTarget.style.background=e.isDeferred?`${C.orange}05`:"transparent"}>
                     <td style={{padding:"9px 12px",color:C.muted,whiteSpace:"nowrap"}}>{e.date||"-"}</td>
-                    <td style={{padding:"9px 12px",color:cat.color,fontWeight:700}}>{cat.label}</td>
+                    <td style={{padding:"9px 12px",color:cat.color,fontWeight:700}}>
+                      {e.isDeferred && <span style={{background:`${C.orange}20`,color:C.orange,borderRadius:4,padding:"1px 6px",fontSize:9,fontWeight:700,marginRight:6}}>후불</span>}
+                      {cat.label}
+                    </td>
                     <td style={{padding:"9px 12px"}}><Badge color={cat.group==="마케팅"?hospital.color:cat.group==="디자인"?C.yellow:C.orange}>{cat.group}</Badge></td>
-                    <td style={{padding:"9px 12px",color:C.yellow,fontWeight:700}}>{fmt(e.amount)}</td>
+                    <td style={{padding:"9px 12px",color:e.isDeferred?C.orange:C.yellow,fontWeight:700}}>{fmt(e.amount)}</td>
                     <td style={{padding:"9px 12px",color:C.muted}}>{e.memo||"-"}</td>
                     <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
                       <div style={{display:"flex",gap:6}}>
@@ -3610,7 +3630,10 @@ function CostTab({ hospital, hData, onDataLoad }) {
           {groupStats.filter(g=>g.amount>0).map((g,i)=>(
             <div key={i}><span style={{color:C.muted,fontSize:11}}>{g.name} </span><span style={{color:g.color,fontSize:13,fontWeight:800}}>{fmt(g.amount)}만원</span></div>
           ))}
-          <div style={{marginLeft:"auto"}}><span style={{color:C.muted,fontSize:11}}>합계 </span><span style={{color:hospital.color,fontSize:14,fontWeight:900}}>{fmt(totalSpent)}만원</span></div>
+          <div style={{marginLeft:"auto",display:"flex",gap:16,alignItems:"center"}}>
+            {totalDeferred > 0 && <div><span style={{color:C.muted,fontSize:11}}>후불 </span><span style={{color:C.orange,fontSize:13,fontWeight:800}}>{fmt(totalDeferred)}만원</span></div>}
+            <div><span style={{color:C.muted,fontSize:11}}>소진 합계 </span><span style={{color:hospital.color,fontSize:14,fontWeight:900}}>{fmt(totalSpent)}만원</span></div>
+          </div>
         </div>
       </div>
     </div>
@@ -3623,11 +3646,8 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
   const isJunior = adminRole === "실무자"; // 실무자 탭 제한
   const enabledTabIds = hospital.tabs || DEFAULT_TABS;
   const [tab, setTab] = useState(() => {
-    const firstEnabled = [
-      "overview","performance","channel","funnel","patient",
-      "marketing","keyword","schedule","cost","meeting"
-    ].find(id => enabledTabIds.includes(id));
-    return firstEnabled || "overview";
+    const firstEnabled = ALL_TABS.map(t => t.id).find(id => enabledTabIds.includes(id));
+    return firstEnabled || enabledTabIds[0] || "overview";
   });
   const [showPerfInput, setShowPerfInput] = useState(false);
   const [showChannelInput, setShowChannelInput] = useState(false);
@@ -5653,17 +5673,22 @@ function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
     }}>{label}</button>
   );
 
-  const NumInput = ({ label, section, field, unit="" }) => (
-    <div style={{ background:"#F8FAFC", borderRadius:10, padding:14 }}>
-      <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:6 }}>{label}</label>
-      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-        <input type="number" value={monthData[section][field]||""} disabled={isReadOnly}
-          onChange={e => updateField(section, field, e.target.value)}
-          style={{ ...inputSt, padding:"6px 10px", fontSize:14, fontWeight:700, width:100, textAlign:"right" }} />
-        {unit && <span style={{ color:C.muted, fontSize:12 }}>{unit}</span>}
+  const NumInput = ({ label, section, field, unit="" }) => {
+    const [val, setVal] = useState(monthData[section][field]||"");
+    useEffect(() => { setVal(monthData[section][field]||""); }, [monthData[section][field]]);
+    return (
+      <div style={{ background:"#F8FAFC", borderRadius:10, padding:14 }}>
+        <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:6 }}>{label}</label>
+        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <input type="number" value={val} disabled={isReadOnly}
+            onChange={e => setVal(e.target.value)}
+            onBlur={e => updateField(section, field, e.target.value)}
+            style={{ ...inputSt, padding:"6px 10px", fontSize:14, fontWeight:700, width:100, textAlign:"right" }} />
+          {unit && <span style={{ color:C.muted, fontSize:12 }}>{unit}</span>}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
