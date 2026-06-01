@@ -5624,17 +5624,15 @@ function InflowTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
 function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
   const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
   const [savedMsg, setSavedMsg] = useState("");
-  const [activeSection, setActiveSection] = useState("search");
   const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
-
   const months = [...Array(6)].map((_,i)=>{ const d=new Date(); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); });
   const fmtN = (n) => (n||0).toLocaleString();
 
   const brandingData = hospital.brandingData || {};
   const monthData = brandingData[selMonth] || {
     search: { hospital:0, doctor:0, procedures:[], relatedKeywords:[] },
-    sns: { instaFollowers:0, instaLikes:0, instaComments:0, instaSaves:0, instaShares:0, reelsViews:0, reelsPlays:0 },
-    content: { blogAvgTime:0, blogCtr:0, topContents:[], inflowKeywords:[] },
+    sns: { instaFollowers:0, instaLikes:0, instaComments:0, instaSaves:0, reelsViews:0 },
+    content: { blogAvgTime:0, topContents:[], inflowKeywords:[] },
     trust: { reviewCount:0, reviewRate:0, avgRating:0, directSearchChange:0, reVisitRate:0 },
   };
 
@@ -5643,17 +5641,15 @@ function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
     toast("저장 완료!");
   };
 
-  // 각 섹션 데이터 업데이트
   const updateField = (section, field, val) => {
-    saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: isNaN(+val) ? val : +val } });
+    const parsed = isNaN(+val) ? val : +val;
+    saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: parsed } });
   };
 
-  // 배열 항목 추가/삭제
   const addItem = (section, field, item) => {
     const arr = [...(monthData[section][field]||[]), { id:Date.now(), ...item }];
     saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: arr } });
   };
-
   const removeItem = (section, field, id) => {
     const arr = (monthData[section][field]||[]).filter(i=>i.id!==id);
     saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: arr } });
@@ -5661,249 +5657,219 @@ function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
 
   const [procForm, setProcForm] = useState({ name:"", searchVol:0 });
   const [kwForm, setKwForm] = useState({ keyword:"", vol:0, rank:"" });
-  const [topForm, setTopForm] = useState({ title:"", views:0, ctr:0, channel:"" });
+  const [topForm, setTopForm] = useState({ title:"", views:0, channel:"" });
   const [inflowKwForm, setInflowKwForm] = useState({ keyword:"", pct:0 });
 
-  const SectionBtn = ({ id, label }) => (
-    <button onClick={()=>setActiveSection(id)} style={{
-      background: activeSection===id ? hospital.color : "transparent",
-      border: `1px solid ${activeSection===id ? hospital.color : C.border}`,
-      color: activeSection===id ? "#0F172A" : C.muted,
-      borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700,
-    }}>{label}</button>
+  // 로컬 상태로 입력 관리 (즉시저장 방지)
+  const [localSearch, setLocalSearch] = useState({ hospital: monthData.search.hospital||0, doctor: monthData.search.doctor||0 });
+  const [localSns, setLocalSns] = useState({ instaFollowers: monthData.sns.instaFollowers||0, instaLikes: monthData.sns.instaLikes||0, instaComments: monthData.sns.instaComments||0, instaSaves: monthData.sns.instaSaves||0, reelsViews: monthData.sns.reelsViews||0 });
+  const [localContent, setLocalContent] = useState({ blogAvgTime: monthData.content.blogAvgTime||0 });
+  const [localTrust, setLocalTrust] = useState({ reviewCount: monthData.trust.reviewCount||0, reviewRate: monthData.trust.reviewRate||0, avgRating: monthData.trust.avgRating||0, directSearchChange: monthData.trust.directSearchChange||0, reVisitRate: monthData.trust.reVisitRate||0 });
+
+  useEffect(() => {
+    setLocalSearch({ hospital: monthData.search.hospital||0, doctor: monthData.search.doctor||0 });
+    setLocalSns({ instaFollowers: monthData.sns.instaFollowers||0, instaLikes: monthData.sns.instaLikes||0, instaComments: monthData.sns.instaComments||0, instaSaves: monthData.sns.instaSaves||0, reelsViews: monthData.sns.reelsViews||0 });
+    setLocalContent({ blogAvgTime: monthData.content.blogAvgTime||0 });
+    setLocalTrust({ reviewCount: monthData.trust.reviewCount||0, reviewRate: monthData.trust.reviewRate||0, avgRating: monthData.trust.avgRating||0, directSearchChange: monthData.trust.directSearchChange||0, reVisitRate: monthData.trust.reVisitRate||0 });
+  }, [selMonth]);
+
+  const NI = ({ label, localKey, localState, setLocalState, section, field, unit="" }) => (
+    <div style={{ background:"#F8FAFC", borderRadius:10, padding:12 }}>
+      <label style={{ color:C.muted, fontSize:10, fontWeight:700, display:"block", marginBottom:5 }}>{label}</label>
+      <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+        <input type="number" value={localState[localKey]??""} disabled={isReadOnly}
+          onChange={e => setLocalState(p => ({...p, [localKey]: e.target.value}))}
+          onBlur={e => updateField(section, field, e.target.value)}
+          style={{ ...inputSt, padding:"5px 8px", fontSize:13, fontWeight:700, width:"100%", textAlign:"right" }} />
+        {unit && <span style={{ color:C.muted, fontSize:11, flexShrink:0 }}>{unit}</span>}
+      </div>
+    </div>
   );
 
-  const NumInput = ({ label, section, field, unit="" }) => {
-    const [val, setVal] = useState(monthData[section][field]||"");
-    useEffect(() => { setVal(monthData[section][field]||""); }, [monthData[section][field]]);
-    return (
-      <div style={{ background:"#F8FAFC", borderRadius:10, padding:14 }}>
-        <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:6 }}>{label}</label>
-        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-          <input type="number" value={val} disabled={isReadOnly}
-            onChange={e => setVal(e.target.value)}
-            onBlur={e => updateField(section, field, e.target.value)}
-            style={{ ...inputSt, padding:"6px 10px", fontSize:14, fontWeight:700, width:100, textAlign:"right" }} />
-          {unit && <span style={{ color:C.muted, fontSize:12 }}>{unit}</span>}
-        </div>
-      </div>
-    );
-  };
+  const SectionCard = ({ title, children }) => (
+    <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+      <div style={{ color:C.text, fontWeight:800, fontSize:13, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}>{title}</div>
+      {children}
+    </div>
+  );
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
       <Toast msg={savedMsg} />
 
       {/* 월 선택 */}
       <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
         {months.map(m => (
           <button key={m} onClick={()=>setSelMonth(m)} style={{
-            background: selMonth===m ? `${hospital.color}20` : "transparent",
-            border: `1px solid ${selMonth===m ? hospital.color : C.border}`,
-            color: selMonth===m ? hospital.color : C.muted,
+            background: selMonth===m?`${hospital.color}20`:"transparent",
+            border:`1px solid ${selMonth===m?hospital.color:C.border}`,
+            color: selMonth===m?hospital.color:C.muted,
             borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
           }}>{m.slice(5)}월</button>
         ))}
       </div>
 
-      {/* 섹션 탭 */}
-      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-        <SectionBtn id="search"  label="🔍 브랜드 검색량" />
-        <SectionBtn id="sns"     label="📱 SNS 반응" />
-        <SectionBtn id="content" label="📝 콘텐츠 반응" />
-        <SectionBtn id="trust"   label="⭐ 브랜드 신뢰도" />
-      </div>
+      {/* 2열 그리드 */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
 
-      {/* 브랜드 검색량 */}
-      {activeSection === "search" && (
-        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-            <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>🔍 브랜드 검색량 현황</div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12, marginBottom:20 }}>
-              <NumInput label="병원명 검색량" section="search" field="hospital" unit="회/월" />
-              <NumInput label="원장명 검색량" section="search" field="doctor" unit="회/월" />
+        {/* 🔍 브랜드 검색량 */}
+        <SectionCard title="🔍 브랜드 검색량">
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+            <NI label="병원명 검색량" localKey="hospital" localState={localSearch} setLocalState={setLocalSearch} section="search" field="hospital" unit="회/월" />
+            <NI label="원장명 검색량" localKey="doctor" localState={localSearch} setLocalState={setLocalSearch} section="search" field="doctor" unit="회/월" />
+          </div>
+
+          {/* 시술 연관 검색량 */}
+          <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:8 }}>시술 연관 검색량</div>
+          {!isReadOnly && (
+            <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+              <input value={procForm.name} onChange={e=>setProcForm(p=>({...p,name:e.target.value}))} placeholder="시술명" style={{ ...inputSt, padding:"5px 8px", fontSize:11, flex:2 }} />
+              <input type="number" value={procForm.searchVol||""} onChange={e=>setProcForm(p=>({...p,searchVol:+e.target.value}))} placeholder="검색량" style={{ ...inputSt, padding:"5px 8px", fontSize:11, width:80 }} />
+              <button onClick={()=>{ if(procForm.name){ addItem("search","procedures",procForm); setProcForm({name:"",searchVol:0}); }}} style={{ background:hospital.color, border:"none", color:"#0F172A", borderRadius:6, padding:"5px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>+</button>
             </div>
-
-            {/* 시술 연관 검색량 */}
-            <div style={{ marginBottom:16 }}>
-              <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:10 }}>시술 연관 검색량</div>
-              {!isReadOnly && (
-                <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-                  <input value={procForm.name} onChange={e=>setProcForm(p=>({...p,name:e.target.value}))} placeholder="시술명" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1 }} />
-                  <input type="number" value={procForm.searchVol||""} onChange={e=>setProcForm(p=>({...p,searchVol:+e.target.value}))} placeholder="검색량" style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:100 }} />
-                  <button onClick={()=>{ if(procForm.name) { addItem("search","procedures",procForm); setProcForm({name:"",searchVol:0}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
-                </div>
-              )}
-              <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                {(monthData.search.procedures||[]).map((p,i) => (
-                  <div key={p.id||i} style={{ background:`${hospital.color}10`, border:`1px solid ${hospital.color}30`, borderRadius:8, padding:"6px 14px", display:"flex", alignItems:"center", gap:8 }}>
-                    <span style={{ color:C.text, fontSize:12, fontWeight:700 }}>{p.name}</span>
-                    <span style={{ color:hospital.color, fontSize:12, fontWeight:800 }}>{fmtN(p.searchVol)}회</span>
-                    {!isReadOnly && <button onClick={()=>removeItem("search","procedures",p.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12, padding:0 }}>×</button>}
-                  </div>
-                ))}
-                {(monthData.search.procedures||[]).length === 0 && <span style={{ color:C.muted, fontSize:12 }}>시술 검색량을 추가해주세요</span>}
+          )}
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:14 }}>
+            {(monthData.search.procedures||[]).map((p,i) => (
+              <div key={p.id||i} style={{ background:`${hospital.color}10`, border:`1px solid ${hospital.color}30`, borderRadius:7, padding:"4px 10px", display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{ color:C.text, fontSize:11, fontWeight:600 }}>{p.name}</span>
+                <span style={{ color:hospital.color, fontSize:11, fontWeight:800 }}>{fmtN(p.searchVol)}회</span>
+                {!isReadOnly && <button onClick={()=>removeItem("search","procedures",p.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:11 }}>×</button>}
               </div>
-            </div>
+            ))}
+            {(monthData.search.procedures||[]).length === 0 && <span style={{ color:C.muted, fontSize:11 }}>추가해주세요</span>}
+          </div>
 
-            {/* 연관 키워드 */}
-            <div>
-              <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:10 }}>주요 연관 키워드</div>
-              {!isReadOnly && (
-                <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-                  <input value={kwForm.keyword} onChange={e=>setKwForm(p=>({...p,keyword:e.target.value}))} placeholder="키워드" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:2 }} />
-                  <input type="number" value={kwForm.vol||""} onChange={e=>setKwForm(p=>({...p,vol:+e.target.value}))} placeholder="검색량" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1 }} />
-                  <input value={kwForm.rank} onChange={e=>setKwForm(p=>({...p,rank:e.target.value}))} placeholder="순위" style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:70 }} />
-                  <button onClick={()=>{ if(kwForm.keyword){ addItem("search","relatedKeywords",kwForm); setKwForm({keyword:"",vol:0,rank:""}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
-                </div>
-              )}
-              {(monthData.search.relatedKeywords||[]).length > 0 && (
-                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                  <thead><tr>{["키워드","검색량","순위",""].map(h=><th key={h} style={{ color:C.muted, fontWeight:700, padding:"6px 10px", textAlign:"center", borderBottom:`2px solid ${C.border}` }}>{h}</th>)}</tr></thead>
-                  <tbody>
-                    {(monthData.search.relatedKeywords||[]).map((kw,i) => (
-                      <tr key={kw.id||i}>
-                        <td style={{ padding:"7px 10px", fontWeight:600, borderBottom:`1px solid ${C.dim}` }}>{kw.keyword}</td>
-                        <td style={{ padding:"7px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.accent }}>{fmtN(kw.vol)}회</td>
-                        <td style={{ padding:"7px 10px", textAlign:"center", borderBottom:`1px solid ${C.dim}`, color:C.green, fontWeight:700 }}>{kw.rank||"-"}</td>
-                        {!isReadOnly && <td style={{ padding:"7px 10px", textAlign:"center", borderBottom:`1px solid ${C.dim}` }}><button onClick={()=>removeItem("search","relatedKeywords",kw.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer" }}>×</button></td>}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+          {/* 연관 키워드 */}
+          <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:8 }}>주요 연관 키워드</div>
+          {!isReadOnly && (
+            <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+              <input value={kwForm.keyword} onChange={e=>setKwForm(p=>({...p,keyword:e.target.value}))} placeholder="키워드" style={{ ...inputSt, padding:"5px 8px", fontSize:11, flex:2 }} />
+              <input type="number" value={kwForm.vol||""} onChange={e=>setKwForm(p=>({...p,vol:+e.target.value}))} placeholder="검색량" style={{ ...inputSt, padding:"5px 8px", fontSize:11, flex:1 }} />
+              <input value={kwForm.rank} onChange={e=>setKwForm(p=>({...p,rank:e.target.value}))} placeholder="순위" style={{ ...inputSt, padding:"5px 8px", fontSize:11, width:60 }} />
+              <button onClick={()=>{ if(kwForm.keyword){ addItem("search","relatedKeywords",kwForm); setKwForm({keyword:"",vol:0,rank:""}); }}} style={{ background:hospital.color, border:"none", color:"#0F172A", borderRadius:6, padding:"5px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>+</button>
             </div>
+          )}
+          <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+            {(monthData.search.relatedKeywords||[]).map((kw,i) => (
+              <div key={kw.id||i} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 8px", background:"#F8FAFC", borderRadius:7 }}>
+                <span style={{ color:C.text, fontSize:11, flex:1, fontWeight:600 }}>{kw.keyword}</span>
+                <span style={{ color:C.accent, fontSize:11 }}>{fmtN(kw.vol)}회</span>
+                {kw.rank && <span style={{ color:C.green, fontSize:11, fontWeight:700 }}>{kw.rank}</span>}
+                {!isReadOnly && <button onClick={()=>removeItem("search","relatedKeywords",kw.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:11 }}>×</button>}
+              </div>
+            ))}
+            {(monthData.search.relatedKeywords||[]).length === 0 && <span style={{ color:C.muted, fontSize:11 }}>추가해주세요</span>}
           </div>
-        </div>
-      )}
+        </SectionCard>
 
-      {/* SNS 반응 */}
-      {activeSection === "sns" && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📱 SNS 반응 현황</div>
-          <div style={{ marginBottom:16 }}>
-            <div style={{ color:C.accent2, fontWeight:700, fontSize:13, marginBottom:10 }}>📸 인스타그램</div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
-              <NumInput label="팔로워" section="sns" field="instaFollowers" unit="명" />
-              <NumInput label="좋아요 (평균)" section="sns" field="instaLikes" />
-              <NumInput label="댓글 (평균)" section="sns" field="instaComments" />
-              <NumInput label="저장 (평균)" section="sns" field="instaSaves" />
-              <NumInput label="공유 (평균)" section="sns" field="instaShares" />
-            </div>
+        {/* 📱 SNS 반응 */}
+        <SectionCard title="📱 SNS 반응">
+          <div style={{ color:C.muted, fontSize:10, fontWeight:700, marginBottom:8 }}>📸 인스타그램 (월 평균)</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
+            <NI label="팔로워" localKey="instaFollowers" localState={localSns} setLocalState={setLocalSns} section="sns" field="instaFollowers" unit="명" />
+            <NI label="좋아요 (평균)" localKey="instaLikes" localState={localSns} setLocalState={setLocalSns} section="sns" field="instaLikes" />
+            <NI label="댓글 (평균)" localKey="instaComments" localState={localSns} setLocalState={setLocalSns} section="sns" field="instaComments" />
+            <NI label="저장 (평균)" localKey="instaSaves" localState={localSns} setLocalState={setLocalSns} section="sns" field="instaSaves" />
           </div>
-          <div>
-            <div style={{ color:"#FF0000", fontWeight:700, fontSize:13, marginBottom:10 }}>▶️ 릴스</div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
-              <NumInput label="릴스 조회수 (평균)" section="sns" field="reelsViews" unit="회" />
-              <NumInput label="릴스 재생수 (평균)" section="sns" field="reelsPlays" unit="회" />
-            </div>
+          <div style={{ color:C.muted, fontSize:10, fontWeight:700, marginBottom:8 }}>▶️ 릴스 (월 평균)</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:8 }}>
+            <NI label="릴스 조회수" localKey="reelsViews" localState={localSns} setLocalState={setLocalSns} section="sns" field="reelsViews" unit="회" />
           </div>
-          {/* SNS 요약 카드 */}
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginTop:20 }}>
+
+          {/* SNS 요약 */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:14 }}>
             {[
-              { label:"팔로워", value:fmtN(monthData.sns.instaFollowers)+"명", color:"#E1306C" },
-              { label:"평균 좋아요", value:fmtN(monthData.sns.instaLikes), color:C.accent },
-              { label:"평균 저장", value:fmtN(monthData.sns.instaSaves), color:C.green },
-              { label:"릴스 조회", value:fmtN(monthData.sns.reelsViews)+"회", color:"#FF0000" },
+              { label:"팔로워", val:fmtN(monthData.sns.instaFollowers)+"명", color:"#E1306C" },
+              { label:"평균 좋아요", val:fmtN(monthData.sns.instaLikes), color:C.accent },
+              { label:"릴스 조회", val:fmtN(monthData.sns.reelsViews)+"회", color:"#FF0000" },
             ].map((k,i) => (
-              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:12, padding:14, textAlign:"center" }}>
-                <div style={{ color:k.color, fontSize:20, fontWeight:900 }}>{k.value}</div>
-                <div style={{ color:C.muted, fontSize:11, marginTop:3 }}>{k.label}</div>
+              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}20`, borderRadius:10, padding:"10px", textAlign:"center" }}>
+                <div style={{ color:k.color, fontSize:16, fontWeight:900 }}>{k.val}</div>
+                <div style={{ color:C.muted, fontSize:10, marginTop:2 }}>{k.label}</div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        </SectionCard>
 
-      {/* 콘텐츠 반응 */}
-      {activeSection === "content" && (
-        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-            <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📝 블로그 지표</div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
-              <NumInput label="평균 체류시간 (초)" section="content" field="blogAvgTime" unit="초" />
-              <NumInput label="평균 CTR (%)" section="content" field="blogCtr" unit="%" />
-            </div>
+        {/* 📝 콘텐츠 반응 */}
+        <SectionCard title="📝 콘텐츠 반응">
+          <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:8, marginBottom:14 }}>
+            <NI label="블로그 평균 체류시간 (초)" localKey="blogAvgTime" localState={localContent} setLocalState={setLocalContent} section="content" field="blogAvgTime" unit="초" />
           </div>
 
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-            <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:10 }}>🏆 인기 콘텐츠</div>
-            {!isReadOnly && (
-              <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap" }}>
-                <input value={topForm.title} onChange={e=>setTopForm(p=>({...p,title:e.target.value}))} placeholder="콘텐츠 제목" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:3, minWidth:120 }} />
-                <input value={topForm.channel} onChange={e=>setTopForm(p=>({...p,channel:e.target.value}))} placeholder="채널" style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:80 }} />
-                <input type="number" value={topForm.views||""} onChange={e=>setTopForm(p=>({...p,views:+e.target.value}))} placeholder="조회수" style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:80 }} />
-                <input type="number" value={topForm.ctr||""} onChange={e=>setTopForm(p=>({...p,ctr:+e.target.value}))} placeholder="CTR%" style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:70 }} />
-                <button onClick={()=>{ if(topForm.title){ addItem("content","topContents",topForm); setTopForm({title:"",views:0,ctr:0,channel:""}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
+          {/* 인기 콘텐츠 */}
+          <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:8 }}>🏆 인기 콘텐츠</div>
+          {!isReadOnly && (
+            <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
+              <input value={topForm.title} onChange={e=>setTopForm(p=>({...p,title:e.target.value}))} placeholder="콘텐츠 제목" style={{ ...inputSt, padding:"5px 8px", fontSize:11, flex:3, minWidth:100 }} />
+              <input value={topForm.channel} onChange={e=>setTopForm(p=>({...p,channel:e.target.value}))} placeholder="채널" style={{ ...inputSt, padding:"5px 8px", fontSize:11, width:70 }} />
+              <input type="number" value={topForm.views||""} onChange={e=>setTopForm(p=>({...p,views:+e.target.value}))} placeholder="조회수" style={{ ...inputSt, padding:"5px 8px", fontSize:11, width:70 }} />
+              <button onClick={()=>{ if(topForm.title){ addItem("content","topContents",topForm); setTopForm({title:"",views:0,channel:""}); }}} style={{ background:hospital.color, border:"none", color:"#0F172A", borderRadius:6, padding:"5px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>+</button>
+            </div>
+          )}
+          <div style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:14 }}>
+            {(monthData.content.topContents||[]).map((tc,i) => (
+              <div key={tc.id||i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", background:"#F8FAFC", borderRadius:8 }}>
+                <span style={{ color:hospital.color, fontWeight:800, fontSize:12 }}>#{i+1}</span>
+                {tc.channel && <span style={{ background:`${hospital.color}15`, color:hospital.color, borderRadius:4, padding:"1px 6px", fontSize:10 }}>{tc.channel}</span>}
+                <span style={{ color:C.text, fontSize:11, flex:1 }}>{tc.title}</span>
+                {tc.views > 0 && <span style={{ color:C.accent, fontSize:11, fontWeight:700 }}>{fmtN(tc.views)}회</span>}
+                {!isReadOnly && <button onClick={()=>removeItem("content","topContents",tc.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:11 }}>×</button>}
               </div>
-            )}
-            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-              {(monthData.content.topContents||[]).map((tc,i) => (
-                <div key={tc.id||i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", background:"#F8FAFC", borderRadius:8 }}>
-                  <span style={{ color:hospital.color, fontWeight:800, fontSize:13 }}>#{i+1}</span>
-                  {tc.channel && <span style={{ background:`${hospital.color}15`, color:hospital.color, borderRadius:5, padding:"1px 8px", fontSize:11 }}>{tc.channel}</span>}
-                  <span style={{ color:C.text, fontSize:12, flex:1 }}>{tc.title}</span>
-                  <span style={{ color:C.accent, fontSize:12, fontWeight:700 }}>{fmtN(tc.views)}회</span>
-                  {tc.ctr > 0 && <span style={{ color:C.green, fontSize:12 }}>CTR {tc.ctr}%</span>}
-                  {!isReadOnly && <button onClick={()=>removeItem("content","topContents",tc.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer" }}>×</button>}
-                </div>
-              ))}
-              {(monthData.content.topContents||[]).length === 0 && <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:12 }}>인기 콘텐츠를 추가해주세요</div>}
-            </div>
+            ))}
+            {(monthData.content.topContents||[]).length === 0 && <span style={{ color:C.muted, fontSize:11 }}>추가해주세요</span>}
           </div>
 
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-            <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:10 }}>🔑 유입 키워드</div>
-            {!isReadOnly && (
-              <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-                <input value={inflowKwForm.keyword} onChange={e=>setInflowKwForm(p=>({...p,keyword:e.target.value}))} placeholder="키워드" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:2 }} />
-                <div style={{ display:"flex", alignItems:"center", gap:4, flex:1 }}>
-                  <input type="number" min="0" max="100" step="0.1" value={inflowKwForm.pct||""} onChange={e=>setInflowKwForm(p=>({...p,pct:+e.target.value}))} placeholder="0.0" style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:"100%" }} />
-                  <span style={{ color:C.muted, fontSize:12, flexShrink:0 }}>%</span>
-                </div>
-                <button onClick={()=>{ if(inflowKwForm.keyword){ addItem("content","inflowKeywords",{...inflowKwForm}); setInflowKwForm({keyword:"",pct:0}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
+          {/* 유입 키워드 */}
+          <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:8 }}>🔑 유입 키워드</div>
+          {!isReadOnly && (
+            <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+              <input value={inflowKwForm.keyword} onChange={e=>setInflowKwForm(p=>({...p,keyword:e.target.value}))} placeholder="키워드" style={{ ...inputSt, padding:"5px 8px", fontSize:11, flex:2 }} />
+              <div style={{ display:"flex", alignItems:"center", gap:3, flex:1 }}>
+                <input type="number" min="0" max="100" step="0.1" value={inflowKwForm.pct||""} onChange={e=>setInflowKwForm(p=>({...p,pct:+e.target.value}))} placeholder="0.0" style={{ ...inputSt, padding:"5px 8px", fontSize:11, width:"100%" }} />
+                <span style={{ color:C.muted, fontSize:11, flexShrink:0 }}>%</span>
               </div>
-            )}
-            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-              {(monthData.content.inflowKeywords||[]).map((kw,i) => (
-                <div key={kw.id||i} style={{ background:`${C.accent2}10`, border:`1px solid ${C.accent2}30`, borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
-                  <span style={{ color:C.text, fontSize:12 }}>{kw.keyword}</span>
-                  {(kw.pct||kw.sessions) ? <span style={{ color:C.accent2, fontSize:11, fontWeight:700 }}>{kw.pct !== undefined ? kw.pct+'%' : kw.sessions}</span> : null}
-                  {!isReadOnly && <button onClick={()=>removeItem("content","inflowKeywords",kw.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>×</button>}
-                </div>
-              ))}
-              {(monthData.content.inflowKeywords||[]).length === 0 && <span style={{ color:C.muted, fontSize:12 }}>유입 키워드를 추가해주세요</span>}
+              <button onClick={()=>{ if(inflowKwForm.keyword){ addItem("content","inflowKeywords",inflowKwForm); setInflowKwForm({keyword:"",pct:0}); }}} style={{ background:hospital.color, border:"none", color:"#0F172A", borderRadius:6, padding:"5px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>+</button>
             </div>
+          )}
+          <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+            {(monthData.content.inflowKeywords||[]).map((kw,i) => (
+              <div key={kw.id||i} style={{ background:`${C.accent2}10`, border:`1px solid ${C.accent2}30`, borderRadius:7, padding:"4px 10px", display:"flex", alignItems:"center", gap:5 }}>
+                <span style={{ color:C.text, fontSize:11 }}>{kw.keyword}</span>
+                {(kw.pct||kw.sessions) ? <span style={{ color:C.accent2, fontSize:11, fontWeight:700 }}>{kw.pct !== undefined ? kw.pct+'%' : kw.sessions}</span> : null}
+                {!isReadOnly && <button onClick={()=>removeItem("content","inflowKeywords",kw.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:11 }}>×</button>}
+              </div>
+            ))}
+            {(monthData.content.inflowKeywords||[]).length === 0 && <span style={{ color:C.muted, fontSize:11 }}>추가해주세요</span>}
           </div>
-        </div>
-      )}
+        </SectionCard>
 
-      {/* 브랜드 신뢰도 */}
-      {activeSection === "trust" && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>⭐ 브랜드 신뢰도 지표</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12, marginBottom:20 }}>
-            <NumInput label="신규 리뷰 수" section="trust" field="reviewCount" unit="건" />
-            <NumInput label="리뷰 증가율 (%)" section="trust" field="reviewRate" unit="%" />
-            <NumInput label="평균 평점" section="trust" field="avgRating" unit="점" />
-            <NumInput label="직접검색 증가율 (%)" section="trust" field="directSearchChange" unit="%" />
-            <NumInput label="재방문 증가율 (%)" section="trust" field="reVisitRate" unit="%" />
+        {/* ⭐ 브랜드 신뢰도 */}
+        <SectionCard title="⭐ 브랜드 신뢰도">
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
+            <NI label="신규 리뷰 수" localKey="reviewCount" localState={localTrust} setLocalState={setLocalTrust} section="trust" field="reviewCount" unit="건" />
+            <NI label="리뷰 증가율" localKey="reviewRate" localState={localTrust} setLocalState={setLocalTrust} section="trust" field="reviewRate" unit="%" />
+            <NI label="평균 평점" localKey="avgRating" localState={localTrust} setLocalState={setLocalTrust} section="trust" field="avgRating" unit="점" />
+            <NI label="직접검색 증가율" localKey="directSearchChange" localState={localTrust} setLocalState={setLocalTrust} section="trust" field="directSearchChange" unit="%" />
+            <NI label="재방문 증가율" localKey="reVisitRate" localState={localTrust} setLocalState={setLocalTrust} section="trust" field="reVisitRate" unit="%" />
           </div>
+
           {/* 신뢰도 요약 */}
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
             {[
-              { label:"리뷰 증가율", value:(monthData.trust.reviewRate||0)+"%", color: (monthData.trust.reviewRate||0)>0?C.green:C.red },
-              { label:"평균 평점", value:(monthData.trust.avgRating||0)+"점", color: (monthData.trust.avgRating||0)>=4?C.green:(monthData.trust.avgRating||0)>=3?C.yellow:C.red },
-              { label:"직접검색 변화", value:((monthData.trust.directSearchChange||0)>0?"+":"")+(monthData.trust.directSearchChange||0)+"%", color:(monthData.trust.directSearchChange||0)>=0?C.green:C.red },
+              { label:"리뷰 증가율", val:(monthData.trust.reviewRate||0)+"%", color:(monthData.trust.reviewRate||0)>0?C.green:C.muted },
+              { label:"평균 평점", val:(monthData.trust.avgRating||0)+"점", color:(monthData.trust.avgRating||0)>=4?C.green:(monthData.trust.avgRating||0)>=3?C.yellow:C.muted },
+              { label:"직접검색 변화", val:((monthData.trust.directSearchChange||0)>0?"+":"")+(monthData.trust.directSearchChange||0)+"%", color:(monthData.trust.directSearchChange||0)>=0?C.green:C.red },
             ].map((k,i) => (
-              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:12, padding:16, textAlign:"center" }}>
-                <div style={{ color:k.color, fontSize:24, fontWeight:900 }}>{k.value}</div>
-                <div style={{ color:C.muted, fontSize:12, marginTop:4 }}>{k.label}</div>
+              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}20`, borderRadius:10, padding:"10px", textAlign:"center" }}>
+                <div style={{ color:k.color, fontSize:18, fontWeight:900 }}>{k.val}</div>
+                <div style={{ color:C.muted, fontSize:10, marginTop:2 }}>{k.label}</div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        </SectionCard>
+
+      </div>
     </div>
   );
 }
