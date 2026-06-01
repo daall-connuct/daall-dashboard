@@ -4574,209 +4574,201 @@ new Chart(document.getElementById('costChart'), {
 
         {/* 통합 요약 */}
         {tab === "overview" && (() => {
-          // ── 데이터 계산 ────────────────────────────────
+          // ── 데이터 계산 ─────────────────────────────────
           const totalMktCost = last.marketingCost || 0;
           const cpl = (last.inquiry||0) > 0 ? Math.round(totalMktCost / last.inquiry) : 0;
           const roi = totalMktCost > 0 ? Math.round(((last.revenue||0) - totalMktCost) / totalMktCost * 100) : 0;
-          const revenueAchieve = hospital.target_revenue ? Math.round((last.revenue||0) / hospital.target_revenue * 100) : null;
-          const patientAchieve = hospital.target_patients ? Math.round((last.newPatient||0) / hospital.target_patients * 100) : null;
+          const revenueAchieve = hospital.target_revenue ? Math.round((last.revenue||0)/hospital.target_revenue*100) : null;
+          const patientAchieve = hospital.target_patients ? Math.round((last.newPatient||0)/hospital.target_patients*100) : null;
 
-          // 전월 대비 증감
           const diff = (cur, prv) => prv > 0 ? Math.round(((cur-prv)/prv)*100) : null;
-          const dInquiry = diff(last.inquiry||0, prev?.inquiry||0);
-          const dPatient = diff(last.newPatient||0, prev?.newPatient||0);
-          const dRevenue = diff(last.revenue||0, prev?.revenue||0);
-          const dCost    = diff(last.marketingCost||0, prev?.marketingCost||0);
-          const dCpl     = prev?.inquiry > 0 && prev?.marketingCost > 0
+          const dInquiry  = diff(last.inquiry||0,     prev?.inquiry||0);
+          const dPatient  = diff(last.newPatient||0,  prev?.newPatient||0);
+          const dRevenue  = diff(last.revenue||0,     prev?.revenue||0);
+          const dCost     = diff(last.marketingCost||0, prev?.marketingCost||0);
+          const dCpl      = prev?.inquiry>0 && prev?.marketingCost>0
             ? diff(cpl, Math.round((prev.marketingCost||0)/(prev.inquiry||1))) : null;
 
-          // 주요 채널
           const rawCh = hospital.channelData || {};
-          const curCh = !Array.isArray(rawCh) ? (rawCh[selMonth] || []) : rawCh;
+          const curCh = !Array.isArray(rawCh) ? (rawCh[selMonth]||[]) : rawCh;
           const topChannels = [...curCh].sort((a,b)=>(b.inflow||0)-(a.inflow||0)).slice(0,4);
-          const totalInflow = curCh.reduce((s,c) => s+(c.inflow||0), 0);
+          const totalInflow = curCh.reduce((s,c)=>s+(c.inflow||0),0);
 
-          // 콘텐츠 요약
           const contents = hospital.contentData || [];
-          const monthContents = contents.filter(c => c.date?.startsWith(selMonth?.slice(0,7)||""));
+          const monthContents = contents.filter(c=>c.date?.startsWith(selMonth?.slice(0,7)||""));
 
-          const KPI = ({ label, value, unit, diff, color, sub, achieve }) => (
-            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20, position:"relative", overflow:"hidden" }}>
-              <div style={{ position:"absolute", top:0, left:0, width:4, height:"100%", background:color||hospital.color, borderRadius:"16px 0 0 16px" }} />
-              <div style={{ paddingLeft:8 }}>
-                <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:6, letterSpacing:0.5 }}>{label}</div>
-                <div style={{ display:"flex", alignItems:"baseline", gap:4 }}>
-                  <span style={{ color:C.text, fontSize:26, fontWeight:900 }}>{value}</span>
-                  <span style={{ color:C.muted, fontSize:12 }}>{unit}</span>
+          const DiffBadge = ({d}) => d===null?null:(
+            <span style={{color:d>0?C.green:d<0?C.red:C.muted,fontSize:11,fontWeight:700}}>
+              {d>0?'▲':'▼'} {Math.abs(d)}%
+            </span>
+          );
+
+          const KpiBox = ({label,value,unit,d,color,achieve,sub}) => (
+            <div style={{background:"#F8FAFC",borderRadius:12,padding:14,border:`1px solid ${C.border}`,position:"relative",overflow:"hidden"}}>
+              <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:color||hospital.color,borderRadius:"12px 0 0 12px"}}/>
+              <div style={{paddingLeft:8}}>
+                <div style={{color:C.muted,fontSize:10,fontWeight:700,marginBottom:4}}>{label}</div>
+                <div style={{display:"flex",alignItems:"baseline",gap:4}}>
+                  <span style={{color:C.text,fontSize:20,fontWeight:900}}>{value}</span>
+                  <span style={{color:C.muted,fontSize:11}}>{unit}</span>
                 </div>
-                {sub && <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>{sub}</div>}
-                {achieve !== null && achieve !== undefined && (
-                  <div style={{ marginTop:6 }}>
-                    <div style={{ background:C.dim, borderRadius:4, height:4, width:"100%" }}>
-                      <div style={{ width:`${Math.min(achieve,100)}%`, height:"100%", background:color||hospital.color, borderRadius:4, transition:"width 0.5s" }} />
+                {sub && <div style={{color:C.muted,fontSize:10,marginTop:2}}>{sub}</div>}
+                {achieve!==null&&achieve!==undefined&&(
+                  <div style={{marginTop:5}}>
+                    <div style={{background:C.dim,borderRadius:4,height:3}}>
+                      <div style={{width:`${Math.min(achieve,100)}%`,height:"100%",background:color||hospital.color,borderRadius:4}}/>
                     </div>
-                    <div style={{ color:color||hospital.color, fontSize:10, fontWeight:700, marginTop:3 }}>목표 {achieve}%</div>
+                    <div style={{color:color||hospital.color,fontSize:9,marginTop:2,fontWeight:700}}>목표 {achieve}%</div>
                   </div>
                 )}
-                {diff !== null && diff !== undefined && (
-                  <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:6 }}>
-                    <span style={{ color: diff>0?C.green:diff<0?C.red:C.muted, fontSize:12, fontWeight:700 }}>
-                      {diff>0?'▲':'▼'} {Math.abs(diff)}%
-                    </span>
-                    <span style={{ color:C.muted, fontSize:10 }}>전월비</span>
-                  </div>
-                )}
+                {d!==null&&d!==undefined&&<div style={{marginTop:4}}><DiffBadge d={d}/><span style={{color:C.muted,fontSize:10,marginLeft:4}}>전월</span></div>}
               </div>
             </div>
           );
 
           return (
-            <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-              {/* 월 선택 + 데이터 입력 */}
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
+            <div style={{display:"flex",flexDirection:"column",gap:16}}>
+              {/* 월 선택 + 입력 버튼 */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
                 <MonthSelector />
-                {isAdmin && inputBtn(showPerfInput ? "입력 닫기" : "데이터 입력", () => setShowPerfInput(!showPerfInput))}
+                {isAdmin && inputBtn(showPerfInput?"입력 닫기":"데이터 입력",()=>setShowPerfInput(!showPerfInput))}
               </div>
               {showPerfInput && (
                 <PerformanceInputForm hospital={hospital} monthlyData={hData}
-                  onSave={(d) => onUpdateHospital({...hospital, monthlyData:d})}
-                  onClose={() => setShowPerfInput(false)} />
+                  onSave={(d)=>onUpdateHospital({...hospital,monthlyData:d})}
+                  onClose={()=>setShowPerfInput(false)} />
               )}
 
-              {/* 핵심 KPI - 1행 */}
-              <div>
-                <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:10, letterSpacing:1 }}>📊 핵심 성과 지표</div>
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:12 }}>
-                  <KPI label="총 문의수" value={fmt(last.inquiry)} unit="건" diff={dInquiry} color={C.accent} />
-                  <KPI label="신환 수" value={fmt(last.newPatient)} unit="명" diff={dPatient} color={hospital.color} achieve={patientAchieve} />
-                  <KPI label="매출" value={fmt(last.revenue)} unit="만원" diff={dRevenue} color={C.green} achieve={revenueAchieve} />
-                  <KPI label="총 광고비" value={fmt(totalMktCost)} unit="만원" diff={dCost} color={C.orange} />
-                </div>
-              </div>
+              {/* 2열 그리드 메인 */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
 
-              {/* 2행 KPI */}
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:12 }}>
-                <KPI label="문의당 비용 (CPL)" value={fmt(cpl)} unit="만원" diff={dCpl} color={C.accent2}
-                  sub={`문의 ${fmt(last.inquiry)}건 기준`} />
-                <KPI label="ROI" value={roi} unit="%" color={roi>=200?C.green:roi>=100?C.yellow:C.red}
-                  sub={`광고비 대비 수익률`} />
-                <KPI label="예약 수" value={fmt(last.reservation)} unit="건" color="#8B5CF6"
-                  sub={`내원 ${fmt(last.visit)}명`} />
-                <KPI label="초진 결제" value={fmt(last.firstPayment)} unit="건" color="#EC4899"
-                  sub={`객단가 ${fmt(last.firstPayment>0?Math.round((last.revenue||0)/(last.firstPayment)):0)}만원`} />
-              </div>
+                {/* 좌: KPI + 성장요약 */}
+                <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                  {/* KPI 4+4 */}
+                  <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:16}}>
+                    <div style={{color:C.text,fontWeight:800,fontSize:13,marginBottom:12}}>📊 핵심 성과 지표</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                      <KpiBox label="총 문의수" value={fmt(last.inquiry)} unit="건" d={dInquiry} color={C.accent}/>
+                      <KpiBox label="신환 수" value={fmt(last.newPatient)} unit="명" d={dPatient} color={hospital.color} achieve={patientAchieve}/>
+                      <KpiBox label="매출" value={fmt(last.revenue)} unit="만원" d={dRevenue} color={C.green} achieve={revenueAchieve}/>
+                      <KpiBox label="광고비" value={fmt(totalMktCost)} unit="만원" d={dCost} color={C.orange}/>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                      <KpiBox label="CPL (문의당 비용)" value={fmt(cpl)} unit="만원" d={dCpl} color={C.accent2} sub={`문의 ${fmt(last.inquiry)}건`}/>
+                      <KpiBox label="ROI" value={roi} unit="%" color={roi>=200?C.green:roi>=100?C.yellow:C.red} sub="광고비 대비 수익"/>
+                      <KpiBox label="예약" value={fmt(last.reservation)} unit="건" color="#8B5CF6" sub={`내원 ${fmt(last.visit)}명`}/>
+                      <KpiBox label="초진 결제" value={fmt(last.firstPayment)} unit="건" color="#EC4899"
+                        sub={`객단가 ${fmt(last.firstPayment>0?Math.round((last.revenue||0)/(last.firstPayment)):0)}만원`}/>
+                    </div>
+                  </div>
 
-              {/* 주요 유입 채널 + 콘텐츠 현황 */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
-                {/* 주요 유입 채널 */}
-                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-                  <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:14 }}>🔝 주요 유입 채널</div>
-                  {topChannels.length === 0 ? (
-                    <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:"20px 0" }}>채널 유입 데이터를 입력해주세요</div>
-                  ) : (
-                    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                      {topChannels.map((ch,i) => {
-                        const pct = totalInflow > 0 ? Math.round((ch.inflow||0)/totalInflow*100) : 0;
-                        const colors = [hospital.color, C.accent, C.green, C.accent2];
-                        return (
-                          <div key={i}>
-                            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                              <span style={{ color:C.text, fontSize:13, fontWeight:600 }}>{ch.channel}</span>
-                              <span style={{ color:colors[i], fontSize:13, fontWeight:800 }}>{fmt(ch.inflow)} <span style={{ color:C.muted, fontWeight:400, fontSize:11 }}>({pct}%)</span></span>
-                            </div>
-                            <div style={{ background:C.dim, borderRadius:4, height:6 }}>
-                              <div style={{ width:`${pct}%`, height:"100%", background:colors[i], borderRadius:4, transition:"width 0.5s" }} />
-                            </div>
+                  {/* 병원 성장 요약 */}
+                  {last.inquiry > 0 && (
+                    <div style={{background:`linear-gradient(135deg,${hospital.color}12,${C.accent2}08)`,border:`1px solid ${hospital.color}25`,borderRadius:14,padding:16}}>
+                      <div style={{color:C.text,fontWeight:800,fontSize:13,marginBottom:10}}>🤖 병원 성장 요약</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                        {[
+                          dInquiry!==null&&{icon:"📞",text:`문의 전월 대비 ${dInquiry>0?`+${dInquiry}% 증가`:`${dInquiry}% 감소`}`,color:dInquiry>0?C.green:C.red},
+                          dPatient!==null&&{icon:"👤",text:`신환 전월 대비 ${dPatient>0?`+${dPatient}% 증가`:`${dPatient}% 감소`}`,color:dPatient>0?C.green:C.red},
+                          cpl>0&&{icon:"💰",text:`CPL ${fmt(cpl)}만원`,color:C.muted},
+                          roi>0&&{icon:"📈",text:`ROI ${roi}% · ${roi>=300?"우수 🎉":roi>=100?"양호":"개선 필요"}`,color:roi>=300?C.green:roi>=100?C.yellow:C.red},
+                          topChannels[0]&&{icon:"🔝",text:`주요 유입: ${topChannels[0].channel}`,color:C.muted},
+                        ].filter(Boolean).map((item,i)=>(
+                          <div key={i} style={{display:"flex",alignItems:"flex-start",gap:6}}>
+                            <span style={{fontSize:12}}>{item.icon}</span>
+                            <span style={{color:item.color,fontSize:12,lineHeight:1.6,fontWeight:item.color===C.muted?400:600}}>{item.text}</span>
                           </div>
-                        );
-                      })}
-                      <div style={{ color:C.muted, fontSize:11, marginTop:4, textAlign:"right" }}>총 유입 {fmt(totalInflow)}건</div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* 이번 달 콘텐츠 현황 */}
-                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-                  <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:14 }}>📝 이번 달 콘텐츠 현황</div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
-                    {[
-                      { label:"등록 콘텐츠", value:monthContents.length, unit:"건", color:hospital.color },
-                      { label:"상위 노출", value:monthContents.filter(c=>c.topExposed).length, unit:"건", color:C.green },
-                    ].map((s,i) => (
-                      <div key={i} style={{ background:`${s.color}10`, borderRadius:10, padding:12, textAlign:"center" }}>
-                        <div style={{ color:s.color, fontSize:22, fontWeight:900 }}>{s.value}</div>
-                        <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>{s.label} ({s.unit})</div>
+                {/* 우: 채널 유입 + 콘텐츠 */}
+                <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                  {/* 주요 유입 채널 */}
+                  <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:16}}>
+                    <div style={{color:C.text,fontWeight:800,fontSize:13,marginBottom:12}}>🔝 주요 유입 채널</div>
+                    {topChannels.length===0?(
+                      <div style={{color:C.muted,fontSize:12,textAlign:"center",padding:"16px 0"}}>채널 유입 데이터를 입력해주세요</div>
+                    ):(
+                      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                        {topChannels.map((ch,i)=>{
+                          const pct=totalInflow>0?Math.round((ch.inflow||0)/totalInflow*100):0;
+                          const colors=[hospital.color,C.accent,C.green,C.accent2];
+                          return (
+                            <div key={i}>
+                              <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                                <span style={{color:C.text,fontSize:12,fontWeight:600}}>{ch.channel}</span>
+                                <span style={{color:colors[i],fontSize:12,fontWeight:800}}>{fmt(ch.inflow)} <span style={{color:C.muted,fontWeight:400,fontSize:10}}>({pct}%)</span></span>
+                              </div>
+                              <div style={{background:C.dim,borderRadius:4,height:5}}>
+                                <div style={{width:`${pct}%`,height:"100%",background:colors[i],borderRadius:4}}/>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div style={{color:C.muted,fontSize:10,textAlign:"right",marginTop:2}}>총 {fmt(totalInflow)}건</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 콘텐츠 현황 */}
+                  <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:16}}>
+                    <div style={{color:C.text,fontWeight:800,fontSize:13,marginBottom:12}}>📝 이번달 콘텐츠</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                      {[
+                        {label:"등록 콘텐츠",value:monthContents.length,unit:"건",color:hospital.color},
+                        {label:"상위 노출",value:monthContents.filter(c=>c.topExposed).length,unit:"건",color:C.green},
+                      ].map((s,i)=>(
+                        <div key={i} style={{background:`${s.color}10`,borderRadius:10,padding:10,textAlign:"center"}}>
+                          <div style={{color:s.color,fontSize:20,fontWeight:900}}>{s.value}</div>
+                          <div style={{color:C.muted,fontSize:10,marginTop:2}}>{s.label} ({s.unit})</div>
+                        </div>
+                      ))}
+                    </div>
+                    {monthContents.slice(0,3).map((c,i)=>(
+                      <div key={i} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 0",borderBottom:`1px solid ${C.dim}`}}>
+                        <span style={{background:`${hospital.color}20`,color:hospital.color,borderRadius:4,padding:"1px 5px",fontSize:9,fontWeight:700,flexShrink:0}}>{c.channel}</span>
+                        <span style={{color:C.text,fontSize:11,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.title}</span>
+                        {c.topExposed&&<span style={{color:C.green,fontSize:9,fontWeight:700,flexShrink:0}}>상위✓</span>}
                       </div>
                     ))}
+                    {monthContents.length===0&&<div style={{color:C.muted,fontSize:11,textAlign:"center",padding:"8px 0"}}>콘텐츠 없음</div>}
                   </div>
-                  {monthContents.slice(0,3).map((c,i) => (
-                    <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${C.dim}` }}>
-                      <span style={{ background:`${hospital.color}20`, color:hospital.color, borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, flexShrink:0 }}>{c.channel}</span>
-                      <span style={{ color:C.text, fontSize:12, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.title}</span>
-                      {c.topExposed && <span style={{ color:C.green, fontSize:10, fontWeight:700, flexShrink:0 }}>상위✓</span>}
-                    </div>
-                  ))}
-                  {monthContents.length === 0 && <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:"10px 0" }}>콘텐츠 데이터 없음</div>}
                 </div>
               </div>
 
-              {/* 월별 추이 차트 */}
-              <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-                <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:14 }}>📈 월별 성과 추이 (최근 6개월)</div>
-                {hData.length > 1 ? (
-                  <div style={{ overflowX:"auto" }}>
-                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+              {/* 월별 추이 테이블 */}
+              {hData.length > 1 && (
+                <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:16}}>
+                  <div style={{color:C.text,fontWeight:800,fontSize:13,marginBottom:12}}>📈 월별 성과 추이 (최근 6개월)</div>
+                  <div style={{overflowX:"auto"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                       <thead>
-                        <tr>
-                          {["월","문의","신환","매출(만)","광고비(만)","CPL(만)","ROI"].map(h => (
-                            <th key={h} style={{ color:C.muted, fontWeight:700, padding:"8px 12px", textAlign:"center", borderBottom:`2px solid ${C.border}`, whiteSpace:"nowrap" }}>{h}</th>
-                          ))}
-                        </tr>
+                        <tr>{["월","문의","신환","매출(만)","광고비(만)","CPL(만)","ROI"].map(h=>(
+                          <th key={h} style={{color:C.muted,fontWeight:700,padding:"7px 10px",textAlign:"center",borderBottom:`2px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                        ))}</tr>
                       </thead>
                       <tbody>
-                        {[...hData].slice(-6).reverse().map((d,i) => {
-                          const dCpl = d.inquiry > 0 ? Math.round((d.marketingCost||0)/d.inquiry) : 0;
-                          const dRoi = d.marketingCost > 0 ? Math.round(((d.revenue||0)-d.marketingCost)/d.marketingCost*100) : 0;
-                          const isSelMonth = d.month === selMonth;
+                        {[...hData].slice(-6).reverse().map((d,i)=>{
+                          const dCpl=d.inquiry>0?Math.round((d.marketingCost||0)/d.inquiry):0;
+                          const dRoi=d.marketingCost>0?Math.round(((d.revenue||0)-d.marketingCost)/d.marketingCost*100):0;
+                          const isSel=d.month===selMonth;
                           return (
-                            <tr key={i} style={{ background: isSelMonth ? `${hospital.color}08` : "transparent" }}>
-                              <td style={{ padding:"9px 12px", textAlign:"center", fontWeight: isSelMonth?800:600, color: isSelMonth?hospital.color:C.text, borderBottom:`1px solid ${C.dim}` }}>{d.month}</td>
-                              <td style={{ padding:"9px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{fmt(d.inquiry)}</td>
-                              <td style={{ padding:"9px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{fmt(d.newPatient)}</td>
-                              <td style={{ padding:"9px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{fmt(d.revenue)}</td>
-                              <td style={{ padding:"9px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{fmt(d.marketingCost)}</td>
-                              <td style={{ padding:"9px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color: dCpl>0?C.accent2:C.muted }}>{dCpl > 0 ? fmt(dCpl) : '-'}</td>
-                              <td style={{ padding:"9px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color: dRoi>=200?C.green:dRoi>=100?C.yellow:C.red, fontWeight:700 }}>{dRoi > 0 ? dRoi+'%' : '-'}</td>
+                            <tr key={i} style={{background:isSel?`${hospital.color}08`:"transparent"}}>
+                              <td style={{padding:"7px 10px",textAlign:"center",fontWeight:isSel?800:600,color:isSel?hospital.color:C.text,borderBottom:`1px solid ${C.dim}`}}>{d.month}</td>
+                              <td style={{padding:"7px 10px",textAlign:"right",borderBottom:`1px solid ${C.dim}`}}>{fmt(d.inquiry)}</td>
+                              <td style={{padding:"7px 10px",textAlign:"right",borderBottom:`1px solid ${C.dim}`}}>{fmt(d.newPatient)}</td>
+                              <td style={{padding:"7px 10px",textAlign:"right",borderBottom:`1px solid ${C.dim}`}}>{fmt(d.revenue)}</td>
+                              <td style={{padding:"7px 10px",textAlign:"right",borderBottom:`1px solid ${C.dim}`}}>{fmt(d.marketingCost)}</td>
+                              <td style={{padding:"7px 10px",textAlign:"right",borderBottom:`1px solid ${C.dim}`,color:dCpl>0?C.accent2:C.muted}}>{dCpl>0?fmt(dCpl):'-'}</td>
+                              <td style={{padding:"7px 10px",textAlign:"right",borderBottom:`1px solid ${C.dim}`,color:dRoi>=200?C.green:dRoi>=100?C.yellow:C.red,fontWeight:700}}>{dRoi>0?dRoi+'%':'-'}</td>
                             </tr>
                           );
                         })}
                       </tbody>
                     </table>
-                  </div>
-                ) : (
-                  <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:24 }}>
-                    데이터 입력 후 추이가 표시돼요
-                  </div>
-                )}
-              </div>
-
-              {/* 병원 성장 AI 요약 - 자동 계산 */}
-              {last.inquiry > 0 && (
-                <div style={{ background:`linear-gradient(135deg, ${hospital.color}15, ${C.accent2}10)`, border:`1px solid ${hospital.color}30`, borderRadius:16, padding:20 }}>
-                  <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:12 }}>🤖 병원 성장 요약</div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                    {[
-                      dInquiry !== null && { icon:"📞", text:`문의가 전월 대비 ${dInquiry > 0 ? `${dInquiry}% 증가` : `${Math.abs(dInquiry)}% 감소`}했어요.`, color: dInquiry>0?C.green:C.red },
-                      dPatient !== null && { icon:"👤", text:`신환은 전월 대비 ${dPatient > 0 ? `${dPatient}% 증가` : `${Math.abs(dPatient)}% 감소`}했어요.`, color: dPatient>0?C.green:C.red },
-                      cpl > 0 && { icon:"💰", text:`문의당 광고비(CPL)는 ${fmt(cpl)}만원이에요.`, color: C.text },
-                      roi > 0 && { icon:"📈", text:`광고 ROI는 ${roi}%로 ${roi >= 300 ? "매우 우수해요! 🎉" : roi >= 100 ? "양호한 수준이에요." : "개선이 필요해요."}`, color: roi>=300?C.green:roi>=100?C.yellow:C.red },
-                      topChannels[0] && { icon:"🔝", text:`가장 많은 유입은 "${topChannels[0].channel}" 채널에서 발생했어요.`, color: C.text },
-                    ].filter(Boolean).map((item, i) => (
-                      <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
-                        <span style={{ fontSize:14 }}>{item.icon}</span>
-                        <span style={{ color:item.color, fontSize:13, lineHeight:1.6, fontWeight: item.color===C.text?400:600 }}>{item.text}</span>
-                      </div>
-                    ))}
                   </div>
                 </div>
               )}
@@ -6826,8 +6818,8 @@ function AppInner() {
             channelData: channel?.data || [],
             contentData: content?.data || [],
             meetingData: meeting?.data || [],
-            // 기존 병원에 새 탭 자동 추가
-            tabs: h.tabs ? [...new Set([...h.tabs, 'schedule','ads','inflow','branding','crm','ai','growreport'])] : DEFAULT_TABS,
+            // 신규 탭은 아직 한번도 설정 안한 병원에만 추가 (기존 tabs가 있으면 유지)
+            tabs: h.tabs ? h.tabs : DEFAULT_TABS,
           };
         });
         setHospitals(loaded);
