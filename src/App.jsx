@@ -6239,7 +6239,7 @@ function AiSearchTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
         <div style={{ overflowX:"auto" }}>
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
             <thead>
-              <tr style={{ background:LIGHT }}>
+              <tr style={{ background:"#F1F5F9" }}>
                 <th style={{ padding:"10px 12px", textAlign:"left", borderBottom:`2px solid ${C.border}`, color:C.muted, fontWeight:700, minWidth:100 }}>플랫폼</th>
                 {months6.map(m => (
                   <th key={m} style={{ padding:"10px 12px", textAlign:"center", borderBottom:`2px solid ${C.border}`, color:C.muted, fontWeight:700, minWidth:70 }}>{m.slice(5)}월</th>
@@ -6261,7 +6261,7 @@ function AiSearchTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
                 </tr>
               ))}
               {/* 합계 행 */}
-              <tr style={{ background:LIGHT }}>
+              <tr style={{ background:"#F1F5F9" }}>
                 <td style={{ padding:"8px 12px", color:C.muted, fontSize:11, fontWeight:700 }}>노출 수</td>
                 {months6.map(m => {
                   const cnt = AI_PLATFORMS.filter(p=>getExposure(m,p.key)).length;
@@ -6312,7 +6312,7 @@ function AiSearchTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
               <thead>
-                <tr style={{ background:LIGHT }}>
+                <tr style={{ background:"#F1F5F9" }}>
                   <th style={{ padding:"8px 10px", textAlign:"left", borderBottom:`2px solid ${C.border}`, color:C.muted, fontWeight:700 }}>자산</th>
                   {months6.slice(-3).map(m=>(
                     <th key={m} style={{ padding:"8px 10px", textAlign:"center", borderBottom:`2px solid ${C.border}`, color:C.muted, fontWeight:700 }}>{m.slice(5)}월</th>
@@ -6341,7 +6341,7 @@ function AiSearchTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
           <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>🛡 AI 신뢰도 지표</div>
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
             <thead>
-              <tr style={{ background:LIGHT }}>
+              <tr style={{ background:"#F1F5F9" }}>
                 <th style={{ padding:"8px 10px", textAlign:"left", borderBottom:`2px solid ${C.border}`, color:C.muted, fontWeight:700 }}>지표</th>
                 {months6.slice(-3).map(m=>(
                   <th key={m} style={{ padding:"8px 10px", textAlign:"center", borderBottom:`2px solid ${C.border}`, color:C.muted, fontWeight:700 }}>{m.slice(5)}월</th>
