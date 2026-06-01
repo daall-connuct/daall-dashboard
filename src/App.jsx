@@ -629,8 +629,8 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
 
             <div style={{ position:"absolute", top:0, right:0, width:120, height:120, background:`radial-gradient(circle at top right, ${h.color}15, transparent)`, pointerEvents:"none" }} />
 
-            {/* 수정 / 삭제 버튼 - 관리자만 */}
-            {isAdmin && (
+            {/* 수정 / 삭제 버튼 - 슈퍼관리자 또는 중간관리자만 */}
+            {isAdmin && adminRole !== "실무자" && (
             <div style={{ position:"absolute", top:14, right:14, display:"flex", gap:6, zIndex:10 }} onClick={e => e.stopPropagation()}>
               <button onClick={e => openEdit(e, h)} style={{ background:`${h.color}20`, border:`1px solid ${h.color}40`, color:h.color, borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>수정</button>
               {deleteConfirm === h.id ? (
@@ -680,7 +680,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
         ))}
 
         {/* 빈 추가 카드 - 관리자만 */}
-        {isAdmin && (
+        {isAdmin && adminRole !== "실무자" && (
         <div onClick={openAdd} style={{ background:"transparent", border:`2px dashed ${C.border}`, borderRadius:20, padding:24, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12, minHeight:200, transition:"all 0.2s" }}
           onMouseEnter={e => { e.currentTarget.style.border = `2px dashed ${C.accent}60`; e.currentTarget.style.background = `${C.accent}05`; }}
           onMouseLeave={e => { e.currentTarget.style.border = `2px dashed ${C.border}`; e.currentTarget.style.background = "transparent"; }}>
