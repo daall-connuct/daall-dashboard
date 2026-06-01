@@ -5662,7 +5662,7 @@ function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
   const [procForm, setProcForm] = useState({ name:"", searchVol:0 });
   const [kwForm, setKwForm] = useState({ keyword:"", vol:0, rank:"" });
   const [topForm, setTopForm] = useState({ title:"", views:0, ctr:0, channel:"" });
-  const [inflowKwForm, setInflowKwForm] = useState({ keyword:"", sessions:0 });
+  const [inflowKwForm, setInflowKwForm] = useState({ keyword:"", pct:0 });
 
   const SectionBtn = ({ id, label }) => (
     <button onClick={()=>setActiveSection(id)} style={{
@@ -5857,15 +5857,18 @@ function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
             {!isReadOnly && (
               <div style={{ display:"flex", gap:8, marginBottom:10 }}>
                 <input value={inflowKwForm.keyword} onChange={e=>setInflowKwForm(p=>({...p,keyword:e.target.value}))} placeholder="키워드" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:2 }} />
-                <input type="number" value={inflowKwForm.sessions||""} onChange={e=>setInflowKwForm(p=>({...p,sessions:+e.target.value}))} placeholder="유입수" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1 }} />
-                <button onClick={()=>{ if(inflowKwForm.keyword){ addItem("content","inflowKeywords",inflowKwForm); setInflowKwForm({keyword:"",sessions:0}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
+                <div style={{ display:"flex", alignItems:"center", gap:4, flex:1 }}>
+                  <input type="number" min="0" max="100" step="0.1" value={inflowKwForm.pct||""} onChange={e=>setInflowKwForm(p=>({...p,pct:+e.target.value}))} placeholder="0.0" style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:"100%" }} />
+                  <span style={{ color:C.muted, fontSize:12, flexShrink:0 }}>%</span>
+                </div>
+                <button onClick={()=>{ if(inflowKwForm.keyword){ addItem("content","inflowKeywords",{...inflowKwForm}); setInflowKwForm({keyword:"",pct:0}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
               </div>
             )}
             <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
               {(monthData.content.inflowKeywords||[]).map((kw,i) => (
                 <div key={kw.id||i} style={{ background:`${C.accent2}10`, border:`1px solid ${C.accent2}30`, borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
                   <span style={{ color:C.text, fontSize:12 }}>{kw.keyword}</span>
-                  <span style={{ color:C.accent2, fontSize:11, fontWeight:700 }}>{fmtN(kw.sessions)}</span>
+                  {(kw.pct||kw.sessions) ? <span style={{ color:C.accent2, fontSize:11, fontWeight:700 }}>{kw.pct !== undefined ? kw.pct+'%' : kw.sessions}</span> : null}
                   {!isReadOnly && <button onClick={()=>removeItem("content","inflowKeywords",kw.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>×</button>}
                 </div>
               ))}
