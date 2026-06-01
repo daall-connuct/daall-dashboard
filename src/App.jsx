@@ -42,6 +42,15 @@ const ASSIGNEE_COLORS = {
   "박다은": "#0EA5E9",
 };
 const getAssigneeColor = (assignee) => ASSIGNEE_COLORS[assignee] || null;
+
+const SCHED_TYPES = [
+  { id:"design",    label:"디자인",    color:"#A78BFA", icon:"🎨" },
+  { id:"marketing", label:"마케팅",    color:"#0EA5E9", icon:"📣" },
+  { id:"cs",        label:"CS",        color:"#F97316", icon:"📞" },
+  { id:"meeting",   label:"미팅일정",  color:"#10B981", icon:"🤝" },
+  { id:"regular",   label:"상시일정",  color:"#0891B2", icon:"📅" },
+];
+const getSchedTypeColor = (typeId) => SCHED_TYPES.find(t=>t.id===typeId)?.color || "#64748B";
 const CH_COLORS = ["#00C49F","#0088FE","#FFBB28","#FF8042","#A28DFF","#FF6B9D","#FF6B35","#4ECDC4","#45B7D1","#96CEB4"];
 
 const CHANNEL_META = {
@@ -1068,7 +1077,7 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
                     {d && <>
                       <div style={{ color: isToday ? C.accent : dayOfWeek===0 ? C.red : dayOfWeek===6 ? C.accent2 : C.text, fontSize:11, fontWeight: isToday ? 800 : 500, marginBottom:2 }}>{d}</div>
                       {daySchedules.map((s,j) => (
-                        <div key={j} style={{ background:s.color||C.accent, borderRadius:3, padding:"1px 4px", fontSize:10, color:"#0F172A", fontWeight:600, marginBottom:1, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>{s.title}</div>
+                        <div key={j} style={{ background:s.schedType?getSchedTypeColor(s.schedType):s.color||C.accent, borderRadius:3, padding:"1px 4px", fontSize:10, color:"#0F172A", fontWeight:600, marginBottom:1, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>{s.title}</div>
                       ))}
                     </>}
                   </div>
@@ -1082,6 +1091,24 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
             {showSchedForm && (
               <div style={{ background:C.surface, border:`1px solid ${C.accent2}30`, borderRadius:14, padding:18 }}>
                 <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:12 }}>새 일정 추가</div>
+                {/* 유형 선택 */}
+                <div style={{ marginBottom:10 }}>
+                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:6 }}>일정 유형</label>
+                  <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+                    {SCHED_TYPES.map(t => {
+                      const isOn = (schedForm.schedType || "regular") === t.id;
+                      return (
+                        <button key={t.id} onClick={()=>setSchedForm(p=>({...p, schedType:t.id, color:t.color}))} style={{
+                          background: isOn ? `${t.color}20` : "transparent",
+                          border: `2px solid ${isOn ? t.color : C.dim}`,
+                          color: isOn ? t.color : C.muted,
+                          borderRadius:8, padding:"5px 12px", fontSize:11, cursor:"pointer", fontWeight: isOn?700:400,
+                          display:"flex", alignItems:"center", gap:4,
+                        }}>{t.icon} {t.label}</button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div style={{ marginBottom:8 }}>
                   <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>날짜</label>
                   <input type="date" value={schedForm.date} onChange={e=>setSchedForm(p=>({...p,date:e.target.value}))}
@@ -1170,10 +1197,14 @@ function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSched
                     ) : (
                       /* 보기 */
                       <div style={{ display:"flex", alignItems:"flex-start", gap:10 }}>
-                        <div style={{ width:4, minHeight:50, borderRadius:2, background:s.color||C.accent, flexShrink:0, marginTop:2 }} />
+                        <div style={{ width:4, minHeight:50, borderRadius:2, background:s.schedType?getSchedTypeColor(s.schedType):s.color||C.accent, flexShrink:0, marginTop:2 }} />
                         <div style={{ flex:1 }}>
                           <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4, flexWrap:"wrap" }}>
                             <span style={{ color:C.text, fontWeight:700, fontSize:13 }}>{s.title}</span>
+                            {s.schedType && (() => {
+                              const t = SCHED_TYPES.find(t=>t.id===s.schedType);
+                              return t ? <span style={{ background:`${t.color}15`, color:t.color, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700 }}>{t.icon} {t.label}</span> : null;
+                            })()}
                             {s.source === "hospital" && s.hospital
                               ? <span style={{ background:`${C.accent}15`, color:C.accent, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:600 }}>🏥 {s.hospital}</span>
                               : <span style={{ background:`${C.accent2}15`, color:C.accent2, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:600 }}>🏢 내부</span>
@@ -6598,6 +6629,24 @@ function HospitalScheduleTab({ hospital, globalSchedules, saveGlobalSchedules, i
       {showForm && (
         <div style={{ background:C.surface, border:`1px solid ${hospital.color}30`, borderRadius:14, padding:18 }}>
           <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:12 }}>새 일정 추가</div>
+          {/* 유형 선택 */}
+          <div style={{ marginBottom:12 }}>
+            <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:6 }}>일정 유형</label>
+            <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+              {SCHED_TYPES.map(t => {
+                const isOn = (form.schedType || "regular") === t.id;
+                return (
+                  <button key={t.id} onClick={()=>setForm(p=>({...p, schedType:t.id, color:t.color}))} style={{
+                    background: isOn ? `${t.color}20` : "transparent",
+                    border: `2px solid ${isOn ? t.color : C.dim}`,
+                    color: isOn ? t.color : C.muted,
+                    borderRadius:8, padding:"5px 12px", fontSize:11, cursor:"pointer", fontWeight:isOn?700:400,
+                    display:"flex", alignItems:"center", gap:4,
+                  }}>{t.icon} {t.label}</button>
+                );
+              })}
+            </div>
+          </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
             <div>
               <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>날짜 *</label>
@@ -6653,7 +6702,7 @@ function HospitalScheduleTab({ hospital, globalSchedules, saveGlobalSchedules, i
                   {d && <>
                     <div style={{ color:isToday?hospital.color:dow===0?C.red:dow===6?C.accent2:C.text, fontSize:11, fontWeight:isToday?800:500, marginBottom:2 }}>{d}</div>
                     {dayScheds.map((s,j) => (
-                      <div key={j} style={{ background:s.color||hospital.color, borderRadius:3, padding:"1px 4px", fontSize:10, color:"#0F172A", fontWeight:600, marginBottom:1, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>{s.title}</div>
+                      <div key={j} style={{ background:s.schedType?getSchedTypeColor(s.schedType):s.color||hospital.color, borderRadius:3, padding:"1px 4px", fontSize:10, color:"#0F172A", fontWeight:600, marginBottom:1, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>{s.title}</div>
                     ))}
                   </>}
                 </div>
@@ -6690,9 +6739,15 @@ function HospitalScheduleTab({ hospital, globalSchedules, saveGlobalSchedules, i
                   </div>
                 ) : (
                   <div style={{ display:"flex", alignItems:"flex-start", gap:10 }}>
-                    <div style={{ width:4, minHeight:40, borderRadius:2, background:s.color||hospital.color, flexShrink:0, marginTop:2 }} />
+                    <div style={{ width:4, minHeight:40, borderRadius:2, background:s.schedType?getSchedTypeColor(s.schedType):s.color||hospital.color, flexShrink:0, marginTop:2 }} />
                     <div style={{ flex:1 }}>
-                      <div style={{ color:C.text, fontWeight:700, fontSize:13 }}>{s.title}</div>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", marginBottom:2 }}>
+                        <span style={{ color:C.text, fontWeight:700, fontSize:13 }}>{s.title}</span>
+                        {s.schedType && (() => {
+                          const t = SCHED_TYPES.find(t=>t.id===s.schedType);
+                          return t ? <span style={{ background:`${t.color}15`, color:t.color, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700 }}>{t.icon} {t.label}</span> : null;
+                        })()}
+                      </div>
                       <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>📅 {s.date}</div>
                       {s.assignee && <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>👤 {s.assignee}</div>}
                       {s.memo && <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>💬 {s.memo}</div>}
