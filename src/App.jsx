@@ -6566,21 +6566,21 @@ function HospitalScheduleTab({ hospital, globalSchedules, saveGlobalSchedules, i
   const [form, setForm] = useState({ date:"", title:"", memo:"", assignee:"" });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [editId, setEditId] = useState(null);
-  const [editForm, setEditForm] = useState({ date:"", title:"", memo:"", assignee:"" });
+  const [editForm, setEditForm] = useState({ date:"", title:"", memo:"", schedType:"regular", color:"" });
   const [savedMsg, setSavedMsg] = useState("");
   const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
 
   const addSchedule = async () => {
     if (!form.date || !form.title) return;
-    const color = getAssigneeColor(form.assignee) || hospital.color;
+    const color = getSchedTypeColor(form.schedType||"regular");
     const newItem = { id:Date.now(), ...form, color, hospital:hospital.name, hospitalId:hospital.id, hospitalColor:hospital.color, source:"hospital" };
     await saveGlobalSchedules([...(globalSchedules||[]), newItem]);
-    setForm({ date:"", title:"", memo:"", assignee:"" });
+    setForm({ date:"", title:"", memo:"", schedType:"regular" });
     setShowForm(false); toast("일정 추가 완료! 내부 일정에도 즉시 반영됐어요.");
   };
 
   const updateSchedule = async () => {
-    const color = getAssigneeColor(editForm.assignee) || hospital.color;
+    const color = getSchedTypeColor(editForm.schedType||"regular");
     const updated = (globalSchedules||[]).map(s => s.id === editId ? { ...s, ...editForm, color } : s);
     await saveGlobalSchedules(updated);
     setEditId(null); toast("수정 완료!");
@@ -6701,19 +6701,40 @@ function HospitalScheduleTab({ hospital, globalSchedules, saveGlobalSchedules, i
             : monthSchedules.map(s => (
               <div key={s.id} style={{ padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
                 {editId === s.id ? (
-                  <div style={{ background:"#F8FAFC", borderRadius:10, padding:10, border:`1px solid ${hospital.color}40` }}>
-                    <div style={{ color:hospital.color, fontSize:11, fontWeight:700, marginBottom:8 }}>✏️ 수정</div>
-                    <input type="date" value={editForm.date} onChange={e=>setEditForm(p=>({...p,date:e.target.value}))}
-                      style={{ ...inputSt, marginBottom:6, padding:"5px 8px", fontSize:12 }} />
-                    <input type="text" value={editForm.title} onChange={e=>setEditForm(p=>({...p,title:e.target.value}))}
-                      placeholder="제목" style={{ ...inputSt, marginBottom:6, padding:"5px 8px", fontSize:12 }} />
-                    <select value={editForm.assignee||""} onChange={e=>setEditForm(p=>({...p,assignee:e.target.value}))}
-                      style={{ ...inputSt, marginBottom:6, padding:"5px 8px", fontSize:12, appearance:"none" }}>
-                      <option value="">담당자 선택</option>
-                      {["대표님","서보영","김혜지","박다은","홍동호"].map(a=><option key={a} value={a}>{a}</option>)}
-                    </select>
+                  <div style={{ background:"#F8FAFC", borderRadius:10, padding:14, border:`1px solid ${hospital.color}40` }}>
+                    <div style={{ color:hospital.color, fontSize:11, fontWeight:700, marginBottom:10 }}>✏️ 일정 수정</div>
+                    {/* 유형 선택 */}
+                    <div style={{ marginBottom:10 }}>
+                      <label style={{ color:C.muted, fontSize:10, display:"block", marginBottom:5 }}>일정 유형</label>
+                      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                        {SCHED_TYPES.map(t => {
+                          const isOn = (editForm.schedType||"regular") === t.id;
+                          return (
+                            <button key={t.id} onClick={()=>setEditForm(p=>({...p,schedType:t.id,color:t.color}))} style={{
+                              background:isOn?`${t.color}20`:"transparent",
+                              border:`2px solid ${isOn?t.color:C.dim}`,
+                              color:isOn?t.color:C.muted,
+                              borderRadius:7, padding:"4px 10px", fontSize:10, cursor:"pointer", fontWeight:isOn?700:400,
+                              display:"flex", alignItems:"center", gap:3,
+                            }}>{t.icon} {t.label}</button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+                      <div>
+                        <label style={{ color:C.muted, fontSize:10, display:"block", marginBottom:2 }}>날짜</label>
+                        <input type="date" value={editForm.date} onChange={e=>setEditForm(p=>({...p,date:e.target.value}))}
+                          style={{ ...inputSt, padding:"5px 8px", fontSize:12 }} />
+                      </div>
+                      <div>
+                        <label style={{ color:C.muted, fontSize:10, display:"block", marginBottom:2 }}>제목</label>
+                        <input type="text" value={editForm.title} onChange={e=>setEditForm(p=>({...p,title:e.target.value}))}
+                          placeholder="제목" style={{ ...inputSt, padding:"5px 8px", fontSize:12 }} />
+                      </div>
+                    </div>
                     <input type="text" value={editForm.memo||""} onChange={e=>setEditForm(p=>({...p,memo:e.target.value}))}
-                      placeholder="메모" style={{ ...inputSt, marginBottom:8, padding:"5px 8px", fontSize:12 }} />
+                      placeholder="메모 (선택)" style={{ ...inputSt, marginBottom:10, padding:"5px 8px", fontSize:12, width:"100%" }} />
                     <div style={{ display:"flex", gap:6 }}>
                       <button onClick={updateSchedule} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:6, padding:"5px 14px", fontSize:11, cursor:"pointer", fontWeight:700 }}>저장</button>
                       <button onClick={() => setEditId(null)} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:6, padding:"5px 10px", fontSize:11, cursor:"pointer" }}>취소</button>
@@ -6734,7 +6755,7 @@ function HospitalScheduleTab({ hospital, globalSchedules, saveGlobalSchedules, i
                       {s.memo && <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>💬 {s.memo}</div>}
                     </div>
                     <div style={{ display:"flex", gap:4, flexShrink:0 }}>
-                      <button onClick={() => { setEditId(s.id); setEditForm({ date:s.date, title:s.title, memo:s.memo||"", assignee:s.assignee||"" }); }}
+                      <button onClick={() => { setEditId(s.id); setEditForm({ date:s.date, title:s.title, memo:s.memo||"", schedType:s.schedType||"regular", color:s.color||"" }); }}
                         style={{ background:`${hospital.color}10`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", fontWeight:600 }}>수정</button>
                       {deleteConfirm === s.id
                         ? <button onClick={() => deleteSchedule(s.id)} style={{ background:`${C.red}15`, border:`1px solid ${C.red}`, color:C.red, borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer" }}>확인</button>
