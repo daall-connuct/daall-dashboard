@@ -238,21 +238,16 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   const [form, setForm]             = useState(EMPTY_HOSPITAL_FORM);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [savedMsg, setSavedMsg]     = useState("");
-  const [mainTab, setMainTab]       = useState("hospitals"); // "hospitals" | "internal"
+  const [mainTab, setMainTab]       = useState("hospitals");
+  const [searchQ, setSearchQ]       = useState("");
 
-  // 관리자 계정 관리 (이름 + 비밀번호)
-  const [adminAccounts, setAdminAccounts] = useState([
-    { id:1, name:"임지혜", password:"Daall" },
-  ]);
-
-  // 관리자 계정 관리 UI
+  const [adminAccounts, setAdminAccounts] = useState([{ id:1, name:"임지혜", password:"Daall" }]);
   const [showAccountMgmt, setShowAccountMgmt] = useState(false);
   const [newAccount, setNewAccount] = useState({ name:"", password:"", role:"중간관리자" });
   const [resetConfirmId, setResetConfirmId] = useState(null);
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [activityLogs, setActivityLogs] = useState([]);
 
-  // 관리자 계정 Supabase 불러오기
   useEffect(() => {
     const load = async () => {
       try {
@@ -264,441 +259,394 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   }, []);
 
   const saveAdminAccounts = async (accounts) => {
-    try {
-      await supabase.from('admin_accounts').upsert({ id: 1, data: accounts }, { onConflict: 'id' });
-    } catch(e) { console.error('관리자 계정 저장 실패:', e); }
+    try { await supabase.from('admin_accounts').upsert({ id:1, data:accounts }, { onConflict:'id' }); }
+    catch(e) {}
   };
 
   const handleAddAccount = () => {
     if (!newAccount.name.trim() || !newAccount.password.trim()) return;
     const newAccounts = [...adminAccounts, { id:Date.now(), ...newAccount }];
-    setAdminAccounts(newAccounts);
-    saveAdminAccounts(newAccounts);
-    setNewAccount({ name:"", password:"" });
-    toast("계정 추가 완료!");
+    setAdminAccounts(newAccounts); saveAdminAccounts(newAccounts);
+    setNewAccount({ name:"", password:"", role:"중간관리자" }); toast("계정 추가 완료!");
   };
-
   const handleDeleteAccount = (id) => {
-    const newAccounts = adminAccounts.filter(a => a.id !== id);
-    setAdminAccounts(newAccounts);
-    saveAdminAccounts(newAccounts);
-    setResetConfirmId(null);
+    const updated = adminAccounts.filter(a=>a.id!==id);
+    setAdminAccounts(updated); saveAdminAccounts(updated);
+  };
+  const handleResetPassword = (id, newPw) => {
+    const updated = adminAccounts.map(a=>a.id===id?{...a,password:newPw}:a);
+    setAdminAccounts(updated); saveAdminAccounts(updated); setResetConfirmId(null); toast("비밀번호 변경 완료!");
   };
 
-  const toast = (msg) => { setSavedMsg(msg); setTimeout(() => setSavedMsg(""), 2200); };
-
-  const openAdd = () => { setForm(EMPTY_HOSPITAL_FORM); setEditTarget(null); setShowForm(true); };
-  const openEdit = (e, h) => { e.stopPropagation(); setForm({ name:h.name, region:h.region, dept:h.dept, manager:h.manager, target_patients:String(h.target_patients), target_revenue:String(h.target_revenue), color:h.color, password:h.password||"", tabs: h.tabs || DEFAULT_TABS, juniorTabs: h.juniorTabs || [] }); setEditTarget(h); setShowForm(true); };
-
-  const handleSave = () => {
-    if (!form.name || !form.dept) return;
-    if (editTarget) {
-      onEditHospital({ ...editTarget, ...form, target_patients:+form.target_patients||0, target_revenue:+form.target_revenue||0 });
-      toast("수정 완료!");
-    } else {
-      onAddHospital({ ...form, target_patients:+form.target_patients||0, target_revenue:+form.target_revenue||0 });
-      toast("병원 추가 완료!");
-    }
-    setShowForm(false); setEditTarget(null); setForm(EMPTY_HOSPITAL_FORM);
+  const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
+  const openAdd  = () => { setEditTarget(null); setForm(EMPTY_HOSPITAL_FORM); setShowForm(true); };
+  const openEdit = (e, h) => {
+    e.stopPropagation();
+    setForm({ name:h.name, region:h.region, dept:h.dept, manager:h.manager,
+      target_patients:String(h.target_patients), target_revenue:String(h.target_revenue),
+      color:h.color, password:h.password||"",
+      tabs:h.tabs||DEFAULT_TABS, juniorTabs:h.juniorTabs||[] });
+    setEditTarget(h); setShowForm(true);
   };
-
   const handleDelete = (e, id) => { e.stopPropagation(); setDeleteConfirm(id); };
   const confirmDelete = (e, id) => { e.stopPropagation(); onDeleteHospital(id); setDeleteConfirm(null); toast("삭제 완료"); };
 
-  const summaries = useMemo(() => hospitals.map(h => {
-    const mData = h.monthlyData || [];
-    const last = mData[mData.length - 1] || {};
-    const roi = last.marketingCost ? Math.round(((last.revenue - last.marketingCost) / last.marketingCost) * 100) : 0;
-    const achieve = last.newPatient && h.target_patients ? Math.round((last.newPatient / h.target_patients) * 100) : 0;
-    return { ...h, last, roi, achieve };
-  }), [hospitals]);
+  const handleSubmitForm = () => {
+    if (!form.name.trim()) return;
+    if (editTarget) {
+      onEditHospital({ ...editTarget, ...form, target_patients:+form.target_patients, target_revenue:+form.target_revenue });
+    } else {
+      onAddHospital({ ...form, target_patients:+form.target_patients, target_revenue:+form.target_revenue });
+    }
+    setShowForm(false);
+  };
+
+  // 전체 KPI 집계 (최신 월 기준)
+  const allKpi = useMemo(() => {
+    let inquiry=0, newPatient=0, revenue=0, mktCost=0, count=0;
+    hospitals.forEach(h => {
+      const hData = h.monthlyData || [];
+      if (hData.length > 0) {
+        const last = hData[hData.length-1];
+        inquiry    += last.inquiry     || 0;
+        newPatient += last.newPatient  || 0;
+        revenue    += last.revenue     || 0;
+        mktCost    += last.marketingCost || 0;
+        count++;
+      }
+    });
+    const cpl = inquiry > 0 ? Math.round(mktCost/inquiry) : 0;
+    const roi = mktCost > 0 ? Math.round((revenue-mktCost)/mktCost*100) : 0;
+    return { inquiry, newPatient, revenue, mktCost, cpl, roi, count };
+  }, [hospitals]);
+
+  const filteredHospitals = hospitals.filter(h =>
+    !searchQ || h.name.includes(searchQ) || h.dept?.includes(searchQ) || h.region?.includes(searchQ)
+  );
+
+  const fmt = (n) => (n||0).toLocaleString();
+
+  const NavBtn = ({ icon, label, active, onClick, danger }) => (
+    <button onClick={onClick} style={{
+      display:"flex", alignItems:"center", gap:10, padding:"10px 16px",
+      background: active ? `${C.accent}15` : "transparent",
+      border: "none",
+      borderLeft: `3px solid ${active ? C.accent : "transparent"}`,
+      color: danger ? C.red : active ? C.accent : C.muted,
+      fontSize:13, fontWeight: active ? 700 : 500, cursor:"pointer",
+      width:"100%", textAlign:"left", transition:"all 0.15s",
+    }}
+      onMouseEnter={e => { if(!active) e.currentTarget.style.background = "#F1F5F9"; }}
+      onMouseLeave={e => { if(!active) e.currentTarget.style.background = "transparent"; }}
+    >
+      <span style={{ fontSize:16 }}>{icon}</span>
+      <span>{label}</span>
+    </button>
+  );
 
   return (
-    <div style={{ minHeight:"100vh", background:C.bg, padding:"40px 32px", fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif" }}>
+    <div style={{ display:"flex", height:"100vh", background:C.bg, fontFamily:"-apple-system,BlinkMacSystemFont,'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo',sans-serif" }}>
       <Toast msg={savedMsg} />
 
-      {/* 헤더 */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24, flexWrap:"wrap", gap:16 }}>
-        <div>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ color:C.text, fontSize:26, fontWeight:900, marginBottom:4 }}>다올 마케팅 대시보드</div>
-            {isAdmin && <Badge color={C.accent}>관리자 · {loginName}</Badge>}
-          </div>
-          <div style={{ color:C.muted, fontSize:14 }}>병원을 선택하면 상세 대시보드로 이동해요</div>
+      {/* ── 좌측 사이드바 ── */}
+      <div style={{ width:220, background:C.surface, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", flexShrink:0 }}>
+        {/* 로고 */}
+        <div style={{ padding:"24px 20px 16px", borderBottom:`1px solid ${C.border}` }}>
+          <div style={{ fontSize:18, fontWeight:900, color:C.text, letterSpacing:"-0.5px" }}>DAALL</div>
+          <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>병원 마케팅 대시보드</div>
         </div>
-        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-          {isAdmin && (
+
+        {/* 로그인 사용자 */}
+        <div style={{ padding:"14px 20px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ width:32, height:32, borderRadius:10, background:`linear-gradient(135deg,${C.accent},${C.accent2})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, fontWeight:800, flexShrink:0 }}>
+            {loginName?.[0]||"A"}
+          </div>
+          <div>
+            <div style={{ color:C.text, fontSize:12, fontWeight:700 }}>{loginName||"관리자"}</div>
+            <div style={{ color:C.muted, fontSize:10 }}>{adminRole||"관리자"}</div>
+          </div>
+        </div>
+
+        {/* 메뉴 */}
+        <div style={{ flex:1, padding:"12px 0", display:"flex", flexDirection:"column", gap:2 }}>
+          <div style={{ padding:"6px 16px 4px", color:C.muted, fontSize:10, fontWeight:700, letterSpacing:1 }}>메뉴</div>
+          <NavBtn icon="🏥" label="병원 목록" active={mainTab==="hospitals"} onClick={()=>setMainTab("hospitals")} />
+          <NavBtn icon="⚡" label="내부 작업" active={mainTab==="internal"} onClick={()=>setMainTab("internal")} />
+
+          {isSuperAdmin && (
             <>
-              <button onClick={openAdd} style={{ background:`linear-gradient(135deg,${C.accent},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:12, padding:"11px 22px", fontSize:14, cursor:"pointer", fontWeight:700, whiteSpace:"nowrap" }}>
-                + 새 병원 추가
-              </button>
-              <button onClick={() => { onAdminLogout(); setShowAccountMgmt(false); toast("로그아웃 완료"); }} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer" }}>
-                로그아웃
-              </button>
-              {isSuperAdmin && (
-                <>
-                  <button onClick={() => setShowAccountMgmt(!showAccountMgmt)} style={{
-                    background: showAccountMgmt ? `${C.accent2}20` : "transparent",
-                    border: `1px solid ${showAccountMgmt ? C.accent2 : C.dim}`,
-                    color: showAccountMgmt ? C.accent2 : C.muted,
-                    borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer", fontWeight:600,
-                  }}>👤 계정 관리</button>
-                  <button onClick={async () => {
-                    if (!showActivityLog) {
-                      try {
-                        const { data } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(100);
-                        setActivityLogs(data || []);
-                      } catch(e) {}
-                    }
-                    setShowActivityLog(!showActivityLog);
-                  }} style={{
-                    background: showActivityLog ? `${C.green}20` : "transparent",
-                    border: `1px solid ${showActivityLog ? C.green : C.dim}`,
-                    color: showActivityLog ? C.green : C.muted,
-                    borderRadius:10, padding:"9px 14px", fontSize:12, cursor:"pointer", fontWeight:600,
-                  }}>📋 활동 로그</button>
-                </>
-              )}
+              <div style={{ padding:"12px 16px 4px", color:C.muted, fontSize:10, fontWeight:700, letterSpacing:1, marginTop:4 }}>관리</div>
+              <NavBtn icon="👥" label="계정 관리" active={showAccountMgmt} onClick={()=>{ setShowAccountMgmt(!showAccountMgmt); setShowActivityLog(false); }} />
+              <NavBtn icon="📋" label="활동 로그" active={showActivityLog} onClick={()=>{ setShowActivityLog(!showActivityLog); setShowAccountMgmt(false); }} />
             </>
           )}
         </div>
+
+        {/* 로그아웃 */}
+        <div style={{ padding:"12px 0", borderTop:`1px solid ${C.border}` }}>
+          <NavBtn icon="🚪" label="로그아웃" onClick={onAdminLogout} danger />
+        </div>
       </div>
 
-      {/* 관리자 전용 - 계정 관리 */}
-      {isAdmin && isSuperAdmin && showAccountMgmt && (
-        <div style={{ marginBottom:24, background:"#F8FAFC", border:`1px solid ${C.accent2}30`, borderRadius:20, padding:24 }}>
-          <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:16, display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ width:3, height:18, background:`linear-gradient(180deg,${C.accent2},${C.accent})`, borderRadius:2 }} />
-            관리자 계정 관리
-          </div>
+      {/* ── 우측 메인 컨텐츠 ── */}
+      <div style={{ flex:1, overflow:"auto", display:"flex", flexDirection:"column" }}>
 
-          {/* 현재 계정 목록 */}
-          <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
-            {adminAccounts.map(acc => {
-              const roleColor = acc.role === "최고관리자" ? C.red : acc.role === "실무자" ? C.green : C.accent2;
-              const roleName = acc.role || "중간관리자";
-              return (
-              <div key={acc.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 16px", display:"flex", alignItems:"center", gap:12 }}>
-                <div style={{ width:32, height:32, borderRadius:"50%", background:`linear-gradient(135deg,${C.accent2},${C.accent})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#0F172A", fontSize:13, fontWeight:800, flexShrink:0 }}>
-                  {acc.name[0]}
-                </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                    <span style={{ color:C.text, fontSize:13, fontWeight:700 }}>{acc.name}</span>
-                    <span style={{ background:`${roleColor}15`, color:roleColor, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700 }}>{roleName}</span>
-                  </div>
-                  <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>비밀번호: {"●".repeat(acc.password.length)}</div>
-                </div>
-                {adminAccounts.length > 1 && (
-                  resetConfirmId === acc.id ? (
+        {/* 계정 관리 모달 */}
+        {showAccountMgmt && (
+          <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:24 }}>
+            <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:16 }}>👥 계정 관리</div>
+            <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
+              <input value={newAccount.name} onChange={e=>setNewAccount({...newAccount,name:e.target.value})} placeholder="이름" style={{ ...inputSt, padding:"7px 10px", fontSize:12, width:120 }} />
+              <input type="password" value={newAccount.password} onChange={e=>setNewAccount({...newAccount,password:e.target.value})} placeholder="비밀번호" style={{ ...inputSt, padding:"7px 10px", fontSize:12, width:120 }} />
+              <select value={newAccount.role} onChange={e=>setNewAccount({...newAccount,role:e.target.value})} style={{ ...inputSt, padding:"7px 10px", fontSize:12 }}>
+                <option>중간관리자</option><option>실무자</option><option>최고관리자</option>
+              </select>
+              <button onClick={handleAddAccount} style={{ background:`linear-gradient(135deg,${C.accent},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"7px 16px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {adminAccounts.map(acc => (
+                <div key={acc.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px", background:"#F8FAFC", borderRadius:10, border:`1px solid ${C.border}` }}>
+                  <span style={{ color:C.text, fontSize:13, fontWeight:700, flex:1 }}>{acc.name}</span>
+                  <span style={{ color:C.muted, fontSize:11 }}>{acc.role||"중간관리자"}</span>
+                  {resetConfirmId===acc.id ? (
                     <div style={{ display:"flex", gap:6 }}>
-                      <button onClick={() => handleDeleteAccount(acc.id)} style={{ background:`${C.red}20`, border:`1px solid ${C.red}`, color:C.red, borderRadius:7, padding:"4px 12px", fontSize:11, cursor:"pointer", fontWeight:700 }}>삭제 확인</button>
-                      <button onClick={() => setResetConfirmId(null)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer" }}>취소</button>
+                      <input id={`pw_${acc.id}`} placeholder="새 비밀번호" style={{ ...inputSt, padding:"4px 8px", fontSize:11, width:100 }} />
+                      <button onClick={()=>handleResetPassword(acc.id, document.getElementById(`pw_${acc.id}`).value)} style={{ background:`${C.green}20`, border:`1px solid ${C.green}`, color:C.green, borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>확인</button>
                     </div>
                   ) : (
-                    <button onClick={() => setResetConfirmId(acc.id)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer" }}>삭제</button>
-                  )
+                    <button onClick={()=>setResetConfirmId(acc.id)} style={{ background:`${C.accent}15`, border:`1px solid ${C.accent}30`, color:C.accent, borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer" }}>비번변경</button>
+                  )}
+                  <button onClick={()=>handleDeleteAccount(acc.id)} style={{ background:`${C.red}15`, border:`1px solid ${C.red}30`, color:C.red, borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer" }}>삭제</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 활동 로그 모달 */}
+        {showActivityLog && (
+          <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:24, maxHeight:320, overflowY:"auto" }}>
+            <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:16 }}>📋 활동 로그</div>
+            {activityLogs.length===0
+              ? <div style={{ color:C.muted, fontSize:13 }}>기록된 활동이 없어요</div>
+              : activityLogs.slice().reverse().map((log,i) => (
+                <div key={i} style={{ display:"flex", gap:10, padding:"7px 0", borderBottom:`1px solid ${C.dim}`, fontSize:12 }}>
+                  <span style={{ color:C.muted, flexShrink:0 }}>{log.time}</span>
+                  <span style={{ color:C.accent, fontWeight:700, flexShrink:0 }}>{log.actor}</span>
+                  <span style={{ color:C.text }}>{log.action}</span>
+                  <span style={{ color:C.muted }}>{log.target}</span>
+                </div>
+              ))
+            }
+          </div>
+        )}
+
+        {/* 병원 목록 화면 */}
+        {mainTab === "hospitals" && (
+          <div style={{ flex:1, padding:28 }}>
+            {/* 헤더 */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24, flexWrap:"wrap", gap:12 }}>
+              <div>
+                <div style={{ color:C.text, fontSize:22, fontWeight:900 }}>병원 목록</div>
+                <div style={{ color:C.muted, fontSize:13, marginTop:2 }}>총 {hospitals.length}개 병원 관리 중</div>
+              </div>
+              <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="병원명, 진료과, 지역 검색..."
+                  style={{ ...inputSt, padding:"8px 14px", fontSize:13, width:220 }} />
+                {isAdmin && adminRole !== "실무자" && (
+                  <button onClick={openAdd} style={{ background:`linear-gradient(135deg,${C.accent},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:10, padding:"9px 18px", fontSize:13, cursor:"pointer", fontWeight:700 }}>+ 병원 추가</button>
                 )}
               </div>
-              );
-            })}
-          </div>
-
-          {/* 새 계정 추가 */}
-          <div style={{ background:`${C.accent2}08`, border:`1px solid ${C.accent2}25`, borderRadius:12, padding:16 }}>
-            <div style={{ color:C.muted, fontSize:12, fontWeight:700, marginBottom:10 }}>새 관리자 계정 추가</div>
-            <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-              <input value={newAccount.name} onChange={e => setNewAccount({...newAccount, name:e.target.value})}
-                placeholder="이름" style={{ ...inputSt, width:100, padding:"7px 10px", fontSize:12 }} />
-              <input type="password" value={newAccount.password} onChange={e => setNewAccount({...newAccount, password:e.target.value})}
-                onKeyDown={e => e.key === "Enter" && handleAddAccount()}
-                placeholder="비밀번호" style={{ ...inputSt, width:120, padding:"7px 10px", fontSize:12 }} />
-              <select value={newAccount.role} onChange={e => setNewAccount({...newAccount, role:e.target.value})}
-                style={{ ...inputSt, width:110, padding:"7px 10px", fontSize:12, appearance:"none" }}>
-                <option value="최고관리자">최고관리자</option>
-                <option value="중간관리자">중간관리자</option>
-                <option value="실무자">실무자</option>
-              </select>
-              <button onClick={handleAddAccount} disabled={!newAccount.name || !newAccount.password} style={{
-                background: newAccount.name && newAccount.password ? `linear-gradient(135deg,${C.accent2},${C.accent})` : C.dim,
-                border:"none", color:"#0F172A", borderRadius:9, padding:"7px 18px", fontSize:12, cursor: newAccount.name && newAccount.password ? "pointer" : "not-allowed", fontWeight:700,
-              }}>+ 추가</button>
             </div>
-            <div style={{ color:C.muted, fontSize:11, marginTop:8 }}>실무자는 병원별로 허용된 탭만 볼 수 있어요.</div>
-          </div>
-        </div>
-      )}
 
-      {/* 슈퍼관리자 전용 - 활동 로그 */}
-      {isAdmin && isSuperAdmin && showActivityLog && (
-        <div style={{ marginBottom:24, background:"#F8FAFC", border:`1px solid ${C.green}30`, borderRadius:20, padding:24 }}>
-          <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <div style={{ width:3, height:18, background:`linear-gradient(180deg,${C.green},${C.accent})`, borderRadius:2 }} />
-              활동 로그 (최근 100건)
-            </div>
-            <button onClick={async () => {
-              try {
-                const { data } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(100);
-                setActivityLogs(data || []);
-              } catch(e) {}
-            }} style={{ background:`${C.green}20`, border:`1px solid ${C.green}40`, color:C.green, borderRadius:8, padding:"4px 12px", fontSize:11, cursor:"pointer", fontWeight:600 }}>새로고침</button>
-          </div>
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-              <thead>
-                <tr style={{ borderBottom:`1px solid ${C.dim}` }}>
-                  {["시간","담당자","병원","액션","상세"].map(h => (
-                    <th key={h} style={{ color:C.muted, fontWeight:600, padding:"8px 12px", textAlign:"left", whiteSpace:"nowrap" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {activityLogs.length === 0
-                  ? <tr><td colSpan={5} style={{ padding:"24px", textAlign:"center", color:C.muted }}>활동 로그가 없어요</td></tr>
-                  : activityLogs.map(log => (
-                    <tr key={log.id} style={{ borderBottom:`1px solid ${C.dim}30` }}
-                      onMouseEnter={e=>e.currentTarget.style.background=`${C.green}08`}
-                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      <td style={{ padding:"8px 12px", color:C.muted, whiteSpace:"nowrap", fontSize:11 }}>
-                        {new Date(log.created_at).toLocaleString("ko-KR", { month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })}
-                      </td>
-                      <td style={{ padding:"8px 12px", color:C.accent, fontWeight:700 }}>{log.actor}</td>
-                      <td style={{ padding:"8px 12px", color:C.text }}>{log.hospital_name || "-"}</td>
-                      <td style={{ padding:"8px 12px" }}>
-                        <span style={{ background:`${C.green}15`, border:`1px solid ${C.green}30`, color:C.green, borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{log.action}</span>
-                      </td>
-                      <td style={{ padding:"8px 12px", color:C.muted }}>{log.detail || "-"}</td>
-                    </tr>
-                  ))
-                }
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-
-      {/* 병원 추가 / 수정 폼 */}
-      {showForm && (
-        <div style={{ background:"#F8FAFC", border:`2px solid ${form.color}50`, borderRadius:20, padding:28, maxWidth:900, margin:"0 auto", marginBottom:32 }}>
-          <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:20 }}>{editTarget ? "병원 정보 수정" : "새 병원 추가"}</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))", gap:14, marginBottom:18 }}>
-            <HospitalFormField label="병원명" k="name" placeholder="예: 강남미소피부과" required form={form} setForm={setForm} />
-            <HospitalFormField label="진료과" k="dept" placeholder="예: 피부과" required form={form} setForm={setForm} />
-            <HospitalFormField label="지역" k="region" placeholder="예: 강남" form={form} setForm={setForm} />
-            <HospitalFormField label="담당자" k="manager" placeholder="예: 김민지" form={form} setForm={setForm} />
-            <HospitalFormField label="신환 목표 (명/월)" k="target_patients" placeholder="120" type="number" form={form} setForm={setForm} />
-            <HospitalFormField label="매출 목표 (만원/월)" k="target_revenue" placeholder="15000" type="number" form={form} setForm={setForm} />
-            <HospitalFormField label="공유 링크 비밀번호" k="password" placeholder="예: lead2024" form={form} setForm={setForm} />
-
-            {/* 탭 선택 */}
-            <div style={{ gridColumn:"1/-1" }}>
-              <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>표시할 탭 선택</label>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                {ALL_TABS.map(t => {
-                  const isOn = (form.tabs || DEFAULT_TABS).includes(t.id);
-                  return (
-                    <div key={t.id} onClick={() => {
-                      const cur = form.tabs || DEFAULT_TABS;
-                      setForm(prev => ({...prev, tabs: isOn ? cur.filter(id => id !== t.id) : [...cur, t.id]}));
-                    }} style={{
-                      display:"flex", alignItems:"center", gap:6,
-                      background: isOn ? `${form.color||C.accent}20` : "transparent",
-                      border: `1px solid ${isOn ? (form.color||C.accent) : C.dim}`,
-                      borderRadius:8, padding:"5px 12px", fontSize:12,
-                      cursor: "pointer",
-                      color: isOn ? (form.color||C.accent) : C.muted,
-                    }}>
-                      <span>{isOn ? "✓" : "○"}</span>
-                      <span>{t.label}</span>
-                    </div>
-                  );
-                })}
+            {/* 전체 KPI 요약 */}
+            {allKpi.count > 0 && (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:12, marginBottom:24 }}>
+                {[
+                  { label:"총 문의", value:fmt(allKpi.inquiry)+"건", color:C.accent },
+                  { label:"총 신환", value:fmt(allKpi.newPatient)+"명", color:hospital_color_fallback },
+                  { label:"총 매출", value:fmt(allKpi.revenue)+"만", color:C.green },
+                  { label:"총 광고비", value:fmt(allKpi.mktCost)+"만", color:C.orange },
+                  { label:"평균 CPL", value:allKpi.cpl>0?fmt(allKpi.cpl)+"만":"-", color:C.accent2 },
+                  { label:"평균 ROI", value:allKpi.roi>0?allKpi.roi+"%":"-", color:allKpi.roi>=200?C.green:allKpi.roi>=100?C.yellow:C.red },
+                ].map((k,i) => (
+                  <div key={i} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"14px 16px" }}>
+                    <div style={{ color:C.muted, fontSize:10, fontWeight:700, marginBottom:6 }}>{k.label}</div>
+                    <div style={{ color:k.color, fontSize:18, fontWeight:900 }}>{k.value}</div>
+                  </div>
+                ))}
               </div>
-            </div>
-
-            {/* 실무자 허용 탭 */}
-            <div style={{ gridColumn:"1/-1" }}>
-              <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>👤 실무자 허용 탭 <span style={{ color:C.muted, fontWeight:400 }}>(실무자 등급 계정에만 적용)</span></label>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                {ALL_TABS.filter(t => (form.tabs || DEFAULT_TABS).includes(t.id)).map(t => {
-                  const tabId = t.id;
-                  const isAllowed = (form.juniorTabs || []).includes(tabId);
-                  return (
-                    <div key={tabId} onClick={() => {
-                      const cur = form.juniorTabs || [];
-                      setForm(prev => ({...prev, juniorTabs: isAllowed ? cur.filter(id => id !== tabId) : [...cur, tabId]}));
-                    }} style={{
-                      display:"flex", alignItems:"center", gap:6,
-                      background: isAllowed ? `${C.green}20` : "transparent",
-                      border: `1px solid ${isAllowed ? C.green : C.dim}`,
-                      borderRadius:8, padding:"5px 12px", fontSize:12, cursor:"pointer",
-                      color: isAllowed ? C.green : C.muted,
-                    }}>
-                      <span>{isAllowed ? "✓" : "○"}</span>
-                      <span>{t.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* 색상 선택 */}
-          <div style={{ marginBottom:20 }}>
-            <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:10 }}>대표 색상</label>
-            <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-              {PALETTE.map(col => (
-                <div key={col} onClick={() => setForm(prev => ({...prev, color:col}))} style={{
-                  width:28, height:28, borderRadius:"50%", background:col, cursor:"pointer",
-                  border: form.color === col ? `3px solid #fff` : "3px solid transparent",
-                  boxShadow: form.color === col ? `0 0 0 2px ${col}` : "none",
-                  transition:"all 0.15s",
-                }} />
-              ))}
-              {/* 직접 입력 */}
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:4 }}>
-                <div style={{ width:28, height:28, borderRadius:"50%", background:form.color, border:`2px solid rgba(255,255,255,0.2)` }} />
-                <KInput type="text" value={form.color} onChange={e => setForm(prev => ({...prev, color:e.target.value}))}
-                  style={{...inputSt, width:100, padding:"5px 10px", fontSize:12}} placeholder="#38BDF8" />
-              </div>
-            </div>
-          </div>
-
-          {/* 미리보기 */}
-          <div style={{ background:`${form.color}10`, border:`1px solid ${form.color}30`, borderRadius:12, padding:"14px 18px", marginBottom:20, display:"flex", alignItems:"center", gap:14 }}>
-            <div style={{ width:40, height:40, borderRadius:12, background:`linear-gradient(135deg,${form.color},${form.color}88)`, flexShrink:0 }} />
-            <div>
-              <div style={{ color:C.text, fontSize:15, fontWeight:800 }}>{form.name || "병원명 미입력"}</div>
-              <div style={{ display:"flex", gap:6, marginTop:4 }}>
-                {form.dept && <Badge color={form.color}>{form.dept}</Badge>}
-                {form.region && <Badge color={C.muted}>{form.region}</Badge>}
-                {form.manager && <span style={{ color:C.muted, fontSize:11 }}>담당 {form.manager}</span>}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={handleSave} disabled={!form.name || !form.dept} style={{
-              background: form.name && form.dept ? `linear-gradient(135deg,${form.color},${C.accent2})` : C.dim,
-              border:"none", color:"#0F172A", borderRadius:10, padding:"10px 26px", fontSize:13, cursor: form.name && form.dept ? "pointer" : "not-allowed", fontWeight:700,
-            }}>{editTarget ? "수정 완료" : "병원 추가"}</button>
-            <button onClick={() => { setShowForm(false); setEditTarget(null); setForm(EMPTY_HOSPITAL_FORM); }} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:10, padding:"10px 18px", fontSize:13, cursor:"pointer" }}>취소</button>
-          </div>
-        </div>
-      )}
-
-      {/* 탭 네비게이션 */}
-      <div style={{ display:"flex", gap:8, marginBottom:28, borderBottom:`1px solid ${C.border}`, paddingBottom:0 }}>
-        {[
-          { id:"hospitals", label:"🏥 병원 목록" },
-          { id:"internal", label:"📋 내부 작업" },
-        ].map(t => (
-          <button key={t.id} onClick={() => setMainTab(t.id)} style={{
-            background:"transparent", border:"none", borderBottom: mainTab===t.id ? `2px solid ${C.accent}` : "2px solid transparent",
-            color: mainTab===t.id ? C.accent : C.muted, padding:"10px 20px", fontSize:14, cursor:"pointer", fontWeight: mainTab===t.id ? 700 : 500,
-            marginBottom:-1,
-          }}>{t.label}</button>
-        ))}
-      </div>
-
-      {mainTab === "hospitals" && (<>
-      {/* 요약 KPI */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:14, maxWidth:900, margin:"0 auto 36px" }}>
-        {[
-          { label:"관리 병원", value:hospitals.length, unit:"개", color:C.accent },
-          { label:"총 신환", value:fmt(summaries.reduce((s,h) => s+(h.last.newPatient||0), 0)), unit:"명", color:C.green },
-          { label:"총 매출", value:fmt(summaries.reduce((s,h) => s+(h.last.revenue||0), 0)), unit:"만원", color:C.yellow },
-          { label:"평균 ROI", value:summaries.length ? Math.round(summaries.reduce((s,h) => s+h.roi, 0) / summaries.length) : 0, unit:"%", color:C.orange },
-        ].map((item, i) => (
-          <div key={i} style={{ background:C.surface, border:`1px solid ${item.color}25`, borderRadius:14, padding:"16px 20px", textAlign:"center" }}>
-            <div style={{ color:C.muted, fontSize:11, marginBottom:6 }}>{item.label}</div>
-            <div style={{ color:item.color, fontSize:22, fontWeight:900 }}>{item.value}<span style={{ fontSize:12, marginLeft:3 }}>{item.unit}</span></div>
-          </div>
-        ))}
-      </div>
-
-      {/* 병원 카드 그리드 */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:20, maxWidth:1100, margin:"0 auto" }}>
-        {summaries.map((h) => (
-          <div key={h.id} onClick={() => onSelect(h)}
-            style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:24, cursor:"pointer", transition:"all 0.2s", position:"relative", overflow:"hidden" }}
-            onMouseEnter={e => { e.currentTarget.style.border = `1px solid ${h.color}60`; e.currentTarget.style.transform = "translateY(-4px)"; }}
-            onMouseLeave={e => { e.currentTarget.style.border = `1px solid ${C.border}`; e.currentTarget.style.transform = "translateY(0)"; }}>
-
-            <div style={{ position:"absolute", top:0, right:0, width:120, height:120, background:`radial-gradient(circle at top right, ${h.color}15, transparent)`, pointerEvents:"none" }} />
-
-            {/* 수정 / 삭제 버튼 - 슈퍼관리자 또는 중간관리자만 */}
-            {isAdmin && adminRole !== "실무자" && (
-            <div style={{ position:"absolute", top:14, right:14, display:"flex", gap:6, zIndex:10 }} onClick={e => e.stopPropagation()}>
-              <button onClick={e => openEdit(e, h)} style={{ background:`${h.color}20`, border:`1px solid ${h.color}40`, color:h.color, borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>수정</button>
-              {deleteConfirm === h.id ? (
-                <button onClick={e => confirmDelete(e, h.id)} style={{ background:`${C.red}25`, border:`1px solid ${C.red}`, color:C.red, borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>확인</button>
-              ) : (
-                <button onClick={e => handleDelete(e, h.id)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer" }}>삭제</button>
-              )}
-            </div>
             )}
 
-            <div style={{ display:"flex", alignItems:"flex-start", gap:14, marginBottom:16, paddingRight:120 }}>
-              <div style={{ width:42, height:42, borderRadius:13, background:`linear-gradient(135deg,${h.color},${h.color}88)`, flexShrink:0 }} />
-              <div>
-                <div style={{ color:C.text, fontSize:16, fontWeight:800, marginBottom:5 }}>{h.name}</div>
-                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                  <Badge color={h.color}>{h.dept}</Badge>
-                  <Badge color={C.muted}>{h.region}</Badge>
-                </div>
-              </div>
-            </div>
+            {/* 병원 카드 그리드 */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:16 }}>
+              {filteredHospitals.map(h => {
+                const hData = h.monthlyData || [];
+                const last = hData.length > 0 ? hData[hData.length-1] : {};
+                const cpl = last.inquiry > 0 ? Math.round((last.marketingCost||0)/last.inquiry) : 0;
+                return (
+                  <div key={h.id} onClick={()=>onSelect(h)} style={{
+                    background:C.surface, border:`1px solid ${C.border}`, borderRadius:18,
+                    padding:20, cursor:"pointer", position:"relative", overflow:"hidden",
+                    transition:"all 0.2s", boxShadow:"0 2px 8px rgba(0,0,0,0.04)",
+                  }}
+                    onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow=`0 8px 24px ${h.color}20`; e.currentTarget.style.borderColor=`${h.color}60`; }}
+                    onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow="0 2px 8px rgba(0,0,0,0.04)"; e.currentTarget.style.borderColor=C.border; }}
+                  >
+                    {/* 컬러 악센트 바 */}
+                    <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${h.color},${h.color}60)`, borderRadius:"18px 18px 0 0" }} />
 
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:10, marginBottom:14 }}>
-              {[
-                { label:"신환", value:fmt(h.last.newPatient||0), unit:"명" },
-                { label:"매출", value:fmt(h.last.revenue||0), unit:"만" },
-                { label:"마케팅비", value:fmt(h.last.marketingCost||0), unit:"만" },
-              ].map((item,i) => (
-                <div key={i} style={{ background:"#F8FAFC", borderRadius:8, padding:"8px 10px" }}>
-                  <div style={{ color:C.muted, fontSize:10, marginBottom:2 }}>{item.label}</div>
-                  <div style={{ color:C.text, fontSize:13, fontWeight:700 }}>{item.value}<span style={{ fontSize:10, marginLeft:2, color:C.muted }}>{item.unit}</span></div>
-                </div>
-              ))}
-            </div>
+                    {/* 수정/삭제 */}
+                    {isAdmin && adminRole !== "실무자" && (
+                      <div style={{ position:"absolute", top:12, right:12, display:"flex", gap:5 }} onClick={e=>e.stopPropagation()}>
+                        <button onClick={e=>openEdit(e,h)} style={{ background:`${h.color}15`, border:`1px solid ${h.color}30`, color:h.color, borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", fontWeight:700 }}>수정</button>
+                        {deleteConfirm===h.id
+                          ? <button onClick={e=>confirmDelete(e,h.id)} style={{ background:`${C.red}20`, border:`1px solid ${C.red}`, color:C.red, borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", fontWeight:700 }}>확인</button>
+                          : <button onClick={e=>handleDelete(e,h.id)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer" }}>삭제</button>
+                        }
+                      </div>
+                    )}
 
-            <div style={{ marginBottom:6, display:"flex", justifyContent:"space-between" }}>
-              <span style={{ color:C.muted, fontSize:11 }}>목표 달성률</span>
-              <span style={{ color:h.color, fontSize:11, fontWeight:700 }}>{h.achieve}%</span>
-            </div>
-            <div style={{ background:C.dim, borderRadius:3, height:4 }}>
-              <div style={{ width:`${Math.min(h.achieve,100)}%`, height:"100%", background:h.color, borderRadius:3 }} />
-            </div>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12 }}>
-              <span style={{ color:C.muted, fontSize:11 }}>담당 {h.manager || "-"}</span>
-              <span style={{ color:h.roi > 200 ? C.green : h.roi > 100 ? C.yellow : C.red, fontSize:13, fontWeight:800 }}>ROI {h.roi}%</span>
+                    {/* 병원 정보 */}
+                    <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14, paddingTop:4 }}>
+                      <div style={{ width:40, height:40, borderRadius:12, background:`linear-gradient(135deg,${h.color},${h.color}80)`, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:16, fontWeight:900 }}>
+                        {h.name[0]}
+                      </div>
+                      <div>
+                        <div style={{ color:C.text, fontSize:15, fontWeight:800 }}>{h.name}</div>
+                        <div style={{ display:"flex", gap:5, marginTop:3 }}>
+                          <span style={{ background:`${h.color}15`, color:h.color, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700 }}>{h.dept}</span>
+                          <span style={{ background:`${C.muted}15`, color:C.muted, borderRadius:5, padding:"1px 7px", fontSize:10 }}>{h.region}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* KPI 미니 */}
+                    {hData.length > 0 ? (
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+                        {[
+                          { label:"문의", value:fmt(last.inquiry)+"건", color:C.accent },
+                          { label:"신환", value:fmt(last.newPatient)+"명", color:h.color },
+                          { label:"CPL", value:cpl>0?fmt(cpl)+"만":"-", color:C.accent2 },
+                        ].map((k,i) => (
+                          <div key={i} style={{ background:`${k.color}08`, borderRadius:8, padding:"7px 8px", textAlign:"center" }}>
+                            <div style={{ color:k.color, fontSize:14, fontWeight:800 }}>{k.value}</div>
+                            <div style={{ color:C.muted, fontSize:9, marginTop:1 }}>{k.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ color:C.muted, fontSize:11, textAlign:"center", padding:"8px 0" }}>데이터 없음</div>
+                    )}
+
+                    {/* 담당자 */}
+                    {h.manager && (
+                      <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:5 }}>
+                        <span style={{ color:C.muted, fontSize:10 }}>담당</span>
+                        <span style={{ color:C.text, fontSize:11, fontWeight:600 }}>{h.manager}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* 병원 추가 카드 */}
+              {isAdmin && adminRole !== "실무자" && (
+                <div onClick={openAdd} style={{
+                  background:"transparent", border:`2px dashed ${C.border}`, borderRadius:18,
+                  padding:20, cursor:"pointer", display:"flex", flexDirection:"column",
+                  alignItems:"center", justifyContent:"center", gap:10, minHeight:160,
+                }}
+                  onMouseEnter={e=>{e.currentTarget.style.border=`2px dashed ${C.accent}60`;e.currentTarget.style.background=`${C.accent}05`;}}
+                  onMouseLeave={e=>{e.currentTarget.style.border=`2px dashed ${C.border}`;e.currentTarget.style.background="transparent";}}>
+                  <div style={{ width:40, height:40, borderRadius:12, border:`2px dashed ${C.muted}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, color:C.muted }}>+</div>
+                  <div style={{ color:C.muted, fontSize:12, fontWeight:600 }}>새 병원 추가</div>
+                </div>
+              )}
             </div>
           </div>
-        ))}
+        )}
 
-        {/* 빈 추가 카드 - 관리자만 */}
-        {isAdmin && adminRole !== "실무자" && (
-        <div onClick={openAdd} style={{ background:"transparent", border:`2px dashed ${C.border}`, borderRadius:20, padding:24, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12, minHeight:200, transition:"all 0.2s" }}
-          onMouseEnter={e => { e.currentTarget.style.border = `2px dashed ${C.accent}60`; e.currentTarget.style.background = `${C.accent}05`; }}
-          onMouseLeave={e => { e.currentTarget.style.border = `2px dashed ${C.border}`; e.currentTarget.style.background = "transparent"; }}>
-          <div style={{ width:44, height:44, borderRadius:14, border:`2px dashed ${C.muted}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, color:C.muted }}>+</div>
-          <div style={{ color:C.muted, fontSize:13, fontWeight:600 }}>새 병원 추가</div>
-        </div>
+        {/* 내부 작업 */}
+        {mainTab === "internal" && (
+          <div style={{ flex:1 }}>
+            <InternalDashboard hospitals={hospitals} loginName={loginName} onUpdateHospital={onUpdateHospital} globalSchedules={globalSchedules} saveGlobalSchedules={saveGlobalSchedules} />
+          </div>
         )}
       </div>
-      </>)}
 
-      {mainTab === "internal" && (
-        <InternalDashboard hospitals={hospitals} loginName={loginName} onUpdateHospital={onUpdateHospital} globalSchedules={globalSchedules} saveGlobalSchedules={saveGlobalSchedules} />
+      {/* 병원 추가/수정 폼 모달 */}
+      {showForm && (
+        <div onClick={()=>setShowForm(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", zIndex:9000, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:C.surface, borderRadius:20, padding:28, width:580, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:20 }}>{editTarget?"병원 정보 수정":"새 병원 추가"}</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:16 }}>
+              {[["병원명 *","name","text"],["지역","region","text"],["진료과","dept","text"],["담당자","manager","text"],["신환 목표 (명)","target_patients","number"],["매출 목표 (만원)","target_revenue","number"]].map(([label,field,type])=>(
+                <div key={field}>
+                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>{label}</label>
+                  <input type={type} value={form[field]||""} onChange={e=>setForm({...form,[field]:e.target.value})} style={inputSt} />
+                </div>
+              ))}
+              <div>
+                <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>대표 컬러</label>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {["#0EA5E9","#6366F1","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#F97316"].map(color=>(
+                    <div key={color} onClick={()=>setForm({...form,color})} style={{ width:28, height:28, borderRadius:8, background:color, cursor:"pointer", border:`3px solid ${form.color===color?"#0F172A":"transparent"}`, transition:"transform 0.1s" }} />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>병원 비밀번호</label>
+                <input type="text" value={form.password||""} onChange={e=>setForm({...form,password:e.target.value})} placeholder="병원 공유용" style={inputSt} />
+              </div>
+            </div>
+            {/* 탭 설정 */}
+            <div style={{ marginBottom:16 }}>
+              <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>표시할 탭 선택</label>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                {ALL_TABS.map(t => {
+                  const isOn = (form.tabs||DEFAULT_TABS).includes(t.id);
+                  return (
+                    <div key={t.id} onClick={()=>{
+                      const cur=form.tabs||DEFAULT_TABS;
+                      setForm({...form, tabs: isOn?cur.filter(id=>id!==t.id):[...cur,t.id]});
+                    }} style={{ display:"flex", alignItems:"center", gap:5, background:isOn?`${C.accent}15`:"transparent", border:`1px solid ${isOn?C.accent:C.dim}`, borderRadius:8, padding:"5px 12px", fontSize:12, cursor:"pointer", color:isOn?C.accent:C.muted }}>
+                      <span>{isOn?"✓":"○"}</span><span>{t.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* 실무자 탭 */}
+            <div style={{ marginBottom:20 }}>
+              <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>실무자 허용 탭</label>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                {ALL_TABS.filter(t=>(form.tabs||DEFAULT_TABS).includes(t.id)).map(t => {
+                  const isAllowed=(form.juniorTabs||[]).includes(t.id);
+                  return (
+                    <div key={t.id} onClick={()=>{
+                      const cur=form.juniorTabs||[];
+                      setForm(prev=>({...prev,juniorTabs:isAllowed?cur.filter(id=>id!==t.id):[...cur,t.id]}));
+                    }} style={{ display:"flex", alignItems:"center", gap:5, background:isAllowed?`${C.green}20`:"transparent", border:`1px solid ${isAllowed?C.green:C.dim}`, borderRadius:8, padding:"5px 12px", fontSize:12, cursor:"pointer", color:isAllowed?C.green:C.muted }}>
+                      <span>{isAllowed?"✓":"○"}</span><span>{t.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={handleSubmitForm} style={{ flex:1, background:`linear-gradient(135deg,${C.accent},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:10, padding:"11px 0", fontSize:13, cursor:"pointer", fontWeight:700 }}>{editTarget?"수정 완료":"병원 추가"}</button>
+              <button onClick={()=>setShowForm(false)} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:10, padding:"11px 18px", fontSize:13, cursor:"pointer" }}>취소</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-// ─── 내부 작업 대시보드 ────────────────────────────────────────
+const hospital_color_fallback = "#0EA5E9";
+
 function InternalDashboard({ hospitals, loginName, onUpdateHospital, globalSchedules, saveGlobalSchedules }) {
   const TEAM_LEADERS = [
     { name:"서보영", team:"디자인팀", color:"#F472B6" },
