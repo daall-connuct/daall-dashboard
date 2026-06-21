@@ -330,10 +330,15 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
 
   const handleSubmitForm = () => {
     if (!form.name.trim()) return;
-    // 선택된 대분류(categories)에 속한 중분류를 전부 자동 ON
-    const selectedCategories = form.categories || DEFAULT_CATEGORIES;
-    const computedTabs = ALL_TABS.filter(t => selectedCategories.includes(t.category)).map(t => t.id);
-    // 실무자 허용 탭은 현재 켜진 탭 범위 내로만 유지 (꺼진 카테고리의 항목은 제거)
+    // 사용자가 직접 선택한 카테고리/중분류를 그대로 사용 (강제로 전체 ON 하지 않음)
+    const selectedCategories = form.categories || [];
+    const userTabs = form.tabs || [];
+    // 안전장치: 선택 해제된 카테고리에 속한 탭은 제외
+    const computedTabs = userTabs.filter(id => {
+      const t = ALL_TABS.find(t=>t.id===id);
+      return t && selectedCategories.includes(t.category);
+    });
+    // 실무자 허용 탭도 현재 켜진 탭 범위 내로만 유지
     const computedJuniorTabs = (form.juniorTabs||[]).filter(id => computedTabs.includes(id));
     const finalForm = { ...form, categories: selectedCategories, tabs: computedTabs, juniorTabs: computedJuniorTabs };
     if (editTarget) {
@@ -643,37 +648,70 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
                 <input type="text" value={form.password||""} onChange={e=>setForm({...form,password:e.target.value})} placeholder="병원 공유용" style={inputSt} />
               </div>
             </div>
-            {/* 카테고리(대분류) 설정 */}
+            {/* 카테고리(대분류) + 중분류 설정 */}
             <div style={{ marginBottom:16 }}>
               <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>사용할 카테고리 선택</label>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                 {CATEGORIES.map(cat => {
-                  const curCats = form.categories||DEFAULT_CATEGORIES;
+                  const curCats = form.categories||[];
                   const isOn = curCats.includes(cat.id);
+                  const curTabs = form.tabs||[];
+                  const catTabs = ALL_TABS.filter(t=>t.category===cat.id);
+                  const onCount = catTabs.filter(t=>curTabs.includes(t.id)).length;
                   return (
-                    <div key={cat.id} onClick={()=>{
-                      const nextCats = isOn ? curCats.filter(id=>id!==cat.id) : [...curCats, cat.id];
-                      // 카테고리 변경에 맞춰 tabs, juniorTabs도 즉시 재계산해서 미리보기에 반영
-                      const nextTabs = ALL_TABS.filter(t=>nextCats.includes(t.category)).map(t=>t.id);
-                      const nextJunior = (form.juniorTabs||[]).filter(id=>nextTabs.includes(id));
-                      setForm({...form, categories: nextCats, tabs: nextTabs, juniorTabs: nextJunior});
-                    }} style={{ display:"flex", alignItems:"center", gap:6, background:isOn?`${C.accent}15`:"transparent", border:`1px solid ${isOn?C.accent:C.dim}`, borderRadius:9, padding:"7px 14px", fontSize:13, cursor:"pointer", color:isOn?C.accent:C.muted, fontWeight:600 }}>
-                      <span>{isOn?"✓":"○"}</span><span>{cat.icon} {cat.label}</span>
+                    <div key={cat.id} style={{ border:`1px solid ${isOn?C.accent+"40":C.dim}`, borderRadius:10, overflow:"hidden" }}>
+                      <div onClick={()=>{
+                        if (isOn) {
+                          // 카테고리 끄기: categories에서 제거 + 산하 중분류 전부 tabs/juniorTabs에서 제거
+                          const nextCats = curCats.filter(id=>id!==cat.id);
+                          const catTabIds = catTabs.map(t=>t.id);
+                          const nextTabs = curTabs.filter(id=>!catTabIds.includes(id));
+                          const nextJunior = (form.juniorTabs||[]).filter(id=>!catTabIds.includes(id));
+                          setForm({...form, categories: nextCats, tabs: nextTabs, juniorTabs: nextJunior});
+                        } else {
+                          // 카테고리 켜기: categories에만 추가, 산하 중분류는 전부 빈 상태로 시작 (직접 골라서 켜야 함)
+                          setForm({...form, categories: [...curCats, cat.id]});
+                        }
+                      }} style={{ display:"flex", alignItems:"center", gap:8, background:isOn?`${C.accent}10`:"transparent", padding:"9px 14px", cursor:"pointer" }}>
+                        <span style={{ color:isOn?C.accent:C.muted }}>{isOn?"✓":"○"}</span>
+                        <span style={{ color:isOn?C.accent:C.muted, fontWeight:700, fontSize:13 }}>{cat.icon} {cat.label}</span>
+                        {isOn && (
+                          <span style={{ marginLeft:"auto", fontSize:11, color:onCount>0?C.green:C.muted, fontWeight:600 }}>
+                            {onCount}/{catTabs.length}개 항목 선택됨
+                          </span>
+                        )}
+                      </div>
+                      {isOn && (
+                        <div style={{ padding:"10px 14px 12px", borderTop:`1px solid ${C.dim}`, display:"flex", flexWrap:"wrap", gap:6 }}>
+                          {catTabs.map(t => {
+                            const tabOn = curTabs.includes(t.id);
+                            return (
+                              <div key={t.id} onClick={()=>{
+                                const nextTabs = tabOn ? curTabs.filter(id=>id!==t.id) : [...curTabs, t.id];
+                                const nextJunior = tabOn ? (form.juniorTabs||[]).filter(id=>id!==t.id) : (form.juniorTabs||[]);
+                                setForm({...form, tabs: nextTabs, juniorTabs: nextJunior});
+                              }} style={{ display:"flex", alignItems:"center", gap:5, background:tabOn?`${C.green}15`:"#F8FAFC", border:`1px solid ${tabOn?C.green:C.dim}`, borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", color:tabOn?C.green:C.muted }}>
+                                <span>{tabOn?"✓":"○"}</span><span>{t.label}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
-              <div style={{ color:C.muted, fontSize:10, marginTop:6 }}>카테고리를 선택하면 산하 항목이 모두 표시됩니다.</div>
+              <div style={{ color:C.muted, fontSize:10, marginTop:6 }}>카테고리를 켜면 하단에 세부 항목이 나타나요. 사용할 항목만 선택해주세요.</div>
             </div>
-            {/* 실무자 탭 (선택된 카테고리 산하 중분류만, 그룹별로 표시) */}
+            {/* 실무자 탭 (선택된 중분류만, 카테고리별로 그룹화) */}
             <div style={{ marginBottom:20 }}>
               <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>실무자 허용 탭</label>
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                {CATEGORIES.filter(cat => (form.categories||DEFAULT_CATEGORIES).includes(cat.id)).map(cat => (
+                {CATEGORIES.filter(cat => (form.categories||[]).includes(cat.id) && ALL_TABS.some(t=>t.category===cat.id && (form.tabs||[]).includes(t.id))).map(cat => (
                   <div key={cat.id}>
                     <div style={{ color:C.muted, fontSize:10, fontWeight:700, marginBottom:5 }}>{cat.icon} {cat.label}</div>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
-                      {ALL_TABS.filter(t=>t.category===cat.id && (form.tabs||DEFAULT_TABS).includes(t.id)).map(t => {
+                      {ALL_TABS.filter(t=>t.category===cat.id && (form.tabs||[]).includes(t.id)).map(t => {
                         const isAllowed=(form.juniorTabs||[]).includes(t.id);
                         return (
                           <div key={t.id} onClick={()=>{
@@ -687,6 +725,9 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
                     </div>
                   </div>
                 ))}
+                {(form.categories||[]).length === 0 && (
+                  <div style={{ color:C.muted, fontSize:11 }}>카테고리와 세부 항목을 먼저 선택해주세요.</div>
+                )}
               </div>
             </div>
             <div style={{ display:"flex", gap:10 }}>
