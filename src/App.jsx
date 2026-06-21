@@ -205,23 +205,46 @@ const Toast = ({ msg }) => msg ? (
 
 // ─── 병원 목록 화면 ───────────────────────────────────────────
 const PALETTE = ["#38BDF8","#34D399","#FBBF24","#F472B6","#A78BFA","#FB923C","#2DD4BF","#60A5FA","#E879F9","#4ADE80","#FCD34D","#F87171"];
+// ─── 카테고리(대분류) 정의 ────────────────────────────────────
+const CATEGORIES = [
+  { id:"basic",     label:"기본",      icon:"📊", desc:"병원의 현재 상태를 한눈에" },
+  { id:"marketing", label:"마케팅",    icon:"📈", desc:"환자를 유입시키는 영역" },
+  { id:"branding",  label:"브랜딩",    icon:"⭐", desc:"왜 환자가 우리 병원을 선택하는가" },
+  { id:"operation", label:"병원 운영", icon:"🏥", desc:"유입된 환자를 관리하고 성장시키는 영역" },
+];
+
+// ─── 탭(중분류) 정의 — 각 탭은 하나의 카테고리(대분류)에 속함 ──
 const ALL_TABS = [
-  { id:"overview",   label:"통합 요약",    required:false, defaultOn:true },
-  { id:"growreport", label:"성장 리포트",  required:false, defaultOn:true },
-  { id:"inflow",     label:"환자 유입",    required:false, defaultOn:true },
-  { id:"ads",        label:"광고 성과",    required:false, defaultOn:true },
-  { id:"branding",   label:"브랜딩 분석",  required:false, defaultOn:false },
-  { id:"ai",         label:"AI 검색",     required:false, defaultOn:false },
-  { id:"keyword",    label:"키워드 현황",  required:false, defaultOn:true },
-  { id:"marketing",  label:"마케팅 현황",  required:false, defaultOn:true },
-  { id:"crm",        label:"CRM / 운영",  required:false, defaultOn:false },
-  { id:"schedule",   label:"일정 관리",    required:false, defaultOn:true },
-  { id:"meeting",    label:"미팅 로그",    required:false, defaultOn:true },
-  { id:"cost",       label:"비용 관리",    required:false, defaultOn:true },
+  // 📊 기본
+  { id:"overview",   label:"통합 요약",    category:"basic",     required:false, defaultOn:true },
+  { id:"growreport", label:"성장 리포트",  category:"basic",     required:false, defaultOn:true },
+  { id:"schedule",   label:"일정 관리",    category:"basic",     required:false, defaultOn:true },
+  { id:"meeting",    label:"미팅 로그",    category:"basic",     required:false, defaultOn:true },
+  { id:"cost",       label:"비용 관리",    category:"basic",     required:false, defaultOn:true },
+  // 📈 마케팅
+  { id:"inflow",     label:"환자 유입",    category:"marketing", required:false, defaultOn:true },
+  { id:"ads",        label:"광고 성과",    category:"marketing", required:false, defaultOn:true },
+  { id:"keyword",    label:"검색 현황",    category:"marketing", required:false, defaultOn:true },
+  { id:"marketing",  label:"콘텐츠 현황",  category:"marketing", required:false, defaultOn:true },
+  // ⭐ 브랜딩
+  { id:"branding",   label:"브랜드 분석",  category:"branding",  required:false, defaultOn:false },
+  { id:"review",     label:"리뷰 관리",    category:"branding",  required:false, defaultOn:false },
+  { id:"onlineasset",label:"온라인 자산",  category:"branding",  required:false, defaultOn:false },
+  { id:"ai",         label:"AI 검색",     category:"branding",  required:false, defaultOn:false },
+  // 🏥 병원 운영
+  { id:"crm",        label:"CRM 관리",    category:"operation", required:false, defaultOn:false },
+  { id:"consult",    label:"상담 관리",    category:"operation", required:false, defaultOn:false },
+  { id:"patient",    label:"환자 관리",    category:"operation", required:false, defaultOn:false },
+  { id:"cs",         label:"CS 관리",     category:"operation", required:false, defaultOn:false },
+  { id:"sop",        label:"SOP 관리",    category:"operation", required:false, defaultOn:false },
+  { id:"biz",        label:"경영 지표",    category:"operation", required:false, defaultOn:false },
 ];
 const DEFAULT_TABS = ALL_TABS.filter(t => t.required || t.defaultOn).map(t => t.id);
+// 카테고리별 산하 탭 id 목록
+const TABS_BY_CATEGORY = (catId) => ALL_TABS.filter(t => t.category === catId).map(t => t.id);
+const DEFAULT_CATEGORIES = ["basic","marketing"]; // 기본 활성 대분류
 
-const EMPTY_HOSPITAL_FORM = { name:"", region:"", dept:"", manager:"", target_patients:"", target_revenue:"", color:"#38BDF8", password:"", tabs: DEFAULT_TABS };
+const EMPTY_HOSPITAL_FORM = { name:"", region:"", dept:"", manager:"", target_patients:"", target_revenue:"", color:"#38BDF8", password:"", categories: DEFAULT_CATEGORIES, tabs: DEFAULT_TABS };
 
 // ─── 병원 폼 필드 컴포넌트 (외부 선언으로 리렌더링 방지) ──────
 function HospitalFormField({ label, k, placeholder, type="text", required, form, setForm }) {
@@ -291,9 +314,14 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   const openAdd  = () => { setEditTarget(null); setForm(EMPTY_HOSPITAL_FORM); setShowForm(true); };
   const openEdit = (e, h) => {
     e.stopPropagation();
+    // 기존 데이터(categories 없음)는 보유한 tabs로부터 대분류를 역산해서 채워줌
+    const inferredCategories = h.categories || [...new Set(
+      (h.tabs||DEFAULT_TABS).map(id => ALL_TABS.find(t=>t.id===id)?.category).filter(Boolean)
+    )];
     setForm({ name:h.name, region:h.region, dept:h.dept, manager:h.manager,
       target_patients:String(h.target_patients), target_revenue:String(h.target_revenue),
       color:h.color, password:h.password||"",
+      categories: inferredCategories.length ? inferredCategories : DEFAULT_CATEGORIES,
       tabs:h.tabs||DEFAULT_TABS, juniorTabs:h.juniorTabs||[] });
     setEditTarget(h); setShowForm(true);
   };
@@ -302,10 +330,16 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
 
   const handleSubmitForm = () => {
     if (!form.name.trim()) return;
+    // 선택된 대분류(categories)에 속한 중분류를 전부 자동 ON
+    const selectedCategories = form.categories || DEFAULT_CATEGORIES;
+    const computedTabs = ALL_TABS.filter(t => selectedCategories.includes(t.category)).map(t => t.id);
+    // 실무자 허용 탭은 현재 켜진 탭 범위 내로만 유지 (꺼진 카테고리의 항목은 제거)
+    const computedJuniorTabs = (form.juniorTabs||[]).filter(id => computedTabs.includes(id));
+    const finalForm = { ...form, categories: selectedCategories, tabs: computedTabs, juniorTabs: computedJuniorTabs };
     if (editTarget) {
-      onEditHospital({ ...editTarget, ...form, target_patients:+form.target_patients, target_revenue:+form.target_revenue });
+      onEditHospital({ ...editTarget, ...finalForm, target_patients:+finalForm.target_patients, target_revenue:+finalForm.target_revenue });
     } else {
-      onAddHospital({ ...form, target_patients:+form.target_patients, target_revenue:+form.target_revenue });
+      onAddHospital({ ...finalForm, target_patients:+finalForm.target_patients, target_revenue:+finalForm.target_revenue });
     }
     setShowForm(false);
   };
@@ -609,38 +643,50 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
                 <input type="text" value={form.password||""} onChange={e=>setForm({...form,password:e.target.value})} placeholder="병원 공유용" style={inputSt} />
               </div>
             </div>
-            {/* 탭 설정 */}
+            {/* 카테고리(대분류) 설정 */}
             <div style={{ marginBottom:16 }}>
-              <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>표시할 탭 선택</label>
+              <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>사용할 카테고리 선택</label>
               <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
-                {ALL_TABS.map(t => {
-                  const isOn = (form.tabs||DEFAULT_TABS).includes(t.id);
+                {CATEGORIES.map(cat => {
+                  const curCats = form.categories||DEFAULT_CATEGORIES;
+                  const isOn = curCats.includes(cat.id);
                   return (
-                    <div key={t.id} onClick={()=>{
-                      const cur=form.tabs||DEFAULT_TABS;
-                      setForm({...form, tabs: isOn?cur.filter(id=>id!==t.id):[...cur,t.id]});
-                    }} style={{ display:"flex", alignItems:"center", gap:5, background:isOn?`${C.accent}15`:"transparent", border:`1px solid ${isOn?C.accent:C.dim}`, borderRadius:8, padding:"5px 12px", fontSize:12, cursor:"pointer", color:isOn?C.accent:C.muted }}>
-                      <span>{isOn?"✓":"○"}</span><span>{t.label}</span>
+                    <div key={cat.id} onClick={()=>{
+                      const nextCats = isOn ? curCats.filter(id=>id!==cat.id) : [...curCats, cat.id];
+                      // 카테고리 변경에 맞춰 tabs, juniorTabs도 즉시 재계산해서 미리보기에 반영
+                      const nextTabs = ALL_TABS.filter(t=>nextCats.includes(t.category)).map(t=>t.id);
+                      const nextJunior = (form.juniorTabs||[]).filter(id=>nextTabs.includes(id));
+                      setForm({...form, categories: nextCats, tabs: nextTabs, juniorTabs: nextJunior});
+                    }} style={{ display:"flex", alignItems:"center", gap:6, background:isOn?`${C.accent}15`:"transparent", border:`1px solid ${isOn?C.accent:C.dim}`, borderRadius:9, padding:"7px 14px", fontSize:13, cursor:"pointer", color:isOn?C.accent:C.muted, fontWeight:600 }}>
+                      <span>{isOn?"✓":"○"}</span><span>{cat.icon} {cat.label}</span>
                     </div>
                   );
                 })}
               </div>
+              <div style={{ color:C.muted, fontSize:10, marginTop:6 }}>카테고리를 선택하면 산하 항목이 모두 표시됩니다.</div>
             </div>
-            {/* 실무자 탭 */}
+            {/* 실무자 탭 (선택된 카테고리 산하 중분류만, 그룹별로 표시) */}
             <div style={{ marginBottom:20 }}>
               <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:8 }}>실무자 허용 탭</label>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
-                {ALL_TABS.filter(t=>(form.tabs||DEFAULT_TABS).includes(t.id)).map(t => {
-                  const isAllowed=(form.juniorTabs||[]).includes(t.id);
-                  return (
-                    <div key={t.id} onClick={()=>{
-                      const cur=form.juniorTabs||[];
-                      setForm(prev=>({...prev,juniorTabs:isAllowed?cur.filter(id=>id!==t.id):[...cur,t.id]}));
-                    }} style={{ display:"flex", alignItems:"center", gap:5, background:isAllowed?`${C.green}20`:"transparent", border:`1px solid ${isAllowed?C.green:C.dim}`, borderRadius:8, padding:"5px 12px", fontSize:12, cursor:"pointer", color:isAllowed?C.green:C.muted }}>
-                      <span>{isAllowed?"✓":"○"}</span><span>{t.label}</span>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {CATEGORIES.filter(cat => (form.categories||DEFAULT_CATEGORIES).includes(cat.id)).map(cat => (
+                  <div key={cat.id}>
+                    <div style={{ color:C.muted, fontSize:10, fontWeight:700, marginBottom:5 }}>{cat.icon} {cat.label}</div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                      {ALL_TABS.filter(t=>t.category===cat.id && (form.tabs||DEFAULT_TABS).includes(t.id)).map(t => {
+                        const isAllowed=(form.juniorTabs||[]).includes(t.id);
+                        return (
+                          <div key={t.id} onClick={()=>{
+                            const cur=form.juniorTabs||[];
+                            setForm(prev=>({...prev,juniorTabs:isAllowed?cur.filter(id=>id!==t.id):[...cur,t.id]}));
+                          }} style={{ display:"flex", alignItems:"center", gap:5, background:isAllowed?`${C.green}20`:"transparent", border:`1px solid ${isAllowed?C.green:C.dim}`, borderRadius:8, padding:"5px 12px", fontSize:12, cursor:"pointer", color:isAllowed?C.green:C.muted }}>
+                            <span>{isAllowed?"✓":"○"}</span><span>{t.label}</span>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </div>
             <div style={{ display:"flex", gap:10 }}>
@@ -3617,11 +3663,26 @@ function CostTab({ hospital, hData, onDataLoad }) {
 function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminRole, globalSchedules, saveGlobalSchedules }) {
   const isReadOnly = !isAdmin; // 병원 비밀번호 로그인 = 읽기 전용
   const isJunior = adminRole === "실무자"; // 실무자 탭 제한
-  const enabledTabIds = hospital.tabs || DEFAULT_TABS;
+  // 구버전 데이터 호환: hospital.tabs에 카테고리 산하 중분류가 일부만 있으면(예: 옛 'crm' 탭만 있고 신규 세분화 탭이 없는 경우)
+  // 해당 카테고리 산하 전체를 자동으로 보강해서 보여줌 (저장은 병원 수정 시점에 정식 반영됨)
+  const rawTabIds = hospital.tabs || DEFAULT_TABS;
+  const touchedCategories = [...new Set(rawTabIds.map(id => ALL_TABS.find(t=>t.id===id)?.category).filter(Boolean))];
+  const enabledTabIds = [...new Set([...rawTabIds, ...ALL_TABS.filter(t=>touchedCategories.includes(t.category)).map(t=>t.id)])];
+  const enabledCategories = CATEGORIES.filter(c => TABS_BY_CATEGORY(c.id).some(id => enabledTabIds.includes(id)));
   const [tab, setTab] = useState(() => {
     const firstEnabled = ALL_TABS.map(t => t.id).find(id => enabledTabIds.includes(id));
     return firstEnabled || enabledTabIds[0] || "overview";
   });
+  const [activeCategory, setActiveCategory] = useState(() => {
+    const t = ALL_TABS.find(t => t.id === tab);
+    return t?.category || enabledCategories[0]?.id || "basic";
+  });
+  // 대분류를 바꾸면 그 산하 첫 번째로 켜진 중분류로 자동 이동
+  const switchCategory = (catId) => {
+    setActiveCategory(catId);
+    const firstTabInCat = ALL_TABS.find(t => t.category === catId && enabledTabIds.includes(t.id));
+    if (firstTabInCat) setTab(firstTabInCat.id);
+  };
   const [showPerfInput, setShowPerfInput] = useState(false);
   const [showChannelInput, setShowChannelInput] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -3629,10 +3690,10 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
     { id:"overview",  label:"통합 요약",    checked:true },
     { id:"ads",       label:"광고 성과",    checked:true },
     { id:"inflow",    label:"환자 유입",    checked:true },
-    { id:"branding",  label:"브랜딩 분석",  checked:false },
-    { id:"crm",       label:"CRM / 운영",  checked:false },
-    { id:"keyword",   label:"키워드 현황",  checked:true },
-    { id:"marketing", label:"마케팅 현황",  checked:true },
+    { id:"branding",  label:"브랜드 분석",  checked:false },
+    { id:"crm",       label:"병원 운영",    checked:false },
+    { id:"keyword",   label:"검색 현황",    checked:true },
+    { id:"marketing", label:"콘텐츠 현황",  checked:true },
     { id:"cost",      label:"비용 관리",    checked:true },
   ]);
   const [reportMonth, setReportMonth] = useState("");
@@ -3708,28 +3769,25 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
     </div>
   );
 
-  const tabs = [
-    { id:"overview",   label:"📊 통합 요약" },
-    { id:"growreport", label:"📈 성장 리포트" },
-    { id:"inflow",     label:"👥 환자 유입" },
-    { id:"ads",        label:"📣 광고 성과" },
-    { id:"branding",   label:"⭐ 브랜딩 분석" },
-    { id:"ai",         label:"🤖 AI 검색" },
-    { id:"keyword",    label:"🔍 키워드 현황" },
-    { id:"marketing",  label:"📋 마케팅 현황" },
-    { id:"crm",        label:"💬 CRM / 운영" },
-    { id:"schedule",   label:"📅 일정 관리" },
-    { id:"meeting",    label:"📝 미팅 로그" },
-    { id:"cost",       label:"💰 비용 관리" },
-  ].filter(t => {
-    const enabledTabs = hospital.tabs || DEFAULT_TABS;
-    if (!enabledTabs.includes(t.id)) return false;
+  const TAB_LABELS = {
+    overview:"📊 통합 요약", growreport:"📈 성장 리포트", schedule:"📅 일정 관리", meeting:"📝 미팅 로그",
+    inflow:"👥 환자 유입", ads:"📣 광고 성과", keyword:"🔍 검색 현황", marketing:"📋 콘텐츠 현황", cost:"💰 비용 관리",
+    branding:"⭐ 브랜드 분석", review:"💬 리뷰 관리", onlineasset:"🌐 온라인 자산", ai:"🤖 AI 검색",
+    crm:"📇 CRM 관리", consult:"📞 상담 관리", patient:"🧑‍⚕️ 환자 관리", cs:"🛟 CS 관리", sop:"📋 SOP 관리", biz:"💹 경영 지표",
+  };
+  const tabs = ALL_TABS.map(t => ({ id:t.id, label: TAB_LABELS[t.id] || t.label, category:t.category })).filter(t => {
+    if (!enabledTabIds.includes(t.id)) return false;
     if (isJunior) {
       const juniorTabs = hospital.juniorTabs || [];
       return juniorTabs.includes(t.id);
     }
     return true;
   });
+  // 현재 선택된 대분류 산하의 중분류 탭만
+  const visibleTabs = tabs.filter(t => t.category === activeCategory);
+  // 실제로 화면에 보여줄 대분류 목록(실무자 권한으로 전부 막힌 카테고리는 숨김)
+  const visibleCategories = CATEGORIES.filter(cat => tabs.some(t => t.category === cat.id));
+
 
   const steps = [
     { name:"유입",   value:Math.round((last.inquiry||0)*3.2), color:C.accent,   prevValue:Math.round((prev?.inquiry||0)*3.2) },
@@ -4529,9 +4587,25 @@ new Chart(document.getElementById('costChart'), {
         </div>
       </div>
 
-      {/* 탭 */}
-      <div style={{ display:"flex", borderBottom:`1px solid ${C.border}`, paddingLeft:28, overflowX:"auto" }}>
-        {tabs.map(t => (
+      {/* 대분류 탭 */}
+      <div style={{ display:"flex", gap:6, background:"#F8FAFC", borderBottom:`1px solid ${C.border}`, padding:"10px 28px 0", overflowX:"auto" }}>
+        {visibleCategories.map(cat => (
+          <button key={cat.id} onClick={() => switchCategory(cat.id)} style={{
+            background: activeCategory===cat.id ? C.surface : "transparent",
+            border: `1px solid ${activeCategory===cat.id ? C.border : "transparent"}`,
+            borderBottom: activeCategory===cat.id ? `1px solid ${C.surface}` : "1px solid transparent",
+            color: activeCategory===cat.id ? hospital.color : C.muted,
+            borderRadius:"10px 10px 0 0", padding:"9px 18px", fontSize:13, cursor:"pointer",
+            fontWeight: activeCategory===cat.id ? 800 : 600,
+            fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif",
+            position:"relative", top:1, whiteSpace:"nowrap",
+          }}>{cat.icon} {cat.label}</button>
+        ))}
+      </div>
+
+      {/* 중분류 탭 */}
+      <div style={{ display:"flex", borderBottom:`1px solid ${C.border}`, paddingLeft:28, overflowX:"auto", background:C.surface }}>
+        {visibleTabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             background:"transparent", border:"none", padding:"14px 16px", fontSize:13, cursor:"pointer", fontWeight:600,
             fontFamily:"-apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif",
@@ -4540,6 +4614,9 @@ new Chart(document.getElementById('costChart'), {
             transition:"all 0.15s", whiteSpace:"nowrap",
           }}>{t.label}</button>
         ))}
+        {visibleTabs.length === 0 && (
+          <div style={{ padding:"14px 0", fontSize:12, color:C.muted }}>이 카테고리에 표시할 항목이 없어요</div>
+        )}
       </div>
 
       {/* 컨텐츠 */}
@@ -4759,7 +4836,14 @@ new Chart(document.getElementById('costChart'), {
         {tab === "ads" && <AdsTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
         {tab === "inflow" && <InflowTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
         {tab === "branding" && <BrandingTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
-        {tab === "crm" && <CrmTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "review" && <ReviewManageTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "onlineasset" && <OnlineAssetTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "crm" && <CrmManageTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "consult" && <ConsultManageTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "patient" && <PatientManageTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "cs" && <CsManageTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "sop" && <SopTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "biz" && <BizTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
         {tab === "ai" && <AiSearchTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
         {tab === "growreport" && <GrowReportTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
 
@@ -5859,38 +5943,329 @@ function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
   );
 }
 
-function CrmTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+// ─── 리뷰 관리 (네이버/구글 리뷰, 증가 추이) — 기존 crmData.review 재활용
+function ReviewManageTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const { selMonth, setSelMonth, months, savedMsg, monthData, updateField } = useCrmMonth(hospital, onUpdateHospital);
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+      <CrmMonthSelector months={months} selMonth={selMonth} setSelMonth={setSelMonth} hospital={hospital} />
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>⭐ 리뷰 현황</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
+          <CrmNumInput label="후기 작성률 (%)" section="review" field="writeRate" unit="%" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="네이버 리뷰" section="review" field="naverCount" unit="건" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="구글 리뷰" section="review" field="googleCount" unit="건" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="카카오 리뷰" section="review" field="kakaoCount" unit="건" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="블로그 후기" section="review" field="blogCount" unit="건" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="후기 유입 영향도 (%)" section="review" field="inflowImpact" unit="%" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10 }}>
+          {[
+            { label:"작성률", val:monthData.review.writeRate||0, unit:"%", color:C.green },
+            { label:"네이버", val:fmtN(monthData.review.naverCount), unit:"건", color:"#03C75A" },
+            { label:"구글", val:fmtN(monthData.review.googleCount), unit:"건", color:"#EA4335" },
+            { label:"카카오", val:fmtN(monthData.review.kakaoCount), unit:"건", color:"#FEE500" },
+            { label:"유입 영향도", val:monthData.review.inflowImpact||0, unit:"%", color:C.accent2 },
+          ].map((k,i) => (
+            <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:12, padding:14, textAlign:"center" }}>
+              <div style={{ color:k.color, fontSize:20, fontWeight:900 }}>{k.val}<span style={{ fontSize:11, fontWeight:400 }}>{k.unit}</span></div>
+              <div style={{ color:C.muted, fontSize:11, marginTop:3 }}>{k.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:10 }}>📈 리뷰 증가 추이</div>
+        <div style={{ color:C.muted, fontSize:12 }}>월별 리뷰 입력을 누적하면 다음 업데이트에서 추이 그래프를 추가해드릴게요.</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 온라인 자산 (홈페이지/SNS/유튜브/블로그/언론기사) — 신규, 빈 입력 폼
+function OnlineAssetTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
   const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
-  const [activeSection, setActiveSection] = useState("consult");
   const [savedMsg, setSavedMsg] = useState("");
-  const [showForm, setShowForm] = useState(false);
-  const [editIdx, setEditIdx] = useState(null);
   const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
-
   const months = [...Array(6)].map((_,i)=>{ const d=new Date(); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); });
-  const fmtN = (n) => (n||0).toLocaleString();
-  const pct = (a,b) => b>0 ? Math.round(a/b*100) : 0;
-
-  const crmData = hospital.crmData || {};
-  const emptyMonth = {
-    consult: { totalCalls:0, connected:0, missed:0, avgResponseSec:0, convertRate:0 },
-    reservation: { total:0, noShow:0, sameCancel:0, reBook:0 },
-    retention: { reVisit:0, cycleKeep:0, vipRatio:0, longTermRatio:0 },
-    review: { writeRate:0, naverCount:0, kakaoCount:0, googleCount:0, blogCount:0, inflowImpact:0 },
-    ops: { issues:[], complaints:[], sopItems:[] },
+  const assetData = hospital.onlineAssetData || {};
+  const EMPTY = { homepage:{ visitors:0, pageviews:0 }, sns:{ followers:0, posts:0 }, youtube:{ subscribers:0, views:0 }, blog:{ posts:0, visitors:0 }, press:{ count:0, items:[] } };
+  const monthData = { ...EMPTY, ...assetData[selMonth] };
+  const saveMonth = (updated) => {
+    onUpdateHospital({ ...hospital, onlineAssetData: { ...assetData, [selMonth]: updated } });
+    toast("저장 완료!");
   };
-  const monthData = crmData[selMonth] || emptyMonth;
+  const updateField = (section, field, val) => {
+    saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: isNaN(+val)?val:+val } });
+  };
+  const [pressForm, setPressForm] = useState({ title:"", url:"" });
+  const addPress = () => {
+    if (!pressForm.title) return;
+    const items = [...(monthData.press.items||[]), { id:Date.now(), ...pressForm }];
+    saveMonth({ ...monthData, press: { ...monthData.press, items, count: items.length } });
+    setPressForm({ title:"", url:"" });
+  };
+  const removePress = (id) => {
+    const items = (monthData.press.items||[]).filter(i=>i.id!==id);
+    saveMonth({ ...monthData, press: { ...monthData.press, items, count: items.length } });
+  };
+  const Card = ({ title, children }) => (
+    <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+      <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:14 }}>{title}</div>
+      {children}
+    </div>
+  );
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+      <CrmMonthSelector months={months} selMonth={selMonth} setSelMonth={setSelMonth} hospital={hospital} />
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+        <Card title="🌐 홈페이지">
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <CrmNumInput label="방문자 수" section="homepage" field="visitors" unit="명" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+            <CrmNumInput label="페이지뷰" section="homepage" field="pageviews" unit="회" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          </div>
+        </Card>
+        <Card title="📱 SNS">
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <CrmNumInput label="팔로워 수" section="sns" field="followers" unit="명" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+            <CrmNumInput label="게시물 수" section="sns" field="posts" unit="개" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          </div>
+        </Card>
+        <Card title="▶️ 유튜브">
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <CrmNumInput label="구독자 수" section="youtube" field="subscribers" unit="명" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+            <CrmNumInput label="조회수" section="youtube" field="views" unit="회" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          </div>
+        </Card>
+        <Card title="✍️ 블로그">
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <CrmNumInput label="게시물 수" section="blog" field="posts" unit="개" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+            <CrmNumInput label="방문자 수" section="blog" field="visitors" unit="명" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          </div>
+        </Card>
+      </div>
+      <Card title="📰 언론기사">
+        {!isReadOnly && (
+          <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+            <input value={pressForm.title} onChange={e=>setPressForm(p=>({...p,title:e.target.value}))} placeholder="기사 제목" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:2 }} />
+            <input value={pressForm.url} onChange={e=>setPressForm(p=>({...p,url:e.target.value}))} placeholder="URL" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:2 }} />
+            <button onClick={addPress} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
+          </div>
+        )}
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          {(monthData.press.items||[]).length === 0 && <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:12 }}>등록된 언론기사가 없어요</div>}
+          {(monthData.press.items||[]).map(item => (
+            <div key={item.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", background:"#F8FAFC", border:`1px solid ${C.dim}`, borderRadius:9 }}>
+              <span style={{ color:C.text, fontSize:12, flex:1 }}>{item.title}</span>
+              {item.url && <a href={item.url} target="_blank" rel="noreferrer" style={{ color:C.accent, fontSize:11 }}>링크</a>}
+              {!isReadOnly && <button onClick={()=>removePress(item.id)} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>×</button>}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
 
+
+const CRM_EMPTY_MONTH = {
+  consult: { totalCalls:0, connected:0, missed:0, avgResponseSec:0, convertRate:0 },
+  reservation: { total:0, noShow:0, sameCancel:0, reBook:0 },
+  retention: { reVisit:0, cycleKeep:0, vipRatio:0, longTermRatio:0, newCount:0, returnCount:0, dormantCount:0 },
+  review: { writeRate:0, naverCount:0, kakaoCount:0, googleCount:0, blogCount:0, inflowImpact:0 },
+  ops: { issues:[], complaints:[], sopItems:[], satisfaction:0 },
+};
+function useCrmMonth(hospital, onUpdateHospital) {
+  const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
+  const [savedMsg, setSavedMsg] = useState("");
+  const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
+  const months = [...Array(6)].map((_,i)=>{ const d=new Date(); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); });
+  const crmData = hospital.crmData || {};
+  const rawMonth = crmData[selMonth] || {};
+  // 섹션 단위 깊은 병합: 저장된 값이 일부 필드만 가진 부분 객체여도 누락 필드가 undefined로 남지 않도록 보강
+  const monthData = {
+    consult: { ...CRM_EMPTY_MONTH.consult, ...rawMonth.consult },
+    reservation: { ...CRM_EMPTY_MONTH.reservation, ...rawMonth.reservation },
+    retention: { ...CRM_EMPTY_MONTH.retention, ...rawMonth.retention },
+    review: { ...CRM_EMPTY_MONTH.review, ...rawMonth.review },
+    ops: { ...CRM_EMPTY_MONTH.ops, ...rawMonth.ops },
+  };
   const saveMonth = (updated) => {
     onUpdateHospital({ ...hospital, crmData: { ...crmData, [selMonth]: updated } });
     toast("저장 완료!");
   };
-
   const updateField = (section, field, val) => {
     saveMonth({ ...monthData, [section]: { ...monthData[section], [field]: isNaN(+val)?val:+val } });
   };
+  return { selMonth, setSelMonth, months, savedMsg, monthData, saveMonth, updateField };
+}
+const fmtN = (n) => (n||0).toLocaleString();
+const pctCalc = (a,b) => b>0 ? Math.round(a/b*100) : 0;
+const CrmNumCard = ({ label, value, unit="", color, sub="" }) => (
+  <div style={{ background:"#F8FAFC", borderRadius:12, padding:14, textAlign:"center", border:`1px solid ${C.border}` }}>
+    <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:6 }}>{label}</div>
+    <div style={{ color:color||C.text, fontSize:22, fontWeight:900 }}>{value}<span style={{ fontSize:12, fontWeight:400, marginLeft:2, color:C.muted }}>{unit}</span></div>
+    {sub && <div style={{ color:C.muted, fontSize:10, marginTop:3 }}>{sub}</div>}
+  </div>
+);
+function CrmNumInput({ label, section, field, unit="", monthData, updateField, isReadOnly }) {
+  const savedVal = monthData[section][field];
+  const [localVal, setLocalVal] = useState(savedVal??"");
+  useEffect(() => { setLocalVal(savedVal??""); }, [savedVal, section, field]);
+  return (
+    <div style={{ background:"#F8FAFC", borderRadius:10, padding:12 }}>
+      <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:5 }}>{label}</label>
+      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+        <input type="number" value={localVal} disabled={isReadOnly}
+          onChange={e=>setLocalVal(e.target.value)}
+          onBlur={e=>{ if(e.target.value !== String(savedVal??"")) updateField(section,field,e.target.value); }}
+          style={{ ...inputSt, padding:"5px 8px", fontSize:14, fontWeight:700, width:90, textAlign:"right" }} />
+        {unit && <span style={{ color:C.muted, fontSize:12 }}>{unit}</span>}
+      </div>
+    </div>
+  );
+}
+const CrmMonthSelector = ({ months, selMonth, setSelMonth, hospital }) => (
+  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+    {months.map(m => (
+      <button key={m} onClick={()=>setSelMonth(m)} style={{
+        background: selMonth===m?`${hospital.color}20`:"transparent",
+        border:`1px solid ${selMonth===m?hospital.color:C.border}`,
+        color: selMonth===m?hospital.color:C.muted,
+        borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+      }}>{m.slice(5)}월</button>
+    ))}
+  </div>
+);
 
-  // CS 이슈/컴플레인/SOP 항목 CRUD
+// ─── CRM 관리 (문의/예약/내원 현황) ────────────────────────────
+function CrmManageTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const { selMonth, setSelMonth, months, savedMsg, monthData, updateField } = useCrmMonth(hospital, onUpdateHospital);
+  const noShowRate  = pctCalc(monthData.reservation.noShow||0, monthData.reservation.total||0);
+  const cancelRate  = pctCalc(monthData.reservation.sameCancel||0, monthData.reservation.total||0);
+  const reBookRate  = pctCalc(monthData.reservation.reBook||0, monthData.reservation.total||0);
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+      <CrmMonthSelector months={months} selMonth={selMonth} setSelMonth={setSelMonth} hospital={hospital} />
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📞 문의 현황</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+          <CrmNumCard label="총 문의(인입)" value={fmtN(monthData.consult.totalCalls)} unit="건" color={C.accent} />
+          <CrmNumCard label="연결 건수" value={fmtN(monthData.consult.connected)} unit="건" color={C.green} />
+          <CrmNumCard label="부재중 건수" value={fmtN(monthData.consult.missed)} unit="건" color={C.red} />
+        </div>
+      </div>
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📅 예약 현황</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10, marginBottom:16 }}>
+          <CrmNumInput label="총 예약 수" section="reservation" field="total" unit="건" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="예약 후 미내원 수" section="reservation" field="noShow" unit="건" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="당일 취소 수" section="reservation" field="sameCancel" unit="건" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="재예약 수" section="reservation" field="reBook" unit="건" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+          <CrmNumCard label="총 예약" value={fmtN(monthData.reservation.total)} unit="건" color={C.accent} />
+          <CrmNumCard label="노쇼율" value={noShowRate} unit="%" color={noShowRate<=10?C.green:noShowRate<=20?C.yellow:C.red} sub={`${fmtN(monthData.reservation.noShow)}건`} />
+          <CrmNumCard label="당일 취소율" value={cancelRate} unit="%" color={cancelRate<=10?C.green:cancelRate<=20?C.yellow:C.red} sub={`${fmtN(monthData.reservation.sameCancel)}건`} />
+          <CrmNumCard label="재예약률" value={reBookRate} unit="%" color={reBookRate>=30?C.green:C.yellow} sub={`${fmtN(monthData.reservation.reBook)}건`} />
+        </div>
+      </div>
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>🚶 내원 현황</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+          <CrmNumCard label="예약 대비 내원율" value={100-noShowRate} unit="%" color={(100-noShowRate)>=80?C.green:C.yellow} sub="예약-노쇼 기준" />
+          <CrmNumCard label="총 내원" value={fmtN((monthData.reservation.total||0)-(monthData.reservation.noShow||0))} unit="건" color={C.accent2} />
+          <CrmNumCard label="재예약률" value={reBookRate} unit="%" color={reBookRate>=30?C.green:C.yellow} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 상담 관리 (상담성공률/유입별전환율) ────────────────────────
+function ConsultManageTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const { selMonth, setSelMonth, months, savedMsg, monthData, updateField } = useCrmMonth(hospital, onUpdateHospital);
+  const connectRate = pctCalc(monthData.consult.connected||0, monthData.consult.totalCalls||0);
+  const missedRate  = pctCalc(monthData.consult.missed||0,    monthData.consult.totalCalls||0);
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+      <CrmMonthSelector months={months} selMonth={selMonth} setSelMonth={setSelMonth} hospital={hospital} />
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📞 상담 운영 현황</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
+          <CrmNumInput label="총 인입 건수" section="consult" field="totalCalls" unit="건" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="연결 건수" section="consult" field="connected" unit="건" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="부재중 건수" section="consult" field="missed" unit="건" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="평균 응답 시간 (초)" section="consult" field="avgResponseSec" unit="초" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="상담 전환율 (%)" section="consult" field="convertRate" unit="%" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+        </div>
+        <div style={{ color:C.text, fontWeight:700, fontSize:13, margin:"4px 0 10px" }}>📊 상담 성공률</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+          <CrmNumCard label="총 인입" value={fmtN(monthData.consult.totalCalls)} unit="건" color={C.accent} />
+          <CrmNumCard label="상담 연결률" value={connectRate} unit="%" color={connectRate>=80?C.green:connectRate>=60?C.yellow:C.red} sub={`연결 ${fmtN(monthData.consult.connected)}건`} />
+          <CrmNumCard label="부재중 비율" value={missedRate} unit="%" color={missedRate<=20?C.green:missedRate<=40?C.yellow:C.red} sub={`부재 ${fmtN(monthData.consult.missed)}건`} />
+          <CrmNumCard label="상담 전환율" value={monthData.consult.convertRate||0} unit="%" color={(monthData.consult.convertRate||0)>=30?C.green:C.yellow} />
+        </div>
+      </div>
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:10 }}>👥 유입별 전환율</div>
+        <div style={{ color:C.muted, fontSize:12 }}>채널별 상담 전환율은 마케팅 &gt; 환자 유입 탭의 채널별 데이터와 함께 확인해보세요.</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 환자 관리 (신규/재진/휴면) ─────────────────────────────────
+function PatientManageTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const { selMonth, setSelMonth, months, savedMsg, monthData, updateField } = useCrmMonth(hospital, onUpdateHospital);
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+      <CrmMonthSelector months={months} selMonth={selMonth} setSelMonth={setSelMonth} hospital={hospital} />
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>🧑‍⚕️ 환자 구성 현황</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
+          <CrmNumInput label="신규 환자 수" section="retention" field="newCount" unit="명" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="재진 환자 수" section="retention" field="returnCount" unit="명" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="휴면 환자 수" section="retention" field="dormantCount" unit="명" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+          <CrmNumCard label="신규" value={fmtN(monthData.retention.newCount)} unit="명" color={C.accent} />
+          <CrmNumCard label="재진" value={fmtN(monthData.retention.returnCount)} unit="명" color={C.green} />
+          <CrmNumCard label="휴면" value={fmtN(monthData.retention.dormantCount)} unit="명" color={C.muted} />
+        </div>
+      </div>
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>🔄 환자 유지율</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10, marginBottom:16 }}>
+          <CrmNumInput label="재내원률 (%)" section="retention" field="reVisit" unit="%" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="시술 주기 유지율 (%)" section="retention" field="cycleKeep" unit="%" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="VIP 환자 비율 (%)" section="retention" field="vipRatio" unit="%" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumInput label="장기 환자 비율 (%)" section="retention" field="longTermRatio" unit="%" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+          {[
+            { label:"재내원률", val:monthData.retention.reVisit||0, good:50 },
+            { label:"주기 유지율", val:monthData.retention.cycleKeep||0, good:60 },
+            { label:"VIP 비율", val:monthData.retention.vipRatio||0, good:20 },
+            { label:"장기 환자", val:monthData.retention.longTermRatio||0, good:30 },
+          ].map((k,i) => (
+            <CrmNumCard key={i} label={k.label} value={k.val} unit="%" color={k.val>=k.good?C.green:k.val>=k.good*0.7?C.yellow:C.muted} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CS 관리 (VOC/불만접수/만족도) ──────────────────────────────
+function CsManageTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const { selMonth, setSelMonth, months, savedMsg, monthData, updateField, saveMonth } = useCrmMonth(hospital, onUpdateHospital);
+  const [issueForm, setIssueForm] = useState({ text:"", severity:"보통" });
   const addOpsItem = (field, item) => {
     const arr = [...(monthData.ops[field]||[]), { id:Date.now(), ...item }];
     saveMonth({ ...monthData, ops: { ...monthData.ops, [field]: arr } });
@@ -5903,230 +6278,159 @@ function CrmTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
     const arr = (monthData.ops[field]||[]).filter(i=>i.id!==id);
     saveMonth({ ...monthData, ops: { ...monthData.ops, [field]: arr } });
   };
-
-  const [issueForm, setIssueForm] = useState({ text:"", severity:"보통" });
-  const [sopForm, setSopForm] = useState({ text:"" });
-
-  const SectionBtn = ({ id, label }) => (
-    <button onClick={()=>{setActiveSection(id);setShowForm(false);}} style={{
-      background: activeSection===id ? hospital.color : "transparent",
-      border: `1px solid ${activeSection===id ? hospital.color : C.border}`,
-      color: activeSection===id ? "#0F172A" : C.muted,
-      borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700,
-    }}>{label}</button>
-  );
-
-  const NumCard = ({ label, value, unit="", color, sub="" }) => (
-    <div style={{ background:"#F8FAFC", borderRadius:12, padding:14, textAlign:"center", border:`1px solid ${C.border}` }}>
-      <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:6 }}>{label}</div>
-      <div style={{ color:color||C.text, fontSize:22, fontWeight:900 }}>{value}<span style={{ fontSize:12, fontWeight:400, marginLeft:2, color:C.muted }}>{unit}</span></div>
-      {sub && <div style={{ color:C.muted, fontSize:10, marginTop:3 }}>{sub}</div>}
-    </div>
-  );
-
-  const NumInput = ({ label, section, field, unit="" }) => (
-    <div style={{ background:"#F8FAFC", borderRadius:10, padding:12 }}>
-      <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:5 }}>{label}</label>
-      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-        <input type="number" value={monthData[section][field]||""} disabled={isReadOnly}
-          onChange={e=>updateField(section,field,e.target.value)}
-          style={{ ...inputSt, padding:"5px 8px", fontSize:14, fontWeight:700, width:90, textAlign:"right" }} />
-        {unit && <span style={{ color:C.muted, fontSize:12 }}>{unit}</span>}
-      </div>
-    </div>
-  );
-
-  // 연결률, 부재율 계산
-  const connectRate = pct(monthData.consult.connected||0, monthData.consult.totalCalls||0);
-  const missedRate  = pct(monthData.consult.missed||0,    monthData.consult.totalCalls||0);
-  const noShowRate  = pct(monthData.reservation.noShow||0, monthData.reservation.total||0);
-  const cancelRate  = pct(monthData.reservation.sameCancel||0, monthData.reservation.total||0);
-  const reBookRate  = pct(monthData.reservation.reBook||0, monthData.reservation.total||0);
-
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
       <Toast msg={savedMsg} />
-
-      {/* 월 선택 */}
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-        {months.map(m => (
-          <button key={m} onClick={()=>setSelMonth(m)} style={{
-            background: selMonth===m?`${hospital.color}20`:"transparent",
-            border:`1px solid ${selMonth===m?hospital.color:C.border}`,
-            color: selMonth===m?hospital.color:C.muted,
-            borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
-          }}>{m.slice(5)}월</button>
-        ))}
+      <CrmMonthSelector months={months} selMonth={selMonth} setSelMonth={setSelMonth} hospital={hospital} />
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>😊 만족도</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          <CrmNumInput label="고객 만족도 (%)" section="ops" field="satisfaction" unit="%" monthData={monthData} updateField={updateField} isReadOnly={isReadOnly} />
+          <CrmNumCard label="만족도" value={monthData.ops.satisfaction||0} unit="%" color={(monthData.ops.satisfaction||0)>=80?C.green:C.yellow} />
+        </div>
       </div>
-
-      {/* 섹션 탭 */}
-      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-        <SectionBtn id="consult"     label="📞 상담 운영" />
-        <SectionBtn id="reservation" label="📅 예약 관리" />
-        <SectionBtn id="retention"   label="🔄 환자 유지율" />
-        <SectionBtn id="review"      label="⭐ 후기 관리" />
-        <SectionBtn id="ops"         label="🛡 운영 안정성" />
-      </div>
-
-      {/* 상담 운영 */}
-      {activeSection === "consult" && (
-        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-            <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📞 상담 운영 현황</div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
-              <NumInput label="총 인입 건수" section="consult" field="totalCalls" unit="건" />
-              <NumInput label="연결 건수" section="consult" field="connected" unit="건" />
-              <NumInput label="부재중 건수" section="consult" field="missed" unit="건" />
-              <NumInput label="평균 응답 시간 (초)" section="consult" field="avgResponseSec" unit="초" />
-              <NumInput label="상담 전환율 (%)" section="consult" field="convertRate" unit="%" />
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
-              <NumCard label="총 인입" value={fmtN(monthData.consult.totalCalls)} unit="건" color={C.accent} />
-              <NumCard label="상담 연결률" value={connectRate} unit="%" color={connectRate>=80?C.green:connectRate>=60?C.yellow:C.red} sub={`연결 ${fmtN(monthData.consult.connected)}건`} />
-              <NumCard label="부재중 비율" value={missedRate} unit="%" color={missedRate<=20?C.green:missedRate<=40?C.yellow:C.red} sub={`부재 ${fmtN(monthData.consult.missed)}건`} />
-              <NumCard label="상담 전환율" value={monthData.consult.convertRate||0} unit="%" color={(monthData.consult.convertRate||0)>=30?C.green:C.yellow} />
-            </div>
-          </div>
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+          <div style={{ color:C.text, fontWeight:800, fontSize:14 }}>🚨 VOC / 불만 접수</div>
         </div>
-      )}
-
-      {/* 예약 관리 */}
-      {activeSection === "reservation" && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📅 예약 관리 현황</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10, marginBottom:16 }}>
-            <NumInput label="총 예약 수" section="reservation" field="total" unit="건" />
-            <NumInput label="예약 후 미내원 수" section="reservation" field="noShow" unit="건" />
-            <NumInput label="당일 취소 수" section="reservation" field="sameCancel" unit="건" />
-            <NumInput label="재예약 수" section="reservation" field="reBook" unit="건" />
+        {!isReadOnly && (
+          <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+            <input value={issueForm.text} onChange={e=>setIssueForm(p=>({...p,text:e.target.value}))} placeholder="이슈 내용" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:3 }} />
+            <select value={issueForm.severity} onChange={e=>setIssueForm(p=>({...p,severity:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1, appearance:"none" }}>
+              {["낮음","보통","높음","긴급"].map(s=><option key={s}>{s}</option>)}
+            </select>
+            <button onClick={()=>{ if(issueForm.text){ addOpsItem("issues",{...issueForm,done:false}); setIssueForm({text:"",severity:"보통"}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
-            <NumCard label="총 예약" value={fmtN(monthData.reservation.total)} unit="건" color={C.accent} />
-            <NumCard label="노쇼율" value={noShowRate} unit="%" color={noShowRate<=10?C.green:noShowRate<=20?C.yellow:C.red} sub={`${fmtN(monthData.reservation.noShow)}건`} />
-            <NumCard label="당일 취소율" value={cancelRate} unit="%" color={cancelRate<=10?C.green:cancelRate<=20?C.yellow:C.red} sub={`${fmtN(monthData.reservation.sameCancel)}건`} />
-            <NumCard label="재예약률" value={reBookRate} unit="%" color={reBookRate>=30?C.green:C.yellow} sub={`${fmtN(monthData.reservation.reBook)}건`} />
-          </div>
-        </div>
-      )}
-
-      {/* 환자 유지율 */}
-      {activeSection === "retention" && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>🔄 환자 유지율</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10, marginBottom:16 }}>
-            <NumInput label="재내원률 (%)" section="retention" field="reVisit" unit="%" />
-            <NumInput label="시술 주기 유지율 (%)" section="retention" field="cycleKeep" unit="%" />
-            <NumInput label="VIP 환자 비율 (%)" section="retention" field="vipRatio" unit="%" />
-            <NumInput label="장기 환자 비율 (%)" section="retention" field="longTermRatio" unit="%" />
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
-            {[
-              { label:"재내원률", val:monthData.retention.reVisit||0, good:50 },
-              { label:"주기 유지율", val:monthData.retention.cycleKeep||0, good:60 },
-              { label:"VIP 비율", val:monthData.retention.vipRatio||0, good:20 },
-              { label:"장기 환자", val:monthData.retention.longTermRatio||0, good:30 },
-            ].map((k,i) => (
-              <NumCard key={i} label={k.label} value={k.val} unit="%" color={k.val>=k.good?C.green:k.val>=k.good*0.7?C.yellow:C.muted} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 후기 관리 */}
-      {activeSection === "review" && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>⭐ 후기 관리 현황</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
-            <NumInput label="후기 작성률 (%)" section="review" field="writeRate" unit="%" />
-            <NumInput label="네이버 리뷰" section="review" field="naverCount" unit="건" />
-            <NumInput label="카카오 리뷰" section="review" field="kakaoCount" unit="건" />
-            <NumInput label="구글 리뷰" section="review" field="googleCount" unit="건" />
-            <NumInput label="블로그 후기" section="review" field="blogCount" unit="건" />
-            <NumInput label="후기 유입 영향도 (%)" section="review" field="inflowImpact" unit="%" />
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10 }}>
-            {[
-              { label:"작성률", val:monthData.review.writeRate||0, unit:"%", color:C.green },
-              { label:"네이버", val:fmtN(monthData.review.naverCount), unit:"건", color:"#03C75A" },
-              { label:"카카오", val:fmtN(monthData.review.kakaoCount), unit:"건", color:"#FEE500" },
-              { label:"구글", val:fmtN(monthData.review.googleCount), unit:"건", color:"#EA4335" },
-              { label:"유입 영향도", val:monthData.review.inflowImpact||0, unit:"%", color:C.accent2 },
-            ].map((k,i) => (
-              <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}30`, borderRadius:12, padding:14, textAlign:"center" }}>
-                <div style={{ color:k.color, fontSize:20, fontWeight:900 }}>{k.val}<span style={{ fontSize:11, fontWeight:400 }}>{k.unit}</span></div>
-                <div style={{ color:C.muted, fontSize:11, marginTop:3 }}>{k.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 운영 안정성 */}
-      {activeSection === "ops" && (
-        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          {/* CS 이슈 */}
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-              <div style={{ color:C.text, fontWeight:800, fontSize:14 }}>🚨 CS 이슈 / 컴플레인</div>
-            </div>
-            {!isReadOnly && (
-              <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-                <input value={issueForm.text} onChange={e=>setIssueForm(p=>({...p,text:e.target.value}))} placeholder="이슈 내용" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:3 }} />
-                <select value={issueForm.severity} onChange={e=>setIssueForm(p=>({...p,severity:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1, appearance:"none" }}>
-                  {["낮음","보통","높음","긴급"].map(s=><option key={s}>{s}</option>)}
-                </select>
-                <button onClick={()=>{ if(issueForm.text){ addOpsItem("issues",{...issueForm,done:false}); setIssueForm({text:"",severity:"보통"}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
-              </div>
-            )}
-            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-              {(monthData.ops.issues||[]).length === 0 && <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:12 }}>등록된 이슈가 없어요 👍</div>}
-              {(monthData.ops.issues||[]).map((issue,i) => {
-                const sevColor = issue.severity==="긴급"?C.red:issue.severity==="높음"?C.orange:issue.severity==="보통"?C.yellow:C.green;
-                return (
-                  <div key={issue.id||i} onClick={()=>!isReadOnly&&toggleOpsItem("issues",issue.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:issue.done?`${C.green}08`:"#FFF8F8", border:`1px solid ${issue.done?C.green:sevColor}30`, borderRadius:10, cursor:"pointer" }}>
-                    <div style={{ width:16, height:16, borderRadius:4, flexShrink:0, background:issue.done?C.green:"transparent", border:`2px solid ${issue.done?C.green:sevColor}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      {issue.done && <span style={{ color:"#fff", fontSize:10, fontWeight:900 }}>✓</span>}
-                    </div>
-                    <span style={{ background:`${sevColor}15`, color:sevColor, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700, flexShrink:0 }}>{issue.severity}</span>
-                    <span style={{ color:issue.done?C.muted:C.text, fontSize:12, textDecoration:issue.done?"line-through":"none", flex:1 }}>{issue.text}</span>
-                    {!isReadOnly && <button onClick={e=>{e.stopPropagation();removeOpsItem("issues",issue.id);}} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>×</button>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* SOP 체크 */}
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-              <div style={{ color:C.text, fontWeight:800, fontSize:14 }}>📋 SOP 체크 현황</div>
-              {(monthData.ops.sopItems||[]).length > 0 && (
-                <span style={{ color:C.green, fontSize:12, fontWeight:700 }}>
-                  {(monthData.ops.sopItems||[]).filter(s=>s.done).length}/{(monthData.ops.sopItems||[]).length} 완료
-                </span>
-              )}
-            </div>
-            {!isReadOnly && (
-              <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-                <input value={sopForm.text} onChange={e=>setSopForm(p=>({...p,text:e.target.value}))} placeholder="SOP 항목 입력" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1 }}
-                  onKeyDown={e=>{ if(e.key==="Enter" && sopForm.text){ addOpsItem("sopItems",{...sopForm,done:false}); setSopForm({text:""}); }}} />
-                <button onClick={()=>{ if(sopForm.text){ addOpsItem("sopItems",{...sopForm,done:false}); setSopForm({text:""}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
-              </div>
-            )}
-            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-              {(monthData.ops.sopItems||[]).length === 0 && <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:12 }}>SOP 항목을 추가해주세요</div>}
-              {(monthData.ops.sopItems||[]).map((sop,i) => (
-                <div key={sop.id||i} onClick={()=>!isReadOnly&&toggleOpsItem("sopItems",sop.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", background:sop.done?`${C.green}08`:"#F8FAFC", border:`1px solid ${sop.done?C.green:C.dim}`, borderRadius:9, cursor:"pointer" }}>
-                  <div style={{ width:16, height:16, borderRadius:4, flexShrink:0, background:sop.done?C.green:"transparent", border:`2px solid ${sop.done?C.green:C.dim}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                    {sop.done && <span style={{ color:"#fff", fontSize:10, fontWeight:900 }}>✓</span>}
-                  </div>
-                  <span style={{ color:sop.done?C.muted:C.text, fontSize:12, textDecoration:sop.done?"line-through":"none", flex:1 }}>{sop.text}</span>
-                  {!isReadOnly && <button onClick={e=>{e.stopPropagation();removeOpsItem("sopItems",sop.id);}} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>×</button>}
+        )}
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          {(monthData.ops.issues||[]).length === 0 && <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:12 }}>등록된 이슈가 없어요 👍</div>}
+          {(monthData.ops.issues||[]).map((issue,i) => {
+            const sevColor = issue.severity==="긴급"?C.red:issue.severity==="높음"?C.orange:issue.severity==="보통"?C.yellow:C.green;
+            return (
+              <div key={issue.id||i} onClick={()=>!isReadOnly&&toggleOpsItem("issues",issue.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:issue.done?`${C.green}08`:"#FFF8F8", border:`1px solid ${issue.done?C.green:sevColor}30`, borderRadius:10, cursor:"pointer" }}>
+                <div style={{ width:16, height:16, borderRadius:4, flexShrink:0, background:issue.done?C.green:"transparent", border:`2px solid ${issue.done?C.green:sevColor}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {issue.done && <span style={{ color:"#fff", fontSize:10, fontWeight:900 }}>✓</span>}
                 </div>
-              ))}
-            </div>
-          </div>
+                <span style={{ background:`${sevColor}15`, color:sevColor, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700, flexShrink:0 }}>{issue.severity}</span>
+                <span style={{ color:issue.done?C.muted:C.text, fontSize:12, textDecoration:issue.done?"line-through":"none", flex:1 }}>{issue.text}</span>
+                {!isReadOnly && <button onClick={e=>{e.stopPropagation();removeOpsItem("issues",issue.id);}} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>×</button>}
+              </div>
+            );
+          })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SOP 관리 (매뉴얼/교육/점검) ────────────────────────────────
+function SopTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const { selMonth, setSelMonth, months, savedMsg, monthData, saveMonth } = useCrmMonth(hospital, onUpdateHospital);
+  const [sopForm, setSopForm] = useState({ text:"", category:"매뉴얼" });
+  const addOpsItem = (field, item) => {
+    const arr = [...(monthData.ops[field]||[]), { id:Date.now(), ...item }];
+    saveMonth({ ...monthData, ops: { ...monthData.ops, [field]: arr } });
+  };
+  const toggleOpsItem = (field, id) => {
+    const arr = (monthData.ops[field]||[]).map(i => i.id===id ? {...i, done:!i.done} : i);
+    saveMonth({ ...monthData, ops: { ...monthData.ops, [field]: arr } });
+  };
+  const removeOpsItem = (field, id) => {
+    const arr = (monthData.ops[field]||[]).filter(i=>i.id!==id);
+    saveMonth({ ...monthData, ops: { ...monthData.ops, [field]: arr } });
+  };
+  const sopItems = monthData.ops.sopItems||[];
+  const SOP_CATS = ["매뉴얼","교육","점검"];
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+      <CrmMonthSelector months={months} selMonth={selMonth} setSelMonth={setSelMonth} hospital={hospital} />
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+        {SOP_CATS.map(cat => {
+          const items = sopItems.filter(s=>(s.category||"매뉴얼")===cat);
+          const done = items.filter(s=>s.done).length;
+          return (
+            <CrmNumCard key={cat} label={cat+" 현황"} value={`${done}/${items.length}`} unit="완료" color={items.length>0 && done===items.length?C.green:C.accent} />
+          );
+        })}
+      </div>
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+          <div style={{ color:C.text, fontWeight:800, fontSize:14 }}>📋 SOP 체크 현황</div>
+          {sopItems.length > 0 && (
+            <span style={{ color:C.green, fontSize:12, fontWeight:700 }}>
+              {sopItems.filter(s=>s.done).length}/{sopItems.length} 완료
+            </span>
+          )}
+        </div>
+        {!isReadOnly && (
+          <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+            <select value={sopForm.category} onChange={e=>setSopForm(p=>({...p,category:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:100, appearance:"none" }}>
+              {SOP_CATS.map(c=><option key={c}>{c}</option>)}
+            </select>
+            <input value={sopForm.text} onChange={e=>setSopForm(p=>({...p,text:e.target.value}))} placeholder="SOP 항목 입력" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1 }}
+              onKeyDown={e=>{ if(e.key==="Enter" && sopForm.text){ addOpsItem("sopItems",{...sopForm,done:false}); setSopForm({text:"",category:sopForm.category}); }}} />
+            <button onClick={()=>{ if(sopForm.text){ addOpsItem("sopItems",{...sopForm,done:false}); setSopForm({text:"",category:sopForm.category}); }}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>추가</button>
+          </div>
+        )}
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          {sopItems.length === 0 && <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:12 }}>SOP 항목을 추가해주세요</div>}
+          {sopItems.map((sop,i) => (
+            <div key={sop.id||i} onClick={()=>!isReadOnly&&toggleOpsItem("sopItems",sop.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", background:sop.done?`${C.green}08`:"#F8FAFC", border:`1px solid ${sop.done?C.green:C.dim}`, borderRadius:9, cursor:"pointer" }}>
+              <div style={{ width:16, height:16, borderRadius:4, flexShrink:0, background:sop.done?C.green:"transparent", border:`2px solid ${sop.done?C.green:C.dim}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                {sop.done && <span style={{ color:"#fff", fontSize:10, fontWeight:900 }}>✓</span>}
+              </div>
+              <span style={{ background:`${C.accent}12`, color:C.accent, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700, flexShrink:0 }}>{sop.category||"매뉴얼"}</span>
+              <span style={{ color:sop.done?C.muted:C.text, fontSize:12, textDecoration:sop.done?"line-through":"none", flex:1 }}>{sop.text}</span>
+              {!isReadOnly && <button onClick={e=>{e.stopPropagation();removeOpsItem("sopItems",sop.id);}} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>×</button>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 경영 지표 (매출/객단가/시술별매출/성장률) ───────────────────
+function BizTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const hData = hospital.monthlyData || [];
+  const availMonths = [...new Set(hData.map(d => d.month).filter(Boolean))].sort().reverse();
+  const [selMonth, setSelMonth] = useState(availMonths[0] || "");
+  useEffect(()=>{ if(!selMonth && availMonths.length) setSelMonth(availMonths[0]); }, [availMonths.length]);
+  const last = hData.find(d => d.month === selMonth) || {};
+  const lastIdx = hData.findIndex(d => d.month === selMonth);
+  const prev = lastIdx > 0 ? hData[lastIdx-1] : null;
+  const arpu = last.payment ? Math.round((last.revenue||0) / last.payment) : 0;
+  const growth = prev && prev.revenue > 0 ? Math.round(((last.revenue||0)-prev.revenue)/prev.revenue*100) : null;
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      {availMonths.length === 0 ? (
+        <div style={{ background:`${C.yellow}10`, border:`1px solid ${C.yellow}30`, borderRadius:14, padding:20, color:C.muted, fontSize:13 }}>
+          통합 요약 탭에서 월간 매출 데이터를 먼저 입력하면 여기에 경영 지표가 표시돼요.
+        </div>
+      ) : (
+        <>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {availMonths.map(m => (
+              <button key={m} onClick={()=>setSelMonth(m)} style={{
+                background: selMonth===m?`${hospital.color}20`:"transparent",
+                border:`1px solid ${selMonth===m?hospital.color:C.border}`,
+                color: selMonth===m?hospital.color:C.muted,
+                borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+              }}>{m}</button>
+            ))}
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+            <CrmNumCard label="매출" value={fmtN(last.revenue)} unit="만원" color={C.accent} />
+            <CrmNumCard label="객단가" value={fmtN(arpu)} unit="만원" color={C.accent2} />
+            <CrmNumCard label="결제 건수" value={fmtN(last.payment)} unit="건" color={C.green} />
+            <CrmNumCard label="전월 대비 성장률" value={growth===null?"-":growth} unit={growth===null?"":"%"} color={growth>0?C.green:growth<0?C.red:C.muted} />
+          </div>
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+            <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:10 }}>💉 시술별 매출</div>
+            <div style={{ color:C.muted, fontSize:12 }}>시술별 매출 데이터는 아직 별도 입력 항목이 없어요. 필요하면 알려주시면 추가해드릴게요.</div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -6150,8 +6454,6 @@ function AiSearchTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
 
   const getExposure = (month, key) => aiData[month]?.exposure?.[key] || false;
   const getNote = (month, key) => aiData[month]?.notes?.[key] || "";
-  const getGeo = (month, key) => aiData[month]?.geo?.[key] || false;
-  const getTrust = (month, key) => aiData[month]?.trust?.[key] || false;
 
   const toggleExposure = (month, key) => {
     if (isReadOnly) return;
@@ -6167,21 +6469,6 @@ function AiSearchTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
     const updated = { ...cur, notes: { ...cur.notes, [key]: val } };
     onUpdateHospital({ ...hospital, aiData: { ...aiData, [month]: updated } });
   };
-
-  const GEO_ITEMS = [
-    { key:"column",        label:"의료칼럼" },
-    { key:"faq",           label:"FAQ" },
-    { key:"procedurePage", label:"시술페이지" },
-    { key:"doctorContent", label:"원장콘텐츠" },
-    { key:"googleIndex",   label:"구글색인" },
-    { key:"naverExposed",  label:"네이버노출" },
-  ];
-
-  const TRUST_ITEMS = [
-    { key:"directSearch",    label:"직접검색↑" },
-    { key:"reviewGrow",      label:"리뷰증가" },
-    { key:"externalMention", label:"외부언급" },
-  ];
 
   const Cell = ({ on, onClick, color="#0EA5E9" }) => (
     <td onClick={onClick} style={{ padding:"10px 12px", textAlign:"center", cursor:isReadOnly?"default":"pointer", borderBottom:`1px solid ${C.dim}` }}>
@@ -6250,104 +6537,244 @@ function AiSearchTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
         </div>
       </div>
 
-      {/* 노출 메모 */}
-      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:14 }}>📝 플랫폼별 노출 내용 메모 (최근 월)</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          {AI_PLATFORMS.map(p => {
-            const latestMonth = months6[months6.length-1];
-            const on = getExposure(latestMonth, p.key);
-            return (
-              <div key={p.key} style={{ background: on?`${p.color}08`:"#F8FAFC", border:`1px solid ${on?p.color:C.dim}`, borderRadius:10, padding:12 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
-                  <span>{p.icon}</span>
-                  <span style={{ color:p.color, fontWeight:700, fontSize:12 }}>{p.label}</span>
-                  <span style={{ marginLeft:"auto", fontSize:10, color:on?p.color:C.muted, fontWeight:700 }}>{on?"노출 중":"미노출"}</span>
-                </div>
-                {!isReadOnly ? (
-                  <input value={getNote(latestMonth, p.key)} onChange={e=>updateNote(latestMonth, p.key, e.target.value)}
-                    placeholder="노출 내용 메모"
-                    style={{ ...inputSt, padding:"5px 8px", fontSize:11, width:"100%" }} />
-                ) : (
-                  <div style={{ color:C.muted, fontSize:11 }}>{getNote(latestMonth, p.key)||"-"}</div>
-                )}
-              </div>
-            );
-          })}
+      {/* AI 질문/답변 모니터링 (플랫폼별 노출 메모 통합) */}
+      <AiQaSection hospital={hospital} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} AI_PLATFORMS={AI_PLATFORMS} toast={toast} aiData={aiData} months6={months6} />
+    </div>
+  );
+}
+
+// ─── 간단한 word 단위 diff (외부 라이브러리 없이 LCS 기반) ───────
+function wordDiff(oldText, newText) {
+  const oldWords = (oldText||"").split(/(\s+)/).filter(w=>w!=="");
+  const newWords = (newText||"").split(/(\s+)/).filter(w=>w!=="");
+  const m = oldWords.length, n = newWords.length;
+  const dp = Array.from({length:m+1}, ()=>new Array(n+1).fill(0));
+  for (let i=m-1;i>=0;i--) {
+    for (let j=n-1;j>=0;j--) {
+      dp[i][j] = oldWords[i]===newWords[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j], dp[i][j+1]);
+    }
+  }
+  const result = [];
+  let i=0, j=0;
+  while (i<m && j<n) {
+    if (oldWords[i]===newWords[j]) { result.push({type:"same", text:newWords[j]}); i++; j++; }
+    else if (dp[i+1][j] >= dp[i][j+1]) { result.push({type:"del", text:oldWords[i]}); i++; }
+    else { result.push({type:"add", text:newWords[j]}); j++; }
+  }
+  while (i<m) { result.push({type:"del", text:oldWords[i]}); i++; }
+  while (j<n) { result.push({type:"add", text:newWords[j]}); j++; }
+  return result;
+}
+
+const DiffView = ({ oldText, newText }) => {
+  const parts = wordDiff(oldText, newText);
+  const hasChange = parts.some(p=>p.type!=="same");
+  if (!hasChange) return <span style={{ color:C.muted, fontSize:12 }}>이전 답변과 동일해요</span>;
+  return (
+    <div style={{ fontSize:12, lineHeight:1.7 }}>
+      {parts.map((p,i) => {
+        if (p.type==="same") return <span key={i} style={{ color:C.text }}>{p.text}</span>;
+        if (p.type==="add") return <span key={i} style={{ background:`${C.green}25`, color:C.green, fontWeight:700, borderRadius:3 }}>{p.text}</span>;
+        return <span key={i} style={{ background:`${C.red}15`, color:C.red, textDecoration:"line-through", borderRadius:3 }}>{p.text}</span>;
+      })}
+    </div>
+  );
+};
+
+// ─── AI 질문/답변 모니터링 섹션 ──────────────────────────────────
+function AiQaSection({ hospital, isReadOnly, onUpdateHospital, AI_PLATFORMS, toast, aiData, months6 }) {
+  // hospital.aiQaData: { questions: [{id, platform, question, isDefault}], answers: { [questionId]: { [month]: answerText } } }
+  const qaData = hospital.aiQaData || { questions: [], answers: {} };
+  const questions = qaData.questions || [];
+  const answers = qaData.answers || {};
+
+  const [showAddQ, setShowAddQ] = useState(false);
+  const [newQ, setNewQ] = useState({ platform:"chatgpt", question:"" });
+  const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
+  const [expandedQ, setExpandedQ] = useState(null);
+
+  const saveQaData = (updated) => {
+    onUpdateHospital({ ...hospital, aiQaData: updated });
+    toast("저장 완료!");
+  };
+
+  // 플랫폼별 노출 메모(구버전 aiData) 통합 마이그레이션:
+  // 질문 목록에 플랫폼당 "기본 질문"이 없으면 자동 생성하고,
+  // 과거 aiData의 월별 메모가 있으면 같은 월의 답변으로 옮겨준다.
+  // migratedPlatforms에 한 번 마이그레이션한 플랫폼을 영속 기록해서, 이후 사용자가 기본 질문을 지워도 재생성되지 않도록 함
+  const migratingRef = useRef(false);
+  useEffect(() => {
+    if (migratingRef.current || isReadOnly || !aiData) return;
+    const migratedPlatforms = qaData.migratedPlatforms || [];
+    const toMigrate = AI_PLATFORMS.filter(p => !migratedPlatforms.includes(p.key));
+    if (toMigrate.length === 0) return;
+    migratingRef.current = true;
+    const newQuestions = toMigrate.map(p => ({ id: Date.now()+Math.random(), platform:p.key, question:`${p.label} - 병원명/원장명 검색 결과`, isDefault:true }));
+    const newAnswers = { ...answers };
+    newQuestions.forEach(q => {
+      const platformNotes = {};
+      months6.forEach(m => {
+        const note = aiData[m]?.notes?.[q.platform];
+        if (note && note.trim()) platformNotes[m] = note;
+      });
+      if (Object.keys(platformNotes).length > 0) newAnswers[q.id] = { ...(newAnswers[q.id]||{}), ...platformNotes };
+    });
+    saveQaData({
+      questions:[...questions, ...newQuestions],
+      answers:newAnswers,
+      migratedPlatforms:[...migratedPlatforms, ...toMigrate.map(p=>p.key)],
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
+  const addQuestion = () => {
+    if (!newQ.question.trim()) return;
+    const q = { id: Date.now(), platform: newQ.platform, question: newQ.question.trim() };
+    saveQaData({ ...qaData, questions: [...questions, q] });
+    setNewQ({ platform:newQ.platform, question:"" });
+    setShowAddQ(false);
+  };
+
+  const removeQuestion = (id) => {
+    const nextAnswers = { ...answers };
+    delete nextAnswers[id];
+    saveQaData({ ...qaData, questions: questions.filter(q=>q.id!==id), answers: nextAnswers });
+  };
+
+  const updateAnswer = (qId, month, text) => {
+    const qAnswers = { ...(answers[qId]||{}), [month]: text };
+    saveQaData({ ...qaData, answers: { ...answers, [qId]: qAnswers } });
+  };
+
+  // 특정 질문에 대해 selMonth 이전의 가장 최근 답변(직전 기록) 찾기
+  const getPrevAnswer = (qId, month) => {
+    const qAnswers = answers[qId] || {};
+    const months = Object.keys(qAnswers).filter(m => m < month).sort().reverse();
+    return months.length > 0 ? qAnswers[months[0]] : "";
+  };
+
+  return (
+    <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:10 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14 }}>💬 AI 질문 / 답변 모니터링</div>
+        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+          <span style={{ color:C.muted, fontSize:11 }}>조회 월:</span>
+          {months6.map(m => (
+            <button key={m} onClick={()=>{ if(document.activeElement) document.activeElement.blur(); setSelMonth(m); }} style={{
+              background: selMonth===m?`${hospital.color}20`:"transparent",
+              border:`1px solid ${selMonth===m?hospital.color:C.border}`,
+              color: selMonth===m?hospital.color:C.muted,
+              borderRadius:8, padding:"4px 10px", fontSize:11, cursor:"pointer", fontWeight:600,
+            }}>{m.slice(5)}월</button>
+          ))}
         </div>
       </div>
 
-      {/* GEO 자산 + 신뢰도 */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-        {/* GEO 자산 */}
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>📚 GEO 자산 현황</div>
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-              <thead>
-                <tr style={{ background:"#F1F5F9" }}>
-                  <th style={{ padding:"8px 10px", textAlign:"left", borderBottom:`2px solid ${C.border}`, color:C.muted, fontWeight:700 }}>자산</th>
-                  {months6.slice(-3).map(m=>(
-                    <th key={m} style={{ padding:"8px 10px", textAlign:"center", borderBottom:`2px solid ${C.border}`, color:C.muted, fontWeight:700 }}>{m.slice(5)}월</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {GEO_ITEMS.map(item=>(
-                  <tr key={item.key}>
-                    <td style={{ padding:"8px 10px", fontWeight:600, borderBottom:`1px solid ${C.dim}`, color:C.text }}>{item.label}</td>
-                    {months6.slice(-3).map(m=>(
-                      <td key={m} onClick={()=>{ if(!isReadOnly){ const cur=aiData[m]||{}; onUpdateHospital({...hospital,aiData:{...aiData,[m]:{...cur,geo:{...cur.geo,[item.key]:!getGeo(m,item.key)}}}}); toast("저장!"); }}}
-                        style={{ padding:"8px 10px", textAlign:"center", borderBottom:`1px solid ${C.dim}`, cursor:isReadOnly?"default":"pointer" }}>
-                        <span style={{ fontSize:14 }}>{getGeo(m,item.key)?"✅":"⬜"}</span>
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {!isReadOnly && (
+        <div style={{ marginBottom:16 }}>
+          {!showAddQ ? (
+            <button onClick={()=>setShowAddQ(true)} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"7px 16px", fontSize:12, cursor:"pointer", fontWeight:700 }}>+ 새 질문 등록</button>
+          ) : (
+            <div style={{ background:"#F8FAFC", borderRadius:12, padding:14, display:"flex", gap:8, flexWrap:"wrap" }}>
+              <select value={newQ.platform} onChange={e=>setNewQ(p=>({...p,platform:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, width:130, appearance:"none" }}>
+                {AI_PLATFORMS.map(p=><option key={p.key} value={p.key}>{p.icon} {p.label}</option>)}
+              </select>
+              <input value={newQ.question} onChange={e=>setNewQ(p=>({...p,question:e.target.value}))}
+                onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); addQuestion(); } }}
+                autoFocus placeholder="예: 강남 성형외과 추천해줘" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1, minWidth:200 }} />
+              <button onClick={addQuestion} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>등록</button>
+              <button onClick={()=>setShowAddQ(false)} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer" }}>취소</button>
+            </div>
+          )}
         </div>
+      )}
 
-        {/* 신뢰도 */}
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>🛡 AI 신뢰도 지표</div>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-            <thead>
-              <tr style={{ background:"#F1F5F9" }}>
-                <th style={{ padding:"8px 10px", textAlign:"left", borderBottom:`2px solid ${C.border}`, color:C.muted, fontWeight:700 }}>지표</th>
-                {months6.slice(-3).map(m=>(
-                  <th key={m} style={{ padding:"8px 10px", textAlign:"center", borderBottom:`2px solid ${C.border}`, color:C.muted, fontWeight:700 }}>{m.slice(5)}월</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {TRUST_ITEMS.map(item=>(
-                <tr key={item.key}>
-                  <td style={{ padding:"8px 10px", fontWeight:600, borderBottom:`1px solid ${C.dim}`, color:C.text }}>{item.label}</td>
-                  {months6.slice(-3).map(m=>(
-                    <td key={m} onClick={()=>{ if(!isReadOnly){ const cur=aiData[m]||{}; onUpdateHospital({...hospital,aiData:{...aiData,[m]:{...cur,trust:{...cur.trust,[item.key]:!getTrust(m,item.key)}}}}); toast("저장!"); }}}
-                      style={{ padding:"8px 10px", textAlign:"center", borderBottom:`1px solid ${C.dim}`, cursor:isReadOnly?"default":"pointer" }}>
-                      <span style={{ fontSize:14 }}>{getTrust(m,item.key)?"✅":"⬜"}</span>
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ marginTop:14, background:"#F8FAFC", borderRadius:10, padding:12 }}>
-            <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:6 }}>📝 이번달 메모</div>
+      {questions.length === 0 && (
+        <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:20 }}>등록된 질문이 없어요. 모니터링할 질문을 추가해주세요.</div>
+      )}
+
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+        {questions.map(q => {
+          const platformInfo = AI_PLATFORMS.find(p=>p.key===q.platform) || AI_PLATFORMS[0];
+          const curAnswer = (answers[q.id]||{})[selMonth] || "";
+          const prevAnswer = getPrevAnswer(q.id, selMonth);
+          const isOpen = expandedQ === q.id;
+          return (
+            <AiQaCard key={q.id} q={q} platformInfo={platformInfo} curAnswer={curAnswer} prevAnswer={prevAnswer}
+              isOpen={isOpen} selMonth={selMonth} isReadOnly={isReadOnly}
+              onToggleOpen={()=>setExpandedQ(isOpen?null:q.id)}
+              onRemove={()=>removeQuestion(q.id)}
+              onSaveAnswer={(text)=>updateAnswer(q.id, selMonth, text)} />
+          );
+        })}
+      </div>
+      <div style={{ color:C.muted, fontSize:11, marginTop:10 }}>
+        💡 답변 입력란 밖을 클릭하거나 다른 질문 카드를 열면 자동으로 저장돼요.
+      </div>
+    </div>
+  );
+}
+
+// ─── 질문 카드 (답변 입력은 로컬 state로 받다가 blur 시점에만 저장 — 타이핑마다 저장 요청이 나가지 않도록) ──
+function AiQaCard({ q, platformInfo, curAnswer, prevAnswer, isOpen, selMonth, isReadOnly, onToggleOpen, onRemove, onSaveAnswer }) {
+  const [localAnswer, setLocalAnswer] = useState(curAnswer);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  useEffect(() => { setLocalAnswer(curAnswer); }, [curAnswer, selMonth]);
+  useEffect(() => { setConfirmDelete(false); }, [isOpen]);
+  // 카드가 닫힐 때 미저장 답변이 남아있으면 안전망으로 자동 저장 (blur 이벤트가 누락되는 경우 대비)
+  useEffect(() => {
+    if (!isOpen && localAnswer !== curAnswer) onSaveAnswer(localAnswer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+  const hasChanged = prevAnswer && curAnswer && wordDiff(prevAnswer, curAnswer).some(p=>p.type!=="same");
+  return (
+    <div style={{ border:`1px solid ${C.dim}`, borderRadius:12, overflow:"hidden" }}>
+      <div onClick={onToggleOpen} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:"#F8FAFC", cursor:"pointer" }}>
+        <span style={{ background:`${platformInfo.color}15`, color:platformInfo.color, borderRadius:6, padding:"2px 8px", fontSize:10, fontWeight:700, flexShrink:0 }}>{platformInfo.icon} {platformInfo.label}</span>
+        <span style={{ color:C.text, fontSize:12, fontWeight:600, flex:1 }}>{q.question}</span>
+        {hasChanged && <span style={{ color:C.orange, fontSize:10, fontWeight:700 }}>변경됨</span>}
+        {!isReadOnly && (
+          confirmDelete ? (
+            <button onClick={e=>{ e.stopPropagation(); onRemove(); }} style={{ background:`${C.red}20`, border:`1px solid ${C.red}`, color:C.red, borderRadius:6, padding:"2px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>삭제 확인</button>
+          ) : (
+            <button onClick={e=>{ e.stopPropagation(); setConfirmDelete(true); }} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>×</button>
+          )
+        )}
+        <span style={{ color:C.muted, fontSize:11 }}>{isOpen?"▲":"▼"}</span>
+      </div>
+      {isOpen && (
+        <div style={{ padding:14, display:"flex", flexDirection:"column", gap:10 }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
+              <label style={{ color:C.muted, fontSize:11, fontWeight:700 }}>{selMonth.slice(5)}월 답변</label>
+              {!isReadOnly && localAnswer !== curAnswer && (
+                <span style={{ color:C.orange, fontSize:10, fontWeight:700 }}>● 저장 안 됨 (입력란 밖을 클릭하면 저장돼요)</span>
+              )}
+            </div>
             {!isReadOnly ? (
-              <textarea value={aiData[months6[months6.length-1]]?.monthMemo||""}
-                onChange={e=>{ const m=months6[months6.length-1]; const cur=aiData[m]||{}; onUpdateHospital({...hospital,aiData:{...aiData,[m]:{...cur,monthMemo:e.target.value}}}); }}
-                placeholder="AI 검색 관련 특이사항, 개선 계획 등"
-                rows={3} style={{ ...inputSt, padding:"6px 8px", fontSize:11, width:"100%", resize:"vertical" }} />
+              <textarea value={localAnswer} onChange={e=>setLocalAnswer(e.target.value)}
+                onBlur={e=>{ if(e.target.value !== curAnswer) onSaveAnswer(e.target.value); }}
+                onKeyDown={e=>{ if((e.metaKey||e.ctrlKey) && e.key==="Enter"){ e.target.blur(); } }}
+                placeholder="AI 답변 내용을 붙여넣어주세요 (Ctrl/Cmd+Enter로 바로 저장)"
+                rows={4} style={{ ...inputSt, padding:"8px 10px", fontSize:12, width:"100%", resize:"vertical", border:`1px solid ${localAnswer!==curAnswer?C.orange:C.dim}` }} />
             ) : (
-              <div style={{ color:C.muted, fontSize:11 }}>{aiData[months6[months6.length-1]]?.monthMemo||"-"}</div>
+              <div style={{ color:C.text, fontSize:12, background:"#F8FAFC", borderRadius:8, padding:10 }}>{curAnswer||"-"}</div>
             )}
           </div>
+          {prevAnswer && (
+            <div>
+              <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:5 }}>직전 답변 대비 변경 사항</label>
+              <div style={{ background:"#F8FAFC", borderRadius:8, padding:10 }}>
+                <DiffView oldText={prevAnswer} newText={localAnswer} />
+              </div>
+            </div>
+          )}
+          {!prevAnswer && curAnswer && (
+            <div style={{ color:C.muted, fontSize:11 }}>비교할 이전 답변이 아직 없어요 (첫 등록)</div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -6390,19 +6817,25 @@ function GrowReportTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
     }}>{label}</button>
   );
 
-  const TextArea = ({ label, section, field, placeholder, rows=3, color }) => (
-    <div style={{ background:"#F8FAFC", borderRadius:12, padding:14, border:`1px solid ${color?color+"30":C.border}` }}>
-      <label style={{ color:color||C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:6 }}>{label}</label>
-      <textarea
-        value={monthData[section][field]||""}
-        disabled={isReadOnly}
-        onChange={e=>updateField(section,field,e.target.value)}
-        placeholder={placeholder}
-        rows={rows}
-        style={{ ...inputSt, padding:"8px 10px", fontSize:12, width:"100%", resize:"vertical", lineHeight:1.7, minHeight:rows*24 }}
-      />
-    </div>
-  );
+  const TextArea = ({ label, section, field, placeholder, rows=3, color }) => {
+    const savedVal = monthData[section][field]||"";
+    const [localVal, setLocalVal] = useState(savedVal);
+    useEffect(() => { setLocalVal(savedVal); }, [savedVal, selMonth, section, field]);
+    return (
+      <div style={{ background:"#F8FAFC", borderRadius:12, padding:14, border:`1px solid ${color?color+"30":C.border}` }}>
+        <label style={{ color:color||C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:6 }}>{label}</label>
+        <textarea
+          value={localVal}
+          disabled={isReadOnly}
+          onChange={e=>setLocalVal(e.target.value)}
+          onBlur={e=>{ if(e.target.value !== savedVal) updateField(section,field,e.target.value); }}
+          placeholder={placeholder}
+          rows={rows}
+          style={{ ...inputSt, padding:"8px 10px", fontSize:12, width:"100%", resize:"vertical", lineHeight:1.7, minHeight:rows*24 }}
+        />
+      </div>
+    );
+  };
 
   const STAGES = ["인지 단계","성장 단계","도약 단계","안정 단계","확장 단계"];
   const STAGE_COLORS = [C.muted, C.accent, C.yellow, C.green, hospital.color];
@@ -6884,8 +7317,8 @@ function AppInner() {
 
   const saveHospitalToSupabase = async (h) => {
     try {
-      const { monthlyData, channelData, contentData, meetingData, adsData, inflowData, brandingData, crmData, aiData, growData, ...hospData } = h;
-      await supabase.from('hospitals').upsert({ id: h.id, data: { ...hospData, adsData:adsData||{}, inflowData:inflowData||{}, brandingData:brandingData||{}, crmData:crmData||{}, aiData:aiData||{}, growData:growData||{} } });
+      const { monthlyData, channelData, contentData, meetingData, adsData, inflowData, brandingData, crmData, aiData, growData, aiQaData, onlineAssetData, ...hospData } = h;
+      await supabase.from('hospitals').upsert({ id: h.id, data: { ...hospData, adsData:adsData||{}, inflowData:inflowData||{}, brandingData:brandingData||{}, crmData:crmData||{}, aiData:aiData||{}, growData:growData||{}, aiQaData:aiQaData||{questions:[],answers:{}}, onlineAssetData:onlineAssetData||{} } });
       await supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData || [] }, { onConflict: 'hospital_id' });
       await supabase.from('channel_data').upsert({ hospital_id: h.id, data: channelData || [] }, { onConflict: 'hospital_id' });
       await supabase.from('content_data').upsert({ hospital_id: h.id, data: contentData || [] }, { onConflict: 'hospital_id' });
