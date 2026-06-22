@@ -7538,7 +7538,7 @@ function AppInner() {
   const saveAllToSupabase = async (hospitalList, supabase) => {
     for (const h of hospitalList) {
       const { monthlyData, channelData, contentData, meetingData, ...hospData } = h;
-      await supabase.from('hospitals').upsert({ id: h.id, data: hospData });
+      await supabase.from('hospitals').upsert({ id: h.id, data: hospData }, { onConflict: 'id' });
       await supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData }, { onConflict: 'hospital_id' });
       await supabase.from('channel_data').upsert({ hospital_id: h.id, data: channelData }, { onConflict: 'hospital_id' });
       await supabase.from('content_data').upsert({ hospital_id: h.id, data: contentData }, { onConflict: 'hospital_id' });
