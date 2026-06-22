@@ -3721,11 +3721,15 @@ function CostTab({ hospital, hData, onDataLoad }) {
 function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminRole, globalSchedules, saveGlobalSchedules }) {
   const isReadOnly = !isAdmin; // 병원 비밀번호 로그인 = 읽기 전용
   const isJunior = adminRole === "실무자"; // 실무자 탭 제한
-  // 구버전 데이터 호환: hospital.tabs에 카테고리 산하 중분류가 일부만 있으면(예: 옛 'crm' 탭만 있고 신규 세분화 탭이 없는 경우)
-  // 해당 카테고리 산하 전체를 자동으로 보강해서 보여줌 (저장은 병원 수정 시점에 정식 반영됨)
+  // hospital.categories가 있으면 신규 구조 → tabs 그대로 사용 (사용자가 직접 고른 탭만)
+  // hospital.categories가 없으면 구버전 데이터 → 카테고리 역산해서 산하 탭 전부 보강
   const rawTabIds = hospital.tabs || DEFAULT_TABS;
-  const touchedCategories = [...new Set(rawTabIds.map(id => ALL_TABS.find(t=>t.id===id)?.category).filter(Boolean))];
-  const enabledTabIds = [...new Set([...rawTabIds, ...ALL_TABS.filter(t=>touchedCategories.includes(t.category)).map(t=>t.id)])];
+  const enabledTabIds = hospital.categories
+    ? rawTabIds
+    : (() => {
+        const touchedCategories = [...new Set(rawTabIds.map(id => ALL_TABS.find(t=>t.id===id)?.category).filter(Boolean))];
+        return [...new Set([...rawTabIds, ...ALL_TABS.filter(t=>touchedCategories.includes(t.category)).map(t=>t.id)])];
+      })();
   const enabledCategories = CATEGORIES.filter(c => TABS_BY_CATEGORY(c.id).some(id => enabledTabIds.includes(id)));
   const [tab, setTab] = useState(() => {
     const firstEnabled = ALL_TABS.map(t => t.id).find(id => enabledTabIds.includes(id));
