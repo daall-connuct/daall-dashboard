@@ -57,16 +57,15 @@ const CHANNEL_META = {
   "네이버블로그":  { color:"#03C75A" }, "인스타그램":   { color:"#E1306C" },
   "유튜브":        { color:"#FF0000" }, "네이버카페":   { color:"#0088FE" },
   "지식인":        { color:"#FFBB28" }, "홈페이지SEO":  { color:"#38BDF8" },
-  "웹사이트":      { color:"#6366F1" }, "메타광고":     { color:"#4ECDC4" },
-  "검색광고":      { color:"#A78BFA" }, "네이버플레이스":{ color:"#FF6B35" },
-  "오프라인/소개": { color:"#96CEB4" }, "블로그":        { color:"#03C75A" },
-  "카페":          { color:"#0088FE" }, "플레이스":      { color:"#FF6B35" },
-  "강남언니":      { color:"#FF4E8C" }, "힐링페이퍼":   { color:"#7C3AED" },
+  "워드프레스":    { color:"#8B5CF6" }, "메타광고":     { color:"#4ECDC4" },
+  "검색광고":      { color:"#A78BFA" }, "지도리뷰":     { color:"#EAB308" },
+  "블로그":        { color:"#03C75A" }, "카페":          { color:"#0088FE" },
+  "플레이스":      { color:"#FF6B35" }, "강남언니":     { color:"#FF4E8C" },
   "바비톡":        { color:"#F59E0B" },
 };
 
-const FIXED_CHANNELS = ["네이버블로그","인스타그램","유튜브","네이버카페","웹사이트","홈페이지SEO","메타광고","검색광고","네이버플레이스","지식인","강남언니","힐링페이퍼","바비톡","언론보도"];
-const CHANNEL_OPTIONS = ["네이버블로그","인스타그램","유튜브","네이버카페","지식인","홈페이지SEO","웹사이트","메타광고","검색광고","네이버플레이스","강남언니","힐링페이퍼","바비톡","언론보도","오프라인/소개"];
+const FIXED_CHANNELS = ["네이버블로그","인스타그램","유튜브","네이버카페","워드프레스","홈페이지SEO","메타광고","검색광고","지도리뷰","지식인","강남언니","바비톡","언론보도"];
+const CHANNEL_OPTIONS = ["네이버블로그","인스타그램","유튜브","네이버카페","지식인","홈페이지SEO","워드프레스","메타광고","검색광고","지도리뷰","강남언니","바비톡","언론보도"];
 const STATUS_OPTIONS = ["발행","예약발행","임시저장","수정필요"];
 const EMPTY_FORM = { channel:"네이버블로그", date:"", title:"", url:"", views:0, clicks:0, rank:"", topExposed:false, status:"발행", memo:"" };
 
@@ -3378,6 +3377,8 @@ const COST_CATEGORIES = [
   { id:"marketing_jisik",   label:"마케팅 - 지식인",     group:"마케팅", color:"#00C73C" },
   { id:"marketing_search",  label:"마케팅 - 검색광고",   group:"마케팅", color:"#A78BFA" },
   { id:"marketing_meta",    label:"마케팅 - 메타광고",   group:"마케팅", color:"#4ECDC4" },
+  { id:"marketing_press",   label:"마케팅 - 언론보도",   group:"마케팅", color:"#6366F1" },
+  { id:"marketing_wp",      label:"마케팅 - 워드프레스", group:"마케팅", color:"#8B5CF6" },
   { id:"design",            label:"디자인물",             group:"디자인", color:"#FBBF24" },
   { id:"cs",                label:"CS 경영지원",          group:"CS",     color:"#FB923C" },
 ];
@@ -3385,7 +3386,7 @@ const COST_CATEGORIES = [
 function CostTab({ hospital, hData, onDataLoad }) {
   const [contracts, setContracts] = useState([]);
   const [expenses, setExpenses] = useState([]);
-  const [contractNote, setContractNote] = useState(""); // 계약 내용 텍스트
+  const [contractItems, setContractItems] = useState([]); // 계약 내용 항목 [{id, category, count, memo}]
   const [extraExpenses, setExtraExpenses] = useState([]); // 추가 작업 내역 (금액 포함)
   const currentYm = new Date().toISOString().slice(0,7);
   const [selMonth, setSelMonth] = useState(currentYm);
@@ -3411,7 +3412,11 @@ function CostTab({ hospital, hData, onDataLoad }) {
         if (data?.data) {
           if (data.data.contracts) setContracts(data.data.contracts);
           if (data.data.expenses) setExpenses(data.data.expenses);
-          if (data.data.contractNote !== undefined) setContractNote(data.data.contractNote||"");
+          if (data.data.contractItems) setContractItems(data.data.contractItems);
+          else if (data.data.contractNote) {
+            // 구버전 텍스트 → 단일 메모 항목으로 자동 변환
+            setContractItems([{ id: Date.now(), category: "marketing", count: "", memo: data.data.contractNote }]);
+          }
           if (data.data.extraExpenses) setExtraExpenses(data.data.extraExpenses);
           if (onDataLoad) onDataLoad({ contracts: data.data.contracts||[], expenses: data.data.expenses||[] });
         }
@@ -3420,13 +3425,13 @@ function CostTab({ hospital, hData, onDataLoad }) {
     load();
   }, [hospital.id]);
 
-  const saveToSupabase = async (newContracts, newExpenses, newNote, newExtra) => {
+  const saveToSupabase = async (newContracts, newExpenses, newItems, newExtra) => {
     try {
       await supabase.from('cost_data').upsert(
         { hospital_id: hospital.id, data: {
           contracts: newContracts,
           expenses: newExpenses,
-          contractNote: newNote !== undefined ? newNote : contractNote,
+          contractItems: newItems !== undefined ? newItems : contractItems,
           extraExpenses: newExtra !== undefined ? newExtra : extraExpenses,
         }},
         { onConflict: 'hospital_id' }
@@ -3564,18 +3569,81 @@ function CostTab({ hospital, hData, onDataLoad }) {
         <KPICard label="후불 금액" value={fmt(deferredAmt)} unit="만원" color={C.orange} sub={deferredAmt>0?"별도 청구":"미등록"}/>
       </div>
 
-      {/* ─── 계약 내용 ─────────────────────────────────── */}
+      {/* ─── 계약 내용 (채널+건수 표 형식) ──────────────── */}
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:22}}>
-        <div style={{color:C.text,fontWeight:800,fontSize:14,marginBottom:12}}>📋 계약 내용</div>
-        <textarea
-          value={contractNote}
-          onChange={e=>setContractNote(e.target.value)}
-          onBlur={e=>saveToSupabase(contracts,expenses,e.target.value,undefined)}
-          placeholder={"계약 범위, 업무 내용, 특이사항 등을 자유롭게 입력하세요.\n예: 블로그 월 8건 / 인스타 카드뉴스 4건 / 광고 운영"}
-          rows={5}
-          style={{...inputSt,padding:"10px 12px",fontSize:13,lineHeight:1.7,resize:"vertical",width:"100%"}}
-        />
-        <div style={{color:C.muted,fontSize:10,marginTop:6}}>입력 후 다른 곳을 클릭하면 자동 저장됩니다.</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{color:C.text,fontWeight:800,fontSize:14}}>📋 계약 내용</div>
+          <button onClick={()=>{
+            const newItems = [...contractItems, {id:Date.now(), category:"marketing_blog", count:"", memo:""}];
+            setContractItems(newItems);
+            saveToSupabase(contracts, expenses, newItems, undefined);
+          }} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 항목 추가</button>
+        </div>
+
+        {contractItems.length === 0 ? (
+          <div style={{color:C.muted,fontSize:13,textAlign:"center",padding:"20px 0"}}>+ 항목 추가 버튼을 눌러 계약 내용을 등록하세요.</div>
+        ) : (
+          <div style={{display:"flex",flexDirection:"column",gap:0,border:`1px solid ${C.dim}`,borderRadius:10,overflow:"hidden"}}>
+            {/* 헤더 */}
+            <div style={{display:"grid",gridTemplateColumns:"2fr 80px 2fr 40px",background:"#F1F5F9",padding:"8px 14px",gap:12}}>
+              {["채널 / 항목","건수","메모",""].map((h,i)=>(
+                <div key={i} style={{color:C.muted,fontSize:11,fontWeight:700}}>{h}</div>
+              ))}
+            </div>
+            {/* 행 */}
+            {contractItems.map((item, idx) => {
+              const cat = COST_CATEGORIES.find(c=>c.id===item.category) || COST_CATEGORIES[0];
+              return (
+                <div key={item.id} style={{display:"grid",gridTemplateColumns:"2fr 80px 2fr 40px",padding:"8px 14px",gap:12,borderTop:`1px solid ${C.dim}`,alignItems:"center",background:idx%2===0?"#fff":"#FAFAFA"}}>
+                  <select value={item.category}
+                    onChange={e=>{
+                      const newItems = contractItems.map(it=>it.id===item.id?{...it,category:e.target.value}:it);
+                      setContractItems(newItems);
+                      saveToSupabase(contracts,expenses,newItems,undefined);
+                    }}
+                    style={{...inputSt,padding:"5px 8px",fontSize:12,appearance:"none",color:cat.color,fontWeight:700}}>
+                    {COST_CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                  <input type="number" value={item.count} placeholder="0"
+                    onChange={e=>{
+                      const newItems = contractItems.map(it=>it.id===item.id?{...it,count:e.target.value}:it);
+                      setContractItems(newItems);
+                    }}
+                    onBlur={e=>{
+                      const newItems = contractItems.map(it=>it.id===item.id?{...it,count:e.target.value}:it);
+                      saveToSupabase(contracts,expenses,newItems,undefined);
+                    }}
+                    style={{...inputSt,padding:"5px 8px",fontSize:12,textAlign:"right"}} />
+                  <input type="text" value={item.memo||""} placeholder="메모 (선택)"
+                    onChange={e=>{
+                      const newItems = contractItems.map(it=>it.id===item.id?{...it,memo:e.target.value}:it);
+                      setContractItems(newItems);
+                    }}
+                    onBlur={e=>{
+                      const newItems = contractItems.map(it=>it.id===item.id?{...it,memo:e.target.value}:it);
+                      saveToSupabase(contracts,expenses,newItems,undefined);
+                    }}
+                    style={{...inputSt,padding:"5px 8px",fontSize:12}} />
+                  <button onClick={()=>{
+                    const newItems = contractItems.filter(it=>it.id!==item.id);
+                    setContractItems(newItems);
+                    saveToSupabase(contracts,expenses,newItems,undefined);
+                  }} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:16,padding:0,textAlign:"center"}}>×</button>
+                </div>
+              );
+            })}
+            {/* 합계 */}
+            {contractItems.some(it=>it.count) && (
+              <div style={{display:"grid",gridTemplateColumns:"2fr 80px 2fr 40px",padding:"8px 14px",gap:12,borderTop:`1px solid ${C.border}`,background:"#F8FAFC"}}>
+                <div style={{color:C.muted,fontSize:11,fontWeight:700}}>합계</div>
+                <div style={{color:hospital.color,fontSize:13,fontWeight:900,textAlign:"right"}}>
+                  {contractItems.reduce((s,it)=>s+(+it.count||0),0)}건
+                </div>
+                <div/><div/>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ─── 작업 내역 테이블 ──────────────────────────── */}
