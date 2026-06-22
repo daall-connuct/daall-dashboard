@@ -3379,6 +3379,7 @@ const COST_CATEGORIES = [
   { id:"marketing_meta",    label:"마케팅 - 메타광고",   group:"마케팅", color:"#4ECDC4" },
   { id:"marketing_press",   label:"마케팅 - 언론보도",   group:"마케팅", color:"#6366F1" },
   { id:"marketing_wp",      label:"마케팅 - 워드프레스", group:"마케팅", color:"#8B5CF6" },
+  { id:"marketing_review",  label:"마케팅 - 리뷰",       group:"마케팅", color:"#F59E0B" },
   { id:"design",            label:"디자인물",             group:"디자인", color:"#FBBF24" },
   { id:"cs",                label:"CS 경영지원",          group:"CS",     color:"#FB923C" },
 ];
@@ -3518,7 +3519,6 @@ function CostTab({ hospital, hData, onDataLoad }) {
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setShowContractForm(!showContractForm)} style={{background:`${C.accent2}20`,border:`1px solid ${C.accent2}50`,color:C.accent2,borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>계약금 등록</button>
-          <button onClick={()=>{setEditExpId(null);setExpenseForm({month:selMonth,category:"marketing_blog",memo:"",date:"",url:"",keyword:""});setShowExpenseForm(!showExpenseForm);}} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 작업 내역 추가</button>
         </div>
       </div>
 
@@ -3644,21 +3644,73 @@ function CostTab({ hospital, hData, onDataLoad }) {
             )}
           </div>
         )}
+
+        {/* 작업 진행률 */}
+        {contractItems.length > 0 && contractItems.some(it=>+it.count>0) && (
+          <div style={{marginTop:20}}>
+            <div style={{color:C.text,fontWeight:700,fontSize:13,marginBottom:10}}>📊 작업 진행률 ({selMonth.slice(5)}월)</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {contractItems.filter(it=>+it.count>0).map(it=>{
+                const cat = COST_CATEGORIES.find(c=>c.id===it.category) || COST_CATEGORIES[0];
+                const contracted = +it.count || 0;
+                const done = monthExpenses.filter(e=>e.category===it.category).length;
+                const pct = contracted > 0 ? Math.min(Math.round(done/contracted*100), 100) : 0;
+                const isOver = done > contracted;
+                return (
+                  <div key={it.id}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <span style={{color:cat.color,fontSize:12,fontWeight:700}}>{cat.label}</span>
+                      <span style={{fontSize:12,fontWeight:700,color:isOver?C.orange:pct>=100?C.green:C.muted}}>
+                        {done}/{contracted}건 ({pct}%){isOver?" 초과!":""}
+                      </span>
+                    </div>
+                    <div style={{background:C.dim,borderRadius:6,height:8,overflow:"hidden"}}>
+                      <div style={{
+                        width:`${pct}%`, height:"100%",
+                        background:isOver?C.orange:pct>=100?C.green:`linear-gradient(90deg,${cat.color},${cat.color}aa)`,
+                        borderRadius:6, transition:"width 0.3s"
+                      }}/>
+                    </div>
+                  </div>
+                );
+              })}
+              {/* 전체 합산 */}
+              <div style={{marginTop:4,paddingTop:10,borderTop:`1px solid ${C.dim}`}}>
+                {(()=>{
+                  const totalContracted = contractItems.reduce((s,it)=>s+(+it.count||0),0);
+                  const totalDone = contractItems.filter(it=>+it.count>0).reduce((s,it)=>s+monthExpenses.filter(e=>e.category===it.category).length,0);
+                  const totalPct = totalContracted>0?Math.round(totalDone/totalContracted*100):0;
+                  return (
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{color:C.text,fontSize:12,fontWeight:700}}>전체 합산</span>
+                      <span style={{fontSize:13,fontWeight:900,color:totalPct>=100?C.green:hospital.color}}>
+                        {totalDone}/{totalContracted}건 ({totalPct}%)
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── 작업 내역 테이블 ──────────────────────────── */}
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:22}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:16}}>
           <SectionTitle>{selMonth.slice(5)}월 작업 내역</SectionTitle>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {["전체","마케팅","디자인","CS"].map(g => (
-              <button key={g} onClick={()=>setSelGroup(g)} style={{
-                background: selGroup===g ? `${hospital.color}25` : "transparent",
-                border: `1px solid ${selGroup===g ? hospital.color : C.border}`,
-                color: selGroup===g ? hospital.color : C.muted,
-                borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
-              }}>{g}</button>
-            ))}
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {["전체","마케팅","디자인","CS"].map(g => (
+                <button key={g} onClick={()=>setSelGroup(g)} style={{
+                  background: selGroup===g ? `${hospital.color}25` : "transparent",
+                  border: `1px solid ${selGroup===g ? hospital.color : C.border}`,
+                  color: selGroup===g ? hospital.color : C.muted,
+                  borderRadius:8, padding:"4px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+                }}>{g}</button>
+              ))}
+            </div>
+            <button onClick={()=>{setEditExpId(null);setExpenseForm({month:selMonth,category:"marketing_blog",memo:"",date:"",url:"",keyword:""});setShowExpenseForm(!showExpenseForm);}} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:9,padding:"7px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 작업 내역 추가</button>
           </div>
         </div>
         <div style={{overflowX:"auto"}}>
