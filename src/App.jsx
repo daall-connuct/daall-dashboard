@@ -1854,7 +1854,7 @@ function ChannelInputForm({ hospital, channelData, onSave, onClose }) {
 // ─── 마케팅 현황 탭 ───────────────────────────────────────────
 function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isAdmin }) {
   const [contents, setContents] = useState(() => initialContents || []);
-  const [selMonth, setSelMonth] = useState("전체");
+  const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
   const [contentFilter, setContentFilter] = useState("전체");
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -1883,7 +1883,7 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
 
   // 월 필터 적용된 콘텐츠
   const monthFiltered = useMemo(() =>
-    selMonth === "전체" ? contents : contents.filter(c => c.date?.startsWith(selMonth))
+    contents.filter(c => c.date?.startsWith(selMonth))
   , [contents, selMonth]);
 
   const allChannels = ["전체", ...Array.from(new Set(monthFiltered.map(c => c.channel)))];
@@ -1949,15 +1949,9 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
       {/* 월 선택 */}
       <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
         <span style={{ color:C.muted, fontSize:12, flexShrink:0 }}>조회 월:</span>
-        <button onClick={() => { setSelMonth("전체"); setContentFilter("전체"); }} style={{
-          background: selMonth==="전체" ? `${hospital.color}25` : "transparent",
-          border: `1px solid ${selMonth==="전체" ? hospital.color : C.border}`,
-          color: selMonth==="전체" ? hospital.color : C.muted,
-          borderRadius:8, padding:"4px 14px", fontSize:12, cursor:"pointer", fontWeight:600,
-        }}>전체</button>
         <YearMonthSelector
           availMonths={monthList.filter(m => m !== "전체")}
-          selMonth={selMonth === "전체" ? "" : selMonth}
+          selMonth={selMonth}
           setSelMonth={(m) => { setSelMonth(m); setContentFilter("전체"); }}
           color={hospital.color}
         />
@@ -1974,7 +1968,7 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
           { key:"검색광고",     label:"검색광고",color:"#A78BFA" },
         ];
         // 현재 표시할 월의 채널 데이터 (마케팅탭 자체 월 기준)
-        const displayMonth = inflowMonth || (selMonth !== "전체" ? selMonth : new Date().toISOString().slice(0,7));
+        const displayMonth = inflowMonth || selMonth;
         const rawChAll = hospital.channelData || {};
         const curChData = Array.isArray(rawChAll) ? rawChAll : (rawChAll[displayMonth] || []);
 
@@ -2007,7 +2001,7 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
           });
 
         const handleSaveInflow = () => {
-          const curMonth = inflowMonth || (selMonth !== "전체" ? selMonth : new Date().toISOString().slice(0,7));
+          const curMonth = inflowMonth || (selMonth);
           const rawCh = hospital.channelData || {};
           const monthData = Array.isArray(rawCh) ? [] : (rawCh[curMonth] || []);
           const updated = [...monthData];
@@ -2032,7 +2026,7 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
               <div style={{ color:C.muted, fontSize:12 }}>채널별 유입 현황</div>
               {isAdmin && (
                 <button onClick={() => {
-                  const m = selMonth !== "전체" ? selMonth : new Date().toISOString().slice(0,7);
+                  const m = selMonth;
                   setInflowMonth(m);
                   const rawCh = hospital.channelData || {};
                   const mData = Array.isArray(rawCh) ? [] : (rawCh[m] || []);
@@ -2055,7 +2049,7 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
                 {/* 월 선택 */}
                 <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
                   <label style={{ color:C.muted, fontSize:12, flexShrink:0 }}>입력 월:</label>
-                  <input type="month" value={inflowMonth || (selMonth !== "전체" ? selMonth : new Date().toISOString().slice(0,7))}
+                  <input type="month" value={inflowMonth || (selMonth)}
                     onChange={e => {
                       setInflowMonth(e.target.value);
                       // 해당 월 기존 데이터 로드
@@ -2169,7 +2163,7 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, flexWrap:"wrap", gap:12 }}>
           <div>
             <div style={{ color:C.text, fontSize:14, fontWeight:700 }}>
-              콘텐츠 관리 ({filtered.length}건{selMonth !== "전체" ? ` · ${+selMonth.slice(5)}월` : ` · 전체 ${contents.length}건`})
+              콘텐츠 관리 ({filtered.length}건 · {+selMonth.slice(5)}월)
             </div>
             <div style={{ color:C.muted, fontSize:11, marginTop:3 }}>API 연동 시 클릭수·순위 자동 업데이트 예정</div>
           </div>
