@@ -3385,20 +3385,25 @@ const COST_CATEGORIES = [
 function CostTab({ hospital, hData, onDataLoad }) {
   const [contracts, setContracts] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [contractNote, setContractNote] = useState(""); // 계약 내용 텍스트
+  const [extraExpenses, setExtraExpenses] = useState([]); // 추가 작업 내역 (금액 포함)
   const currentYm = new Date().toISOString().slice(0,7);
   const [selMonth, setSelMonth] = useState(currentYm);
   const [showContractForm, setShowContractForm] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
-  const [expenseForm, setExpenseForm] = useState({month:selMonth,category:"marketing_blog",amount:"",memo:"",date:"",isDeferred:false});
+  const [showExtraForm, setShowExtraForm] = useState(false);
+  const [expenseForm, setExpenseForm] = useState({month:selMonth,category:"marketing_blog",memo:"",date:"",url:"",keyword:""});
   const [contractForm, setContractForm] = useState({month:selMonth,amount:"",deferred:""});
+  const [extraForm, setExtraForm] = useState({month:selMonth,date:"",category:"marketing_blog",memo:"",amount:""});
   const [editExpId, setEditExpId] = useState(null);
+  const [editExtraId, setEditExtraId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleteExtraConfirm, setDeleteExtraConfirm] = useState(null);
   const [savedMsg, setSavedMsg] = useState("");
   const [selGroup, setSelGroup] = useState("전체");
 
   const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2200); };
 
-  // Supabase 불러오기
   useEffect(() => {
     const load = async () => {
       try {
@@ -3406,6 +3411,8 @@ function CostTab({ hospital, hData, onDataLoad }) {
         if (data?.data) {
           if (data.data.contracts) setContracts(data.data.contracts);
           if (data.data.expenses) setExpenses(data.data.expenses);
+          if (data.data.contractNote !== undefined) setContractNote(data.data.contractNote||"");
+          if (data.data.extraExpenses) setExtraExpenses(data.data.extraExpenses);
           if (onDataLoad) onDataLoad({ contracts: data.data.contracts||[], expenses: data.data.expenses||[] });
         }
       } catch(e) {}
@@ -3413,10 +3420,15 @@ function CostTab({ hospital, hData, onDataLoad }) {
     load();
   }, [hospital.id]);
 
-  const saveToSupabase = async (newContracts, newExpenses) => {
+  const saveToSupabase = async (newContracts, newExpenses, newNote, newExtra) => {
     try {
       await supabase.from('cost_data').upsert(
-        { hospital_id: hospital.id, data: { contracts: newContracts, expenses: newExpenses } },
+        { hospital_id: hospital.id, data: {
+          contracts: newContracts,
+          expenses: newExpenses,
+          contractNote: newNote !== undefined ? newNote : contractNote,
+          extraExpenses: newExtra !== undefined ? newExtra : extraExpenses,
+        }},
         { onConflict: 'hospital_id' }
       );
     } catch(e) { console.error('비용관리 저장 실패:', e); }
@@ -3426,22 +3438,9 @@ function CostTab({ hospital, hData, onDataLoad }) {
   const contractAmt = contractRec?.amount||0;
   const deferredAmt = contractRec?.deferred||0;
   const monthExpenses = expenses.filter(e=>e.month===selMonth);
-  const totalSpent = monthExpenses.filter(e=>!e.isDeferred).reduce((s,e)=>s+e.amount,0);
-  const totalDeferred = monthExpenses.filter(e=>e.isDeferred).reduce((s,e)=>s+e.amount,0);
-  const remaining = contractAmt - totalSpent;
-  const spentRate = contractAmt > 0 ? Math.round((totalSpent/contractAmt)*100) : 0;
-
-  const categoryStats = COST_CATEGORIES.map(cat => ({...cat, amount: monthExpenses.filter(e=>e.category===cat.id).reduce((s,e)=>s+e.amount,0)})).filter(c=>c.amount>0);
-  const groupStats = ["마케팅","디자인","CS"].map(g => ({
-    name:g, color:g==="마케팅"?hospital.color:g==="디자인"?C.yellow:C.orange,
-    amount: monthExpenses.filter(e=>COST_CATEGORIES.find(c=>c.id===e.category)?.group===g).reduce((s,e)=>s+e.amount,0),
-  }));
+  const monthExtra = extraExpenses.filter(e=>e.month===selMonth);
   const availMonths = [...new Set(contracts.map(c=>c.month))].sort().reverse();
-  const trendData = [...new Set([...contracts.map(c=>c.month),...expenses.map(e=>e.month)])].sort().map(m=>({
-    month:m.slice(5)+"월",
-    계약금:contracts.find(c=>c.month===m)?.amount||0,
-    소진:expenses.filter(e=>e.month===m).reduce((s,e)=>s+e.amount,0),
-  }));
+  const totalExtra = monthExtra.reduce((s,e)=>s+(+e.amount||0),0);
 
   const handleSaveContract = () => {
     if (!contractForm.month||!contractForm.amount) return;
@@ -3451,38 +3450,62 @@ function CostTab({ hospital, hData, onDataLoad }) {
       ? contracts.map(c=>c.month===contractForm.month ? newEntry : c)
       : [...contracts, newEntry].sort((a,b)=>a.month>b.month?1:-1);
     setContracts(newContracts);
-    saveToSupabase(newContracts, expenses);
-    logActivity("계약금 저장", hospital.name, `${contractForm.month} 선불${contractForm.amount}만원 후불${contractForm.deferred||0}만원`);
+    saveToSupabase(newContracts, expenses, undefined, undefined);
     setShowContractForm(false); toast("계약금 저장 완료!");
   };
 
   const handleSaveExpense = () => {
-    if (!expenseForm.month||!expenseForm.amount||!expenseForm.category) return;
+    if (!expenseForm.month||!expenseForm.category) return;
     let newExpenses;
     if (editExpId) {
-      newExpenses = expenses.map(e=>e.id===editExpId?{...expenseForm,id:editExpId,amount:+expenseForm.amount}:e);
+      newExpenses = expenses.map(e=>e.id===editExpId?{...expenseForm,id:editExpId}:e);
       setEditExpId(null); toast("수정 완료!");
     } else {
-      newExpenses = [{...expenseForm,id:Date.now(),amount:+expenseForm.amount},...expenses];
+      newExpenses = [{...expenseForm,id:Date.now()},...expenses];
       toast("저장 완료!");
     }
     setExpenses(newExpenses);
-    saveToSupabase(contracts, newExpenses);
-    setExpenseForm({month:selMonth,category:"marketing_blog",amount:"",memo:"",date:""}); setShowExpenseForm(false);
+    saveToSupabase(contracts, newExpenses, undefined, undefined);
+    setExpenseForm({month:selMonth,category:"marketing_blog",memo:"",date:"",url:"",keyword:""}); setShowExpenseForm(false);
   };
 
-  const handleEditExp = (e) => { setEditExpId(e.id); setExpenseForm({...e,amount:String(e.amount)}); setShowExpenseForm(true); };
+  const handleSaveExtra = () => {
+    if (!extraForm.month||!extraForm.category) return;
+    let newExtra;
+    if (editExtraId) {
+      newExtra = extraExpenses.map(e=>e.id===editExtraId?{...extraForm,id:editExtraId,amount:+extraForm.amount||0}:e);
+      setEditExtraId(null); toast("수정 완료!");
+    } else {
+      newExtra = [{...extraForm,id:Date.now(),amount:+extraForm.amount||0},...extraExpenses];
+      toast("저장 완료!");
+    }
+    setExtraExpenses(newExtra);
+    saveToSupabase(contracts, expenses, undefined, newExtra);
+    setExtraForm({month:selMonth,date:"",category:"marketing_blog",memo:"",amount:""}); setShowExtraForm(false);
+  };
+
+  const handleEditExp = (e) => { setEditExpId(e.id); setExpenseForm({...e}); setShowExpenseForm(true); };
+  const handleEditExtra = (e) => { setEditExtraId(e.id); setExtraForm({...e,amount:String(e.amount||"")}); setShowExtraForm(true); };
 
   const handleDeleteExp = (id) => {
     const newExpenses = expenses.filter(e=>e.id!==id);
     setExpenses(newExpenses);
-    saveToSupabase(contracts, newExpenses);
+    saveToSupabase(contracts, newExpenses, undefined, undefined);
     setDeleteConfirm(null); toast("삭제 완료");
+  };
+
+  const handleDeleteExtra = (id) => {
+    const newExtra = extraExpenses.filter(e=>e.id!==id);
+    setExtraExpenses(newExtra);
+    saveToSupabase(contracts, expenses, undefined, newExtra);
+    setDeleteExtraConfirm(null); toast("삭제 완료");
   };
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:22}}>
       <Toast msg={savedMsg}/>
+
+      {/* 상단 컨트롤 */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           <span style={{color:C.muted,fontSize:13}}>조회 월:</span>
@@ -3490,23 +3513,18 @@ function CostTab({ hospital, hData, onDataLoad }) {
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setShowContractForm(!showContractForm)} style={{background:`${C.accent2}20`,border:`1px solid ${C.accent2}50`,color:C.accent2,borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>계약금 등록</button>
-          <button onClick={()=>{setEditExpId(null);setExpenseForm({month:selMonth,category:"marketing_blog",amount:"",memo:"",date:""});setShowExpenseForm(!showExpenseForm);}} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 소진 내역 추가</button>
+          <button onClick={()=>{setEditExpId(null);setExpenseForm({month:selMonth,category:"marketing_blog",memo:"",date:"",url:"",keyword:""});setShowExpenseForm(!showExpenseForm);}} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 작업 내역 추가</button>
         </div>
       </div>
 
+      {/* 계약금 등록 폼 */}
       {showContractForm && (
         <div style={{background:"#F8FAFC",border:`1px solid ${C.accent2}30`,borderRadius:14,padding:20}}>
           <div style={{color:C.accent2,fontSize:13,fontWeight:700,marginBottom:14}}>월 금액 등록</div>
           <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
             <div style={{flex:1,minWidth:140}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>월 *</label><input type="month" value={contractForm.month} onChange={e=>setContractForm({...contractForm,month:e.target.value})} style={inputSt}/></div>
-            <div style={{flex:2,minWidth:180}}>
-              <label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>계약금 (만원)</label>
-              <input type="number" placeholder="0" value={contractForm.amount} onChange={e=>setContractForm({...contractForm,amount:e.target.value})} style={inputSt}/>
-            </div>
-            <div style={{flex:2,minWidth:180}}>
-              <label style={{color:C.orange,fontSize:11,display:"block",marginBottom:5,fontWeight:700}}>후불 금액 (만원)</label>
-              <input type="number" placeholder="0" value={contractForm.deferred} onChange={e=>setContractForm({...contractForm,deferred:e.target.value})} style={{...inputSt,borderColor:C.orange}}/>
-            </div>
+            <div style={{flex:2,minWidth:180}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>계약금 (만원)</label><input type="number" placeholder="0" value={contractForm.amount} onChange={e=>setContractForm({...contractForm,amount:e.target.value})} style={inputSt}/></div>
+            <div style={{flex:2,minWidth:180}}><label style={{color:C.orange,fontSize:11,display:"block",marginBottom:5,fontWeight:700}}>후불 금액 (만원)</label><input type="number" placeholder="0" value={contractForm.deferred} onChange={e=>setContractForm({...contractForm,deferred:e.target.value})} style={{...inputSt,borderColor:C.orange}}/></div>
           </div>
           <div style={{display:"flex",gap:10,marginTop:14}}>
             <button onClick={handleSaveContract} style={{background:`linear-gradient(135deg,${C.accent2},${C.accent})`,border:"none",color:"#0F172A",borderRadius:9,padding:"9px 22px",fontSize:13,cursor:"pointer",fontWeight:700}}>저장</button>
@@ -3515,36 +3533,24 @@ function CostTab({ hospital, hData, onDataLoad }) {
         </div>
       )}
 
+      {/* 작업 내역 추가/수정 폼 */}
       {showExpenseForm && (
         <div style={{background:"#F8FAFC",border:`1px solid ${hospital.color}30`,borderRadius:14,padding:20}}>
-          <div style={{color:hospital.color,fontSize:13,fontWeight:700,marginBottom:14}}>{editExpId?"소진 내역 수정":"소진 내역 추가"}</div>
+          <div style={{color:hospital.color,fontSize:13,fontWeight:700,marginBottom:14}}>{editExpId?"작업 내역 수정":"작업 내역 추가"}</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))",gap:12,marginBottom:14}}>
             <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>월 *</label><input type="month" value={expenseForm.month} onChange={e=>setExpenseForm({...expenseForm,month:e.target.value})} style={inputSt}/></div>
-            <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>날짜</label><input type="date" value={expenseForm.date} onChange={e=>setExpenseForm({...expenseForm,date:e.target.value})} style={inputSt}/></div>
+            <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>날짜</label><input type="date" value={expenseForm.date||""} onChange={e=>setExpenseForm({...expenseForm,date:e.target.value})} style={inputSt}/></div>
             <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>항목 *</label>
               <select value={expenseForm.category} onChange={e=>setExpenseForm({...expenseForm,category:e.target.value})} style={{...inputSt,appearance:"none"}}>
-                {COST_CATEGORIES.map(c=><option key={c.id} value={c.id} style={{background:"#F8FAFC"}}>{c.label}</option>)}
+                {COST_CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
             </div>
-            <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>금액 (만원) *</label><input type="number" placeholder="500" value={expenseForm.amount} onChange={e=>setExpenseForm({...expenseForm,amount:e.target.value})} style={inputSt}/></div>
           </div>
-          {/* 후불 여부 토글 */}
-          <div onClick={()=>setExpenseForm({...expenseForm,isDeferred:!expenseForm.isDeferred})}
-            style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,padding:"10px 14px",
-              background:expenseForm.isDeferred?`${C.orange}10`:"transparent",
-              border:`1px solid ${expenseForm.isDeferred?C.orange:C.dim}`,
-              borderRadius:10,cursor:"pointer"}}>
-            <div style={{width:20,height:20,borderRadius:5,flexShrink:0,
-              background:expenseForm.isDeferred?C.orange:"transparent",
-              border:`2px solid ${expenseForm.isDeferred?C.orange:C.dim}`,
-              display:"flex",alignItems:"center",justifyContent:"center"}}>
-              {expenseForm.isDeferred&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}
-            </div>
-            <span style={{color:expenseForm.isDeferred?C.orange:C.muted,fontSize:12,fontWeight:expenseForm.isDeferred?700:400}}>
-              💳 후불 항목 (계약금 소진 계산에서 제외)
-            </span>
+          <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>작업 내용</label><KInput type="text" placeholder="예: 6월 블로그 포스팅 8건" value={expenseForm.memo||""} onChange={e=>setExpenseForm({...expenseForm,memo:e.target.value})} style={inputSt}/></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+            <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>링크 URL</label><input type="text" placeholder="https://..." value={expenseForm.url||""} onChange={e=>setExpenseForm({...expenseForm,url:e.target.value})} style={inputSt}/></div>
+            <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>키워드</label><input type="text" placeholder="예: 광주 면역치료" value={expenseForm.keyword||""} onChange={e=>setExpenseForm({...expenseForm,keyword:e.target.value})} style={inputSt}/></div>
           </div>
-          <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>메모</label><KInput type="text" placeholder="예: 6월 블로그 포스팅 8건" value={expenseForm.memo} onChange={e=>setExpenseForm({...expenseForm,memo:e.target.value})} style={inputSt}/></div>
           <div style={{display:"flex",gap:10}}>
             <button onClick={handleSaveExpense} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:9,padding:"9px 22px",fontSize:13,cursor:"pointer",fontWeight:700}}>{editExpId?"수정 완료":"저장하기"}</button>
             <button onClick={()=>{setShowExpenseForm(false);setEditExpId(null);}} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:9,padding:"9px 16px",fontSize:13,cursor:"pointer"}}>취소</button>
@@ -3552,89 +3558,30 @@ function CostTab({ hospital, hData, onDataLoad }) {
         </div>
       )}
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
+      {/* KPI — 계약금/후불 */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14}}>
         <KPICard label="계약금" value={fmt(contractAmt)} unit="만원" color={C.accent2}/>
         <KPICard label="후불 금액" value={fmt(deferredAmt)} unit="만원" color={C.orange} sub={deferredAmt>0?"별도 청구":"미등록"}/>
-        <KPICard label="총 소진 금액" value={fmt(totalSpent)} unit="만원" sub={`${spentRate}% 소진`} color={hospital.color}/>
-        <KPICard label="잔액 (계약금 기준)" value={fmt(Math.max(remaining,0))} unit="만원" color={remaining>=0?C.green:C.red} sub={remaining<0?"초과 집행!":undefined}/>
       </div>
 
-      {/* 후불 금액 안내 */}
-      {deferredAmt > 0 && (
-        <div style={{background:`${C.orange}10`,border:`1px solid ${C.orange}30`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:16}}>💳</span>
-          <span style={{color:C.orange,fontSize:13,fontWeight:700}}>후불 금액 {fmt(deferredAmt)}만원이 등록되어 있어요.</span>
-          <span style={{color:C.muted,fontSize:12}}>소진 현황은 계약금 기준으로만 계산됩니다.</span>
-        </div>
-      )}
-
-      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:24}}>
-        <SectionTitle sub={`계약금 ${fmt(contractAmt)}만원 기준${deferredAmt>0?" · 후불 "+fmt(deferredAmt)+"만원 별도":""}`}>소진 현황</SectionTitle>
-        <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-          <span style={{color:C.muted,fontSize:13}}>소진 금액</span>
-          <span style={{color:hospital.color,fontWeight:800,fontSize:15}}>{fmt(totalSpent)}만원 / {fmt(contractAmt)}만원</span>
-        </div>
-        <div style={{background:C.dim,borderRadius:8,height:20,overflow:"hidden"}}>
-          <div style={{width:`${Math.min(spentRate,100)}%`,height:"100%",background:`linear-gradient(90deg,${hospital.color},${C.accent2})`,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:10}}>
-            {spentRate>15&&<span style={{color:"#0F172A",fontSize:11,fontWeight:700}}>{spentRate}%</span>}
-          </div>
-        </div>
-        <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
-          <span style={{color:C.muted,fontSize:12}}>0만원</span>
-          <span style={{color:remaining>=0?C.green:C.red,fontSize:12,fontWeight:700}}>잔액 {fmt(Math.abs(remaining))}만원 {remaining<0?"(초과)":"남음"}</span>
-          <span style={{color:C.muted,fontSize:12}}>{fmt(contractAmt)}만원</span>
-        </div>
-        <div style={{marginTop:18,display:"flex",flexDirection:"column",gap:10}}>
-          {groupStats.filter(g=>g.amount>0).map((g,i)=>{
-            const r=contractAmt>0?Math.round((g.amount/contractAmt)*100):0;
-            return (<div key={i}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                <span style={{color:C.text,fontSize:12,fontWeight:600}}>{g.name}</span>
-                <span style={{color:g.color,fontSize:12,fontWeight:700}}>{fmt(g.amount)}만원 ({r}%)</span>
-              </div>
-              <div style={{background:C.dim,borderRadius:4,height:7}}><div style={{width:`${Math.min(r,100)}%`,height:"100%",background:g.color,borderRadius:4}}/></div>
-            </div>);
-          })}
-        </div>
+      {/* ─── 계약 내용 ─────────────────────────────────── */}
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:22}}>
+        <div style={{color:C.text,fontWeight:800,fontSize:14,marginBottom:12}}>📋 계약 내용</div>
+        <textarea
+          value={contractNote}
+          onChange={e=>setContractNote(e.target.value)}
+          onBlur={e=>saveToSupabase(contracts,expenses,e.target.value,undefined)}
+          placeholder={"계약 범위, 업무 내용, 특이사항 등을 자유롭게 입력하세요.\n예: 블로그 월 8건 / 인스타 카드뉴스 4건 / 광고 운영"}
+          rows={5}
+          style={{...inputSt,padding:"10px 12px",fontSize:13,lineHeight:1.7,resize:"vertical",width:"100%"}}
+        />
+        <div style={{color:C.muted,fontSize:10,marginTop:6}}>입력 후 다른 곳을 클릭하면 자동 저장됩니다.</div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
-        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:22}}>
-          <SectionTitle>항목별 비용 비중</SectionTitle>
-          {categoryStats.length>0 ? (
-            <><ResponsiveContainer width="100%" height={200}>
-              <PieChart><Pie data={categoryStats} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="amount" paddingAngle={3}>
-                {categoryStats.map((c,i)=><Cell key={i} fill={c.color}/>)}
-              </Pie><TT formatter={(v)=>[`${fmt(v)}만원`]}/></PieChart>
-            </ResponsiveContainer>
-            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:6}}>
-              {categoryStats.map((c,i)=>(
-                <div key={i} style={{display:"flex",alignItems:"center",gap:5}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:c.color}}/><span style={{color:C.muted,fontSize:11}}>{c.label}</span>
-                </div>
-              ))}
-            </div></>
-          ) : <div style={{color:C.muted,fontSize:13,textAlign:"center",padding:"40px 0"}}>소진 내역이 없어요</div>}
-        </div>
-        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:22}}>
-          <SectionTitle>월별 소진 추이</SectionTitle>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={trendData} margin={{top:5,right:10,left:0,bottom:5}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0"/>
-              <XAxis dataKey="month" stroke={C.muted} tick={{fill:"#64748B",fontSize:11}}/>
-              <YAxis stroke={C.muted} tick={{fill:"#64748B",fontSize:11}}/>
-              <TT formatter={(v)=>[`${fmt(v)}만원`]}/>
-              <Legend wrapperStyle={{color:C.muted,fontSize:12}}/>
-              <Bar dataKey="계약금" fill={C.dim} radius={[4,4,0,0]}/>
-              <Bar dataKey="소진" fill={hospital.color} radius={[4,4,0,0]}/>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
+      {/* ─── 작업 내역 테이블 ──────────────────────────── */}
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:22}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:16}}>
-          <SectionTitle>{selMonth.slice(5)}월 소진 내역</SectionTitle>
+          <SectionTitle>{selMonth.slice(5)}월 작업 내역</SectionTitle>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {["전체","마케팅","디자인","CS"].map(g => (
               <button key={g} onClick={()=>setSelGroup(g)} style={{
@@ -3648,7 +3595,7 @@ function CostTab({ hospital, hData, onDataLoad }) {
         </div>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead><tr>{["날짜","항목","그룹","금액(만원)","메모","관리"].map(h=>(
+            <thead><tr>{["날짜","항목","그룹","작업 내용","관리"].map(h=>(
               <th key={h} style={{color:C.muted,fontWeight:600,padding:"8px 12px",textAlign:"left",borderBottom:`1px solid ${C.dim}`,whiteSpace:"nowrap"}}>{h}</th>
             ))}</tr></thead>
             <tbody>
@@ -3656,45 +3603,115 @@ function CostTab({ hospital, hData, onDataLoad }) {
                 const filtered = [...monthExpenses]
                   .filter(e => selGroup === "전체" || (COST_CATEGORIES.find(c=>c.id===e.category)?.group === selGroup))
                   .sort((a,b)=>a.date>b.date?-1:1);
-                if (filtered.length === 0) return <tr><td colSpan={6} style={{padding:"32px",textAlign:"center",color:C.muted}}>소진 내역이 없어요.</td></tr>;
+                if (filtered.length === 0) return <tr><td colSpan={5} style={{padding:"32px",textAlign:"center",color:C.muted}}>작업 내역이 없어요.</td></tr>;
                 return filtered.map(e => {
                   const cat=COST_CATEGORIES.find(c=>c.id===e.category)||{label:e.category,color:C.muted,group:"-"};
-                  return (<tr key={e.id} style={{borderBottom:`1px solid ${C.dim}`, background: e.isDeferred?`${C.orange}05`:"transparent"}}
-                    onMouseEnter={ev=>ev.currentTarget.style.background=`${hospital.color}08`}
-                    onMouseLeave={ev=>ev.currentTarget.style.background=e.isDeferred?`${C.orange}05`:"transparent"}>
-                    <td style={{padding:"9px 12px",color:C.muted,whiteSpace:"nowrap"}}>{e.date||"-"}</td>
-                    <td style={{padding:"9px 12px",color:cat.color,fontWeight:700}}>
-                      {e.isDeferred && <span style={{background:`${C.orange}20`,color:C.orange,borderRadius:4,padding:"1px 6px",fontSize:9,fontWeight:700,marginRight:6}}>후불</span>}
-                      {cat.label}
-                    </td>
-                    <td style={{padding:"9px 12px"}}><Badge color={cat.group==="마케팅"?hospital.color:cat.group==="디자인"?C.yellow:C.orange}>{cat.group}</Badge></td>
-                    <td style={{padding:"9px 12px",color:e.isDeferred?C.orange:C.yellow,fontWeight:700}}>{fmt(e.amount)}</td>
-                    <td style={{padding:"9px 12px",color:C.muted}}>{e.memo||"-"}</td>
-                    <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
-                      <div style={{display:"flex",gap:6}}>
-                        <button onClick={()=>handleEditExp(e)} style={{background:`${hospital.color}20`,border:`1px solid ${hospital.color}40`,color:hospital.color,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>수정</button>
-                        {deleteConfirm===e.id?(
-                          <button onClick={()=>handleDeleteExp(e.id)} style={{background:`${C.red}20`,border:`1px solid ${C.red}`,color:C.red,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>확인</button>
-                        ):(
-                          <button onClick={()=>setDeleteConfirm(e.id)} style={{background:"transparent",border:`1px solid ${C.dim}`,color:C.muted,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>삭제</button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>);
+                  return (
+                    <tr key={e.id} style={{borderBottom:`1px solid ${C.dim}`}}
+                      onMouseEnter={ev=>ev.currentTarget.style.background=`${hospital.color}08`}
+                      onMouseLeave={ev=>ev.currentTarget.style.background="transparent"}>
+                      <td style={{padding:"9px 12px",color:C.muted,whiteSpace:"nowrap"}}>{e.date||"-"}</td>
+                      <td style={{padding:"9px 12px",color:cat.color,fontWeight:700}}>{cat.label}</td>
+                      <td style={{padding:"9px 12px"}}><Badge color={cat.group==="마케팅"?hospital.color:cat.group==="디자인"?C.yellow:C.orange}>{cat.group}</Badge></td>
+                      <td style={{padding:"9px 12px",maxWidth:300}}>
+                        {e.memo && <div style={{color:C.text,fontWeight:600,fontSize:12}}>{e.memo}</div>}
+                        {e.url && <a href={e.url} target="_blank" rel="noreferrer" style={{color:C.accent,fontSize:10,display:"block",marginTop:2}}>링크</a>}
+                        {e.keyword && <div style={{color:C.muted,fontSize:10,marginTop:2}}>{e.keyword}</div>}
+                        {!e.memo && !e.url && !e.keyword && <span style={{color:C.muted}}>-</span>}
+                      </td>
+                      <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
+                        <div style={{display:"flex",gap:6}}>
+                          <button onClick={()=>handleEditExp(e)} style={{background:`${hospital.color}20`,border:`1px solid ${hospital.color}40`,color:hospital.color,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>수정</button>
+                          {deleteConfirm===e.id
+                            ? <button onClick={()=>handleDeleteExp(e.id)} style={{background:`${C.red}20`,border:`1px solid ${C.red}`,color:C.red,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>확인</button>
+                            : <button onClick={()=>setDeleteConfirm(e.id)} style={{background:"transparent",border:`1px solid ${C.dim}`,color:C.muted,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>삭제</button>
+                          }
+                        </div>
+                      </td>
+                    </tr>
+                  );
                 });
               })()}
             </tbody>
           </table>
         </div>
-        <div style={{display:"flex",gap:24,marginTop:16,paddingTop:16,borderTop:`1px solid ${C.dim}`,flexWrap:"wrap"}}>
-          {groupStats.filter(g=>g.amount>0).map((g,i)=>(
-            <div key={i}><span style={{color:C.muted,fontSize:11}}>{g.name} </span><span style={{color:g.color,fontSize:13,fontWeight:800}}>{fmt(g.amount)}만원</span></div>
-          ))}
-          <div style={{marginLeft:"auto",display:"flex",gap:16,alignItems:"center"}}>
-            {totalDeferred > 0 && <div><span style={{color:C.muted,fontSize:11}}>후불 </span><span style={{color:C.orange,fontSize:13,fontWeight:800}}>{fmt(totalDeferred)}만원</span></div>}
-            <div><span style={{color:C.muted,fontSize:11}}>소진 합계 </span><span style={{color:hospital.color,fontSize:14,fontWeight:900}}>{fmt(totalSpent)}만원</span></div>
-          </div>
+        <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${C.dim}`,color:C.muted,fontSize:12}}>
+          총 {monthExpenses.filter(e=>selGroup==="전체"||(COST_CATEGORIES.find(c=>c.id===e.category)?.group===selGroup)).length}건
         </div>
+      </div>
+
+      {/* ─── 추가 작업 내역 (금액 포함) ───────────────── */}
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:22}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <SectionTitle>{selMonth.slice(5)}월 추가 작업 내역</SectionTitle>
+          <button onClick={()=>{setEditExtraId(null);setExtraForm({month:selMonth,date:"",category:"marketing_blog",memo:"",amount:""});setShowExtraForm(!showExtraForm);}}
+            style={{background:`linear-gradient(135deg,${C.green},${C.accent})`,border:"none",color:"#fff",borderRadius:9,padding:"7px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>
+            + 추가 작업 내역 추가
+          </button>
+        </div>
+
+        {showExtraForm && (
+          <div style={{background:"#F8FAFC",border:`1px solid ${C.green}30`,borderRadius:12,padding:16,marginBottom:16}}>
+            <div style={{color:C.green,fontSize:13,fontWeight:700,marginBottom:12}}>{editExtraId?"추가 작업 수정":"추가 작업 추가"}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10,marginBottom:12}}>
+              <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>월 *</label><input type="month" value={extraForm.month} onChange={e=>setExtraForm({...extraForm,month:e.target.value})} style={inputSt}/></div>
+              <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>날짜</label><input type="date" value={extraForm.date||""} onChange={e=>setExtraForm({...extraForm,date:e.target.value})} style={inputSt}/></div>
+              <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>항목 *</label>
+                <select value={extraForm.category} onChange={e=>setExtraForm({...extraForm,category:e.target.value})} style={{...inputSt,appearance:"none"}}>
+                  {COST_CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+              </div>
+              <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>금액 (만원)</label><input type="number" placeholder="0" value={extraForm.amount} onChange={e=>setExtraForm({...extraForm,amount:e.target.value})} style={inputSt}/></div>
+            </div>
+            <div style={{marginBottom:12}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>작업 내용</label><input type="text" placeholder="예: 추가 이벤트 배너 제작 2건" value={extraForm.memo||""} onChange={e=>setExtraForm({...extraForm,memo:e.target.value})} style={inputSt}/></div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={handleSaveExtra} style={{background:`linear-gradient(135deg,${C.green},${C.accent})`,border:"none",color:"#fff",borderRadius:8,padding:"8px 20px",fontSize:12,cursor:"pointer",fontWeight:700}}>{editExtraId?"수정 완료":"저장하기"}</button>
+              <button onClick={()=>{setShowExtraForm(false);setEditExtraId(null);}} style={{background:"transparent",border:`1px solid ${C.border}`,color:C.muted,borderRadius:8,padding:"8px 14px",fontSize:12,cursor:"pointer"}}>취소</button>
+            </div>
+          </div>
+        )}
+
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead><tr>{["날짜","항목","그룹","작업 내용","금액(만원)","관리"].map(h=>(
+              <th key={h} style={{color:C.muted,fontWeight:600,padding:"8px 12px",textAlign:"left",borderBottom:`1px solid ${C.dim}`,whiteSpace:"nowrap"}}>{h}</th>
+            ))}</tr></thead>
+            <tbody>
+              {monthExtra.length === 0
+                ? <tr><td colSpan={6} style={{padding:"28px",textAlign:"center",color:C.muted}}>추가 작업 내역이 없어요.</td></tr>
+                : [...monthExtra].sort((a,b)=>a.date>b.date?-1:1).map(e=>{
+                    const cat=COST_CATEGORIES.find(c=>c.id===e.category)||{label:e.category,color:C.muted,group:"-"};
+                    return (
+                      <tr key={e.id} style={{borderBottom:`1px solid ${C.dim}`}}
+                        onMouseEnter={ev=>ev.currentTarget.style.background=`${C.green}06`}
+                        onMouseLeave={ev=>ev.currentTarget.style.background="transparent"}>
+                        <td style={{padding:"9px 12px",color:C.muted,whiteSpace:"nowrap"}}>{e.date||"-"}</td>
+                        <td style={{padding:"9px 12px",color:cat.color,fontWeight:700}}>{cat.label}</td>
+                        <td style={{padding:"9px 12px"}}><Badge color={cat.group==="마케팅"?hospital.color:cat.group==="디자인"?C.yellow:C.orange}>{cat.group}</Badge></td>
+                        <td style={{padding:"9px 12px",color:C.muted}}>{e.memo||"-"}</td>
+                        <td style={{padding:"9px 12px",color:C.green,fontWeight:700}}>{e.amount?fmt(+e.amount):"-"}</td>
+                        <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
+                          <div style={{display:"flex",gap:6}}>
+                            <button onClick={()=>handleEditExtra(e)} style={{background:`${C.green}15`,border:`1px solid ${C.green}40`,color:C.green,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>수정</button>
+                            {deleteExtraConfirm===e.id
+                              ? <button onClick={()=>handleDeleteExtra(e.id)} style={{background:`${C.red}20`,border:`1px solid ${C.red}`,color:C.red,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>확인</button>
+                              : <button onClick={()=>setDeleteExtraConfirm(e.id)} style={{background:"transparent",border:`1px solid ${C.dim}`,color:C.muted,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>삭제</button>
+                            }
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+              }
+            </tbody>
+          </table>
+        </div>
+        {monthExtra.length > 0 && (
+          <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:12,paddingTop:12,borderTop:`1px solid ${C.dim}`}}>
+            <span style={{color:C.muted,fontSize:12}}>추가 작업 합계</span>
+            <span style={{color:C.green,fontSize:14,fontWeight:900}}>{fmt(totalExtra)}만원</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -6612,11 +6629,11 @@ const DiffView = ({ oldText, newText }) => {
   const hasChange = parts.some(p=>p.type!=="same");
   if (!hasChange) return <span style={{ color:C.muted, fontSize:12 }}>이전 답변과 동일해요</span>;
   return (
-    <div style={{ fontSize:12, lineHeight:1.7 }}>
+    <div style={{ fontSize:12, lineHeight:1.8 }}>
       {parts.map((p,i) => {
-        if (p.type==="same") return <span key={i} style={{ color:C.text }}>{p.text}</span>;
-        if (p.type==="add") return <span key={i} style={{ background:`${C.green}25`, color:C.green, fontWeight:700, borderRadius:3 }}>{p.text}</span>;
-        return <span key={i} style={{ background:`${C.red}15`, color:C.red, textDecoration:"line-through", borderRadius:3 }}>{p.text}</span>;
+        if (p.type==="del") return null; // 삭제된 텍스트는 표시하지 않음
+        if (p.type==="add") return <span key={i} style={{ background:`${C.green}30`, color:"#15803d", fontWeight:700, borderRadius:3, padding:"0 2px" }}>{p.text}</span>;
+        return <span key={i} style={{ color:C.text }}>{p.text}</span>;
       })}
     </div>
   );
@@ -6624,14 +6641,12 @@ const DiffView = ({ oldText, newText }) => {
 
 // ─── AI 질문/답변 모니터링 섹션 ──────────────────────────────────
 function AiQaSection({ hospital, isReadOnly, onUpdateHospital, AI_PLATFORMS, toast, aiData, months6 }) {
-  // hospital.aiQaData: { questions: [{id, platform, question, isDefault}], answers: { [questionId]: { [month]: answerText } } }
-  const qaData = hospital.aiQaData || { questions: [], answers: {} };
+  const qaData = hospital.aiQaData || { questions: [], answers: {}, records: {} };
   const questions = qaData.questions || [];
-  const answers = qaData.answers || {};
+  const records   = qaData.records  || {};
 
   const [showAddQ, setShowAddQ] = useState(false);
   const [newQ, setNewQ] = useState({ platform:"chatgpt", question:"" });
-  const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
   const [expandedQ, setExpandedQ] = useState(null);
 
   const saveQaData = (updated) => {
@@ -6639,10 +6654,6 @@ function AiQaSection({ hospital, isReadOnly, onUpdateHospital, AI_PLATFORMS, toa
     toast("저장 완료!");
   };
 
-  // 플랫폼별 노출 메모(구버전 aiData) 통합 마이그레이션:
-  // 질문 목록에 플랫폼당 "기본 질문"이 없으면 자동 생성하고,
-  // 과거 aiData의 월별 메모가 있으면 같은 월의 답변으로 옮겨준다.
-  // migratedPlatforms에 한 번 마이그레이션한 플랫폼을 영속 기록해서, 이후 사용자가 기본 질문을 지워도 재생성되지 않도록 함
   const migratingRef = useRef(false);
   useEffect(() => {
     if (migratingRef.current || isReadOnly || !aiData) return;
@@ -6651,23 +6662,27 @@ function AiQaSection({ hospital, isReadOnly, onUpdateHospital, AI_PLATFORMS, toa
     if (toMigrate.length === 0) return;
     migratingRef.current = true;
     const newQuestions = toMigrate.map(p => ({ id: Date.now()+Math.random(), platform:p.key, question:`${p.label} - 병원명/원장명 검색 결과`, isDefault:true }));
-    const newAnswers = { ...answers };
+    const newRecords = { ...records };
+    const oldAnswers = qaData.answers || {};
     newQuestions.forEach(q => {
-      const platformNotes = {};
+      const recs = [];
       months6.forEach(m => {
         const note = aiData[m]?.notes?.[q.platform];
-        if (note && note.trim()) platformNotes[m] = note;
+        if (note && note.trim()) recs.push({ id: Date.now()+Math.random(), date: m+"-01", text: note });
       });
-      if (Object.keys(platformNotes).length > 0) newAnswers[q.id] = { ...(newAnswers[q.id]||{}), ...platformNotes };
+      Object.entries(oldAnswers[q.id]||{}).forEach(([month, text]) => {
+        if (text && text.trim()) recs.push({ id: Date.now()+Math.random(), date: month+"-01", text });
+      });
+      if (recs.length > 0) newRecords[q.id] = recs.sort((a,b)=>a.date.localeCompare(b.date));
     });
     saveQaData({
-      questions:[...questions, ...newQuestions],
-      answers:newAnswers,
-      migratedPlatforms:[...migratedPlatforms, ...toMigrate.map(p=>p.key)],
+      ...qaData,
+      questions: [...questions, ...newQuestions],
+      records: newRecords,
+      migratedPlatforms: [...migratedPlatforms, ...toMigrate.map(p=>p.key)],
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
 
   const addQuestion = () => {
     if (!newQ.question.trim()) return;
@@ -6678,38 +6693,31 @@ function AiQaSection({ hospital, isReadOnly, onUpdateHospital, AI_PLATFORMS, toa
   };
 
   const removeQuestion = (id) => {
-    const nextAnswers = { ...answers };
-    delete nextAnswers[id];
-    saveQaData({ ...qaData, questions: questions.filter(q=>q.id!==id), answers: nextAnswers });
+    const nextRecords = { ...records };
+    delete nextRecords[id];
+    saveQaData({ ...qaData, questions: questions.filter(q=>q.id!==id), records: nextRecords });
   };
 
-  const updateAnswer = (qId, month, text) => {
-    const qAnswers = { ...(answers[qId]||{}), [month]: text };
-    saveQaData({ ...qaData, answers: { ...answers, [qId]: qAnswers } });
+  const addRecord = (qId, date, text) => {
+    const qRecs = [...(records[qId]||[]), { id: Date.now(), date, text }]
+      .sort((a,b) => a.date.localeCompare(b.date));
+    saveQaData({ ...qaData, records: { ...records, [qId]: qRecs } });
   };
 
-  // 특정 질문에 대해 selMonth 이전의 가장 최근 답변(직전 기록) 찾기
-  const getPrevAnswer = (qId, month) => {
-    const qAnswers = answers[qId] || {};
-    const months = Object.keys(qAnswers).filter(m => m < month).sort().reverse();
-    return months.length > 0 ? qAnswers[months[0]] : "";
+  const updateRecord = (qId, recId, text) => {
+    const qRecs = (records[qId]||[]).map(r => r.id===recId ? {...r, text} : r);
+    saveQaData({ ...qaData, records: { ...records, [qId]: qRecs } });
+  };
+
+  const removeRecord = (qId, recId) => {
+    const qRecs = (records[qId]||[]).filter(r => r.id!==recId);
+    saveQaData({ ...qaData, records: { ...records, [qId]: qRecs } });
   };
 
   return (
     <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:10 }}>
         <div style={{ color:C.text, fontWeight:800, fontSize:14 }}>💬 AI 질문 / 답변 모니터링</div>
-        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-          <span style={{ color:C.muted, fontSize:11 }}>조회 월:</span>
-          {months6.map(m => (
-            <button key={m} onClick={()=>{ if(document.activeElement) document.activeElement.blur(); setSelMonth(m); }} style={{
-              background: selMonth===m?`${hospital.color}20`:"transparent",
-              border:`1px solid ${selMonth===m?hospital.color:C.border}`,
-              color: selMonth===m?hospital.color:C.muted,
-              borderRadius:8, padding:"4px 10px", fontSize:11, cursor:"pointer", fontWeight:600,
-            }}>{m.slice(5)}월</button>
-          ))}
-        </div>
       </div>
 
       {!isReadOnly && (
@@ -6723,7 +6731,7 @@ function AiQaSection({ hospital, isReadOnly, onUpdateHospital, AI_PLATFORMS, toa
               </select>
               <input value={newQ.question} onChange={e=>setNewQ(p=>({...p,question:e.target.value}))}
                 onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); addQuestion(); } }}
-                autoFocus placeholder="예: 강남 성형외과 추천해줘" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1, minWidth:200 }} />
+                autoFocus placeholder="예: 광주 피부과 추천해줘" style={{ ...inputSt, padding:"6px 10px", fontSize:12, flex:1, minWidth:200 }} />
               <button onClick={addQuestion} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer", fontWeight:700 }}>등록</button>
               <button onClick={()=>setShowAddQ(false)} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer" }}>취소</button>
             </div>
@@ -6735,84 +6743,194 @@ function AiQaSection({ hospital, isReadOnly, onUpdateHospital, AI_PLATFORMS, toa
         <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:20 }}>등록된 질문이 없어요. 모니터링할 질문을 추가해주세요.</div>
       )}
 
-      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
         {questions.map(q => {
           const platformInfo = AI_PLATFORMS.find(p=>p.key===q.platform) || AI_PLATFORMS[0];
-          const curAnswer = (answers[q.id]||{})[selMonth] || "";
-          const prevAnswer = getPrevAnswer(q.id, selMonth);
+          const qRecs = (records[q.id]||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
           const isOpen = expandedQ === q.id;
           return (
-            <AiQaCard key={q.id} q={q} platformInfo={platformInfo} curAnswer={curAnswer} prevAnswer={prevAnswer}
-              isOpen={isOpen} selMonth={selMonth} isReadOnly={isReadOnly}
+            <AiQaCard key={q.id} q={q} platformInfo={platformInfo} qRecs={qRecs}
+              isOpen={isOpen} isReadOnly={isReadOnly} hospital={hospital}
               onToggleOpen={()=>setExpandedQ(isOpen?null:q.id)}
               onRemove={()=>removeQuestion(q.id)}
-              onSaveAnswer={(text)=>updateAnswer(q.id, selMonth, text)} />
+              onAddRecord={(date,text)=>addRecord(q.id,date,text)}
+              onUpdateRecord={(recId,text)=>updateRecord(q.id,recId,text)}
+              onRemoveRecord={(recId)=>removeRecord(q.id,recId)} />
           );
         })}
-      </div>
-      <div style={{ color:C.muted, fontSize:11, marginTop:10 }}>
-        💡 답변 입력란 밖을 클릭하거나 다른 질문 카드를 열면 자동으로 저장돼요.
       </div>
     </div>
   );
 }
 
-// ─── 질문 카드 (답변 입력은 로컬 state로 받다가 blur 시점에만 저장 — 타이핑마다 저장 요청이 나가지 않도록) ──
-function AiQaCard({ q, platformInfo, curAnswer, prevAnswer, isOpen, selMonth, isReadOnly, onToggleOpen, onRemove, onSaveAnswer }) {
-  const [localAnswer, setLocalAnswer] = useState(curAnswer);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  useEffect(() => { setLocalAnswer(curAnswer); }, [curAnswer, selMonth]);
-  useEffect(() => { setConfirmDelete(false); }, [isOpen]);
-  // 카드가 닫힐 때 미저장 답변이 남아있으면 안전망으로 자동 저장 (blur 이벤트가 누락되는 경우 대비)
-  useEffect(() => {
-    if (!isOpen && localAnswer !== curAnswer) onSaveAnswer(localAnswer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
-  const hasChanged = prevAnswer && curAnswer && wordDiff(prevAnswer, curAnswer).some(p=>p.type!=="same");
+// [[텍스트]] 마크업을 초록 하이라이트로 렌더링
+const MarkupText = ({ text }) => {
+  if (!text) return null;
+  const parts = text.split(/(\[\[.*?\]\])/g);
   return (
-    <div style={{ border:`1px solid ${C.dim}`, borderRadius:12, overflow:"hidden" }}>
-      <div onClick={onToggleOpen} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:"#F8FAFC", cursor:"pointer" }}>
+    <span>
+      {parts.map((part, i) => {
+        if (part.startsWith("[[") && part.endsWith("]]")) {
+          const inner = part.slice(2, -2);
+          return <mark key={i} style={{ background:"#bbf7d0", color:"#15803d", fontWeight:700, borderRadius:3, padding:"0 2px" }}>{inner}</mark>;
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </span>
+  );
+};
+
+function AiQaCard({ q, platformInfo, qRecs, isOpen, isReadOnly, hospital, onToggleOpen, onRemove, onAddRecord, onUpdateRecord, onRemoveRecord }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showAddRec, setShowAddRec] = useState(false);
+  const [newRec, setNewRec] = useState({ date: new Date().toISOString().slice(0,10), text:"" });
+  const [editRecId, setEditRecId] = useState(null);
+  const [editText, setEditText] = useState("");
+
+  useEffect(() => { setConfirmDelete(false); setShowAddRec(false); setEditRecId(null); }, [isOpen]);
+
+  const latest = qRecs[0] || null;
+  const prev   = qRecs[1] || null;
+
+  const handleAddRec = () => {
+    if (!newRec.text.trim()) return;
+    onAddRecord(newRec.date, newRec.text.trim());
+    setNewRec({ date: new Date().toISOString().slice(0,10), text:"" });
+    setShowAddRec(false);
+  };
+
+  const fmtDate = (d) => {
+    if (!d) return "";
+    const dt = new Date(d+"T00:00:00");
+    return `${dt.getFullYear()}.${String(dt.getMonth()+1).padStart(2,"0")}.${String(dt.getDate()).padStart(2,"0")}`;
+  };
+
+  // [[텍스트]] 포함 여부로 "하이라이트 있음" 표시
+  const hasMarkup = latest && /\[\[.*?\]\]/.test(latest.text);
+
+  return (
+    <div style={{ border:`1px solid ${isOpen?`${hospital.color}40`:C.dim}`, borderRadius:14, overflow:"hidden" }}>
+      {/* 헤더 */}
+      <div onClick={onToggleOpen} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 16px", background:isOpen?`${hospital.color}08`:"#F8FAFC", cursor:"pointer" }}>
         <span style={{ background:`${platformInfo.color}15`, color:platformInfo.color, borderRadius:6, padding:"2px 8px", fontSize:10, fontWeight:700, flexShrink:0 }}>{platformInfo.icon} {platformInfo.label}</span>
-        <span style={{ color:C.text, fontSize:12, fontWeight:600, flex:1 }}>{q.question}</span>
-        {hasChanged && <span style={{ color:C.orange, fontSize:10, fontWeight:700 }}>변경됨</span>}
-        {!isReadOnly && (
-          confirmDelete ? (
-            <button onClick={e=>{ e.stopPropagation(); onRemove(); }} style={{ background:`${C.red}20`, border:`1px solid ${C.red}`, color:C.red, borderRadius:6, padding:"2px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>삭제 확인</button>
-          ) : (
-            <button onClick={e=>{ e.stopPropagation(); setConfirmDelete(true); }} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>×</button>
-          )
-        )}
-        <span style={{ color:C.muted, fontSize:11 }}>{isOpen?"▲":"▼"}</span>
+        <span style={{ color:C.text, fontSize:13, fontWeight:700, flex:1 }}>{q.question}</span>
+        <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+          {qRecs.length > 0 && <span style={{ color:C.muted, fontSize:10 }}>기록 {qRecs.length}건</span>}
+          {hasMarkup && <span style={{ background:"#bbf7d0", color:"#15803d", borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700 }}>하이라이트</span>}
+          {!isReadOnly && (
+            confirmDelete
+              ? <button onClick={e=>{ e.stopPropagation(); onRemove(); }} style={{ background:`${C.red}20`, border:`1px solid ${C.red}`, color:C.red, borderRadius:6, padding:"2px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>삭제 확인</button>
+              : <button onClick={e=>{ e.stopPropagation(); setConfirmDelete(true); }} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:14, lineHeight:1 }}>×</button>
+          )}
+          <span style={{ color:C.muted, fontSize:10 }}>{isOpen?"▲":"▼"}</span>
+        </div>
       </div>
+
       {isOpen && (
-        <div style={{ padding:14, display:"flex", flexDirection:"column", gap:10 }}>
-          <div>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
-              <label style={{ color:C.muted, fontSize:11, fontWeight:700 }}>{selMonth.slice(5)}월 답변</label>
-              {!isReadOnly && localAnswer !== curAnswer && (
-                <span style={{ color:C.orange, fontSize:10, fontWeight:700 }}>● 저장 안 됨 (입력란 밖을 클릭하면 저장돼요)</span>
-              )}
-            </div>
-            {!isReadOnly ? (
-              <textarea value={localAnswer} onChange={e=>setLocalAnswer(e.target.value)}
-                onBlur={e=>{ if(e.target.value !== curAnswer) onSaveAnswer(e.target.value); }}
-                onKeyDown={e=>{ if((e.metaKey||e.ctrlKey) && e.key==="Enter"){ e.target.blur(); } }}
-                placeholder="AI 답변 내용을 붙여넣어주세요 (Ctrl/Cmd+Enter로 바로 저장)"
-                rows={4} style={{ ...inputSt, padding:"8px 10px", fontSize:12, width:"100%", resize:"vertical", border:`1px solid ${localAnswer!==curAnswer?C.orange:C.dim}` }} />
-            ) : (
-              <div style={{ color:C.text, fontSize:12, background:"#F8FAFC", borderRadius:8, padding:10 }}>{curAnswer||"-"}</div>
-            )}
-          </div>
-          {prevAnswer && (
-            <div>
-              <label style={{ color:C.muted, fontSize:11, fontWeight:700, display:"block", marginBottom:5 }}>직전 답변 대비 변경 사항</label>
-              <div style={{ background:"#F8FAFC", borderRadius:8, padding:10 }}>
-                <DiffView oldText={prevAnswer} newText={localAnswer} />
+        <div style={{ padding:16, display:"flex", flexDirection:"column", gap:14 }}>
+
+          {/* 최근 2개 비교 */}
+          {latest && prev && (
+            <div style={{ background:"#F8FAFC", borderRadius:12, padding:14, border:`1px solid ${C.dim}` }}>
+              <div style={{ color:C.text, fontWeight:700, fontSize:12, marginBottom:10 }}>📊 최근 2개 기록 비교</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                {[{rec:prev, label:"직전"}, {rec:latest, label:"최신"}].map(({rec, label}) => (
+                  <div key={rec.id}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+                      <span style={{ color:C.muted, fontSize:10, fontWeight:700 }}>{label} · {fmtDate(rec.date)}</span>
+                      {!isReadOnly && (
+                        <div style={{ marginLeft:"auto", display:"flex", gap:4 }}>
+                          <button onClick={()=>{ setEditRecId(editRecId===rec.id?null:rec.id); setEditText(rec.text); setShowAddRec(false); }}
+                            style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:4, padding:"1px 7px", fontSize:10, cursor:"pointer" }}>수정</button>
+                          <button onClick={()=>onRemoveRecord(rec.id)}
+                            style={{ background:"transparent", border:`1px solid ${C.red}30`, color:C.red, borderRadius:4, padding:"1px 7px", fontSize:10, cursor:"pointer" }}>삭제</button>
+                        </div>
+                      )}
+                    </div>
+                    {editRecId === rec.id ? (
+                      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                        <textarea value={editText} onChange={e=>setEditText(e.target.value)}
+                          rows={5} style={{ ...inputSt, padding:"8px 10px", fontSize:12, resize:"vertical" }} />
+                        <div style={{ display:"flex", gap:6, justifyContent:"flex-end" }}>
+                          <button onClick={()=>setEditRecId(null)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:6, padding:"3px 10px", fontSize:11, cursor:"pointer" }}>취소</button>
+                          <button onClick={()=>{ onUpdateRecord(rec.id, editText); setEditRecId(null); }}
+                            style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:6, padding:"3px 12px", fontSize:11, cursor:"pointer", fontWeight:700 }}>저장</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ color:C.text, fontSize:12, lineHeight:1.8, background:"#fff", borderRadius:8, padding:"8px 10px", border:`1px solid ${C.dim}`, whiteSpace:"pre-wrap", wordBreak:"break-all" }}>
+                        <MarkupText text={rec.text} />
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
-          {!prevAnswer && curAnswer && (
-            <div style={{ color:C.muted, fontSize:11 }}>비교할 이전 답변이 아직 없어요 (첫 등록)</div>
+
+          {/* 기록이 1개일 때 단독 표시 */}
+          {latest && !prev && (
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+                <span style={{ color:C.muted, fontSize:10, fontWeight:700 }}>{fmtDate(latest.date)}</span>
+                {!isReadOnly && (
+                  <div style={{ marginLeft:"auto", display:"flex", gap:4 }}>
+                    <button onClick={()=>{ setEditRecId(editRecId===latest.id?null:latest.id); setEditText(latest.text); setShowAddRec(false); }}
+                      style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:4, padding:"1px 7px", fontSize:10, cursor:"pointer" }}>수정</button>
+                    <button onClick={()=>onRemoveRecord(latest.id)}
+                      style={{ background:"transparent", border:`1px solid ${C.red}30`, color:C.red, borderRadius:4, padding:"1px 7px", fontSize:10, cursor:"pointer" }}>삭제</button>
+                  </div>
+                )}
+              </div>
+              {editRecId === latest.id ? (
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  <textarea value={editText} onChange={e=>setEditText(e.target.value)}
+                    rows={5} style={{ ...inputSt, padding:"8px 10px", fontSize:12, resize:"vertical" }} />
+                  <div style={{ display:"flex", gap:6, justifyContent:"flex-end" }}>
+                    <button onClick={()=>setEditRecId(null)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:6, padding:"3px 10px", fontSize:11, cursor:"pointer" }}>취소</button>
+                    <button onClick={()=>{ onUpdateRecord(latest.id, editText); setEditRecId(null); }}
+                      style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:6, padding:"3px 12px", fontSize:11, cursor:"pointer", fontWeight:700 }}>저장</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ color:C.text, fontSize:12, lineHeight:1.8, background:"#F8FAFC", borderRadius:8, padding:"10px 12px", border:`1px solid ${C.dim}`, whiteSpace:"pre-wrap", wordBreak:"break-all" }}>
+                  <MarkupText text={latest.text} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 새 기록 추가 */}
+          {!isReadOnly && (
+            <div>
+              {!showAddRec ? (
+                <button onClick={()=>{ setShowAddRec(true); setEditRecId(null); }}
+                  style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:7, padding:"5px 14px", fontSize:11, cursor:"pointer", fontWeight:700 }}>
+                  + 새 기록 추가
+                </button>
+              ) : (
+                <div style={{ background:"#F8FAFC", borderRadius:10, padding:12, display:"flex", flexDirection:"column", gap:8 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <label style={{ color:C.muted, fontSize:11, fontWeight:700, flexShrink:0 }}>날짜</label>
+                    <input type="date" value={newRec.date} onChange={e=>setNewRec(p=>({...p,date:e.target.value}))}
+                      style={{ ...inputSt, padding:"5px 8px", fontSize:12, width:150 }} />
+                  </div>
+                  <textarea value={newRec.text} onChange={e=>setNewRec(p=>({...p,text:e.target.value}))}
+                    placeholder={"AI 답변 내용을 붙여넣어주세요.\n강조할 부분은 [[이렇게]] 감싸면 하이라이트돼요."}
+                    rows={5} style={{ ...inputSt, padding:"8px 10px", fontSize:12, resize:"vertical" }} />
+                  <div style={{ display:"flex", gap:6, justifyContent:"flex-end" }}>
+                    <button onClick={()=>setShowAddRec(false)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:6, padding:"4px 12px", fontSize:11, cursor:"pointer" }}>취소</button>
+                    <button onClick={handleAddRec} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:7, padding:"4px 16px", fontSize:12, cursor:"pointer", fontWeight:700 }}>저장</button>
+                  </div>
+                  <div style={{ color:C.muted, fontSize:10 }}>💡 [[병원명]] 처럼 감싸면 초록 하이라이트로 표시됩니다.</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 기록이 없을 때 */}
+          {qRecs.length === 0 && (
+            <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:12 }}>아직 등록된 기록이 없어요.</div>
           )}
         </div>
       )}
@@ -7359,7 +7477,10 @@ function AppInner() {
   const saveHospitalToSupabase = async (h) => {
     try {
       const { monthlyData, channelData, contentData, meetingData, adsData, inflowData, brandingData, crmData, aiData, growData, aiQaData, onlineAssetData, ...hospData } = h;
-      await supabase.from('hospitals').upsert({ id: h.id, data: { ...hospData, adsData:adsData||{}, inflowData:inflowData||{}, brandingData:brandingData||{}, crmData:crmData||{}, aiData:aiData||{}, growData:growData||{}, aiQaData:aiQaData||{questions:[],answers:{}}, onlineAssetData:onlineAssetData||{} } });
+      await supabase.from('hospitals').upsert(
+        { id: h.id, data: { ...hospData, adsData:adsData||{}, inflowData:inflowData||{}, brandingData:brandingData||{}, crmData:crmData||{}, aiData:aiData||{}, growData:growData||{}, aiQaData:aiQaData||{questions:[],records:{}}, onlineAssetData:onlineAssetData||{} } },
+        { onConflict: 'id' }
+      );
       await supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData || [] }, { onConflict: 'hospital_id' });
       await supabase.from('channel_data').upsert({ hospital_id: h.id, data: channelData || [] }, { onConflict: 'hospital_id' });
       await supabase.from('content_data').upsert({ hospital_id: h.id, data: contentData || [] }, { onConflict: 'hospital_id' });
@@ -7369,11 +7490,19 @@ function AppInner() {
     }
   };
 
-  const handleUpdateHospital = async (updated) => {
+  // 동시 다중 저장 방지: 병원별로 마지막 요청만 실행 (debounce 300ms)
+  const saveTimers = useRef({});
+  const handleUpdateHospital = (updated) => {
+    // 로컬 state는 즉시 반영 (UI 끊김 없음)
     setHospitals(prev => prev.map(h => h.id === updated.id ? updated : h));
     setSelectedId(updated.id);
-    await saveHospitalToSupabase(updated);
-    await logActivity("데이터 수정", updated.name, "병원 데이터 업데이트");
+    // 같은 병원에 연속 저장 요청이 오면 마지막 것만 실제 저장
+    if (saveTimers.current[updated.id]) clearTimeout(saveTimers.current[updated.id]);
+    saveTimers.current[updated.id] = setTimeout(async () => {
+      await saveHospitalToSupabase(updated);
+      await logActivity("데이터 수정", updated.name, "병원 데이터 업데이트");
+      delete saveTimers.current[updated.id];
+    }, 300);
   };
 
   const handleAddHospital = async (form) => {
@@ -7388,10 +7517,23 @@ function AppInner() {
   };
 
   const handleEditHospital = async (updated) => {
-    setHospitals(prev => prev.map(h => h.id === updated.id ? { ...h, ...updated } : h));
-    const full = hospitals.find(h => h.id === updated.id);
-    if (full) await saveHospitalToSupabase({ ...full, ...updated });
-    await logActivity("병원 정보 수정", updated.name, "병원 기본 정보 변경");
+    // setHospitals의 콜백에서 최신 h를 가져와 stale closure 버그 방지
+    let fullUpdated = null;
+    setHospitals(prev => {
+      const next = prev.map(h => {
+        if (h.id !== updated.id) return h;
+        fullUpdated = { ...h, ...updated };
+        return fullUpdated;
+      });
+      return next;
+    });
+    // setTimeout으로 state 업데이트 후 저장 (fullUpdated가 세팅된 시점)
+    setTimeout(async () => {
+      if (fullUpdated) {
+        await saveHospitalToSupabase(fullUpdated);
+        await logActivity("병원 정보 수정", updated.name, "병원 기본 정보 변경");
+      }
+    }, 0);
   };
 
   const handleDeleteHospital = async (id) => {
