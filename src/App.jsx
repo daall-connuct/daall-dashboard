@@ -1852,7 +1852,7 @@ function ChannelInputForm({ hospital, channelData, onSave, onClose }) {
 // ─── 월간 체크리스트 탭 ──────────────────────────────────────
 
 // ─── 마케팅 현황 탭 ───────────────────────────────────────────
-function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isAdmin }) {
+function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isAdmin, isReadOnly }) {
   const [contents, setContents] = useState(() => initialContents || []);
   const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
   const [contentFilter, setContentFilter] = useState("전체");
@@ -2024,7 +2024,7 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
             {/* 헤더 */}
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <div style={{ color:C.muted, fontSize:12 }}>채널별 유입 현황</div>
-              {isAdmin && (
+              {!isReadOnly && (
                 <button onClick={() => {
                   const m = selMonth;
                   setInflowMonth(m);
@@ -2167,12 +2167,12 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
             </div>
             <div style={{ color:C.muted, fontSize:11, marginTop:3 }}>API 연동 시 클릭수·순위 자동 업데이트 예정</div>
           </div>
-          <button onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowForm(!showForm); }} style={{
+          {!isReadOnly && <button onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowForm(!showForm); }} style={{
             background: showForm && !editId ? "rgba(248,113,113,0.15)" : `linear-gradient(135deg,${hospital.color},${C.accent2})`,
             border: showForm && !editId ? `1px solid ${C.red}` : "none",
             color: showForm && !editId ? C.red : "#0F172A",
             borderRadius:10, padding:"9px 18px", fontSize:13, cursor:"pointer", fontWeight:700,
-          }}>{showForm && !editId ? "닫기" : editId ? "취소" : "+ 콘텐츠 추가"}</button>
+          }}>{showForm && !editId ? "닫기" : editId ? "취소" : "+ 콘텐츠 추가"}</button>}
         </div>
 
         {showForm && (
@@ -2262,14 +2262,14 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
                     <td style={{ padding:"10px 12px" }}><Badge color={item.topExposed?C.green:C.dim}>{item.topExposed?"상위":"–"}</Badge></td>
                     <td style={{ padding:"10px 12px" }}><Badge color={hospital.color}>{item.status}</Badge></td>
                     <td style={{ padding:"10px 12px", whiteSpace:"nowrap" }}>
-                      <div style={{ display:"flex", gap:6 }}>
+                      {!isReadOnly && <div style={{ display:"flex", gap:6 }}>
                         <button onClick={()=>handleEdit(item)} style={{ background:`${hospital.color}20`, border:`1px solid ${hospital.color}40`, color:hospital.color, borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontWeight:600 }}>수정</button>
                         {deleteConfirm === item.id ? (
                           <button onClick={()=>{saveAll(contents.filter(c=>c.id!==item.id));setDeleteConfirm(null);}} style={{ background:`${C.red}20`, border:`1px solid ${C.red}`, color:C.red, borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>확인</button>
                         ) : (
                           <button onClick={()=>setDeleteConfirm(item.id)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer" }}>삭제</button>
                         )}
-                      </div>
+                      </div>}
                     </td>
                   </tr>
                 );
@@ -3378,7 +3378,7 @@ const COST_CATEGORIES = [
   { id:"cs",                label:"CS 경영지원",          group:"CS",     color:"#FB923C" },
 ];
 
-function CostTab({ hospital, hData, onDataLoad }) {
+function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
   const [contracts, setContracts] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [contractItems, setContractItems] = useState([]); // 계약 내용 항목 [{id, category, count, memo}]
@@ -3512,7 +3512,7 @@ function CostTab({ hospital, hData, onDataLoad }) {
           <YearMonthSelector availMonths={availMonths} selMonth={selMonth} setSelMonth={setSelMonth} color={hospital.color} />
         </div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>setShowContractForm(!showContractForm)} style={{background:`${C.accent2}20`,border:`1px solid ${C.accent2}50`,color:C.accent2,borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>계약금 등록</button>
+          {!isReadOnly && <button onClick={()=>setShowContractForm(!showContractForm)} style={{background:`${C.accent2}20`,border:`1px solid ${C.accent2}50`,color:C.accent2,borderRadius:9,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>계약금 등록</button>}
         </div>
       </div>
 
@@ -3567,11 +3567,11 @@ function CostTab({ hospital, hData, onDataLoad }) {
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:22}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{color:C.text,fontWeight:800,fontSize:14}}>📋 계약 내용</div>
-          <button onClick={()=>{
+          {!isReadOnly && <button onClick={()=>{
             const newItems = [...contractItems, {id:Date.now(), category:"marketing_blog", count:"", memo:""}];
             setContractItems(newItems);
             saveToSupabase(contracts, expenses, newItems, undefined);
-          }} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 항목 추가</button>
+          }} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 항목 추가</button>}
         </div>
 
         {contractItems.length === 0 ? (
@@ -3590,39 +3590,45 @@ function CostTab({ hospital, hData, onDataLoad }) {
               return (
                 <div key={item.id} style={{display:"grid",gridTemplateColumns:"2fr 80px 2fr 40px",padding:"8px 14px",gap:12,borderTop:`1px solid ${C.dim}`,alignItems:"center",background:idx%2===0?"#fff":"#FAFAFA"}}>
                   <select value={item.category}
+                    disabled={isReadOnly}
                     onChange={e=>{
                       const newItems = contractItems.map(it=>it.id===item.id?{...it,category:e.target.value}:it);
                       setContractItems(newItems);
                       saveToSupabase(contracts,expenses,newItems,undefined);
                     }}
-                    style={{...inputSt,padding:"5px 8px",fontSize:12,appearance:"none",color:cat.color,fontWeight:700}}>
+                    style={{...inputSt,padding:"5px 8px",fontSize:12,appearance:"none",color:cat.color,fontWeight:700,opacity:isReadOnly?0.7:1}}>
                     {COST_CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
                   </select>
                   <input type="number" value={item.count} placeholder="0"
+                    disabled={isReadOnly}
                     onChange={e=>{
                       const newItems = contractItems.map(it=>it.id===item.id?{...it,count:e.target.value}:it);
                       setContractItems(newItems);
                     }}
                     onBlur={e=>{
+                      if(isReadOnly) return;
                       const newItems = contractItems.map(it=>it.id===item.id?{...it,count:e.target.value}:it);
                       saveToSupabase(contracts,expenses,newItems,undefined);
                     }}
-                    style={{...inputSt,padding:"5px 8px",fontSize:12,textAlign:"right"}} />
+                    style={{...inputSt,padding:"5px 8px",fontSize:12,textAlign:"right",opacity:isReadOnly?0.7:1}} />
                   <input type="text" value={item.memo||""} placeholder="메모 (선택)"
+                    disabled={isReadOnly}
                     onChange={e=>{
                       const newItems = contractItems.map(it=>it.id===item.id?{...it,memo:e.target.value}:it);
                       setContractItems(newItems);
                     }}
                     onBlur={e=>{
+                      if(isReadOnly) return;
                       const newItems = contractItems.map(it=>it.id===item.id?{...it,memo:e.target.value}:it);
                       saveToSupabase(contracts,expenses,newItems,undefined);
                     }}
-                    style={{...inputSt,padding:"5px 8px",fontSize:12}} />
-                  <button onClick={()=>{
+                    style={{...inputSt,padding:"5px 8px",fontSize:12,opacity:isReadOnly?0.7:1}} />
+                  {!isReadOnly && <button onClick={()=>{
                     const newItems = contractItems.filter(it=>it.id!==item.id);
                     setContractItems(newItems);
                     saveToSupabase(contracts,expenses,newItems,undefined);
-                  }} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:16,padding:0,textAlign:"center"}}>×</button>
+                  }} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:16,padding:0,textAlign:"center"}}>×</button>}
+                  {isReadOnly && <div/>}
                 </div>
               );
             })}
@@ -3704,7 +3710,7 @@ function CostTab({ hospital, hData, onDataLoad }) {
                 }}>{g}</button>
               ))}
             </div>
-            <button onClick={()=>{setEditExpId(null);setExpenseForm({month:selMonth,category:"marketing_blog",memo:"",date:"",url:"",keyword:""});setShowExpenseForm(!showExpenseForm);}} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:9,padding:"7px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 작업 내역 추가</button>
+            {!isReadOnly && <button onClick={()=>{setEditExpId(null);setExpenseForm({month:selMonth,category:"marketing_blog",memo:"",date:"",url:"",keyword:""});setShowExpenseForm(!showExpenseForm);}} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:9,padding:"7px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 작업 내역 추가</button>}
           </div>
         </div>
         <div style={{overflowX:"auto"}}>
@@ -3734,13 +3740,13 @@ function CostTab({ hospital, hData, onDataLoad }) {
                         {!e.memo && !e.url && !e.keyword && <span style={{color:C.muted}}>-</span>}
                       </td>
                       <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
-                        <div style={{display:"flex",gap:6}}>
+                        {!isReadOnly && <div style={{display:"flex",gap:6}}>
                           <button onClick={()=>handleEditExp(e)} style={{background:`${hospital.color}20`,border:`1px solid ${hospital.color}40`,color:hospital.color,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>수정</button>
                           {deleteConfirm===e.id
                             ? <button onClick={()=>handleDeleteExp(e.id)} style={{background:`${C.red}20`,border:`1px solid ${C.red}`,color:C.red,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>확인</button>
                             : <button onClick={()=>setDeleteConfirm(e.id)} style={{background:"transparent",border:`1px solid ${C.dim}`,color:C.muted,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>삭제</button>
                           }
-                        </div>
+                        </div>}
                       </td>
                     </tr>
                   );
@@ -3758,10 +3764,10 @@ function CostTab({ hospital, hData, onDataLoad }) {
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:22}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <SectionTitle>{selMonth.slice(5)}월 추가 작업 내역</SectionTitle>
-          <button onClick={()=>{setEditExtraId(null);setExtraForm({month:selMonth,date:"",category:"marketing_blog",memo:"",amount:""});setShowExtraForm(!showExtraForm);}}
+          {!isReadOnly && <button onClick={()=>{setEditExtraId(null);setExtraForm({month:selMonth,date:"",category:"marketing_blog",memo:"",amount:""});setShowExtraForm(!showExtraForm);}}
             style={{background:`linear-gradient(135deg,${C.green},${C.accent})`,border:"none",color:"#fff",borderRadius:9,padding:"7px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>
             + 추가 작업 내역 추가
-          </button>
+          </button>}
         </div>
 
         {showExtraForm && (
@@ -3805,13 +3811,13 @@ function CostTab({ hospital, hData, onDataLoad }) {
                         <td style={{padding:"9px 12px",color:C.muted}}>{e.memo||"-"}</td>
                         <td style={{padding:"9px 12px",color:C.green,fontWeight:700}}>{e.amount?fmt(+e.amount):"-"}</td>
                         <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
-                          <div style={{display:"flex",gap:6}}>
+                          {!isReadOnly && <div style={{display:"flex",gap:6}}>
                             <button onClick={()=>handleEditExtra(e)} style={{background:`${C.green}15`,border:`1px solid ${C.green}40`,color:C.green,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>수정</button>
                             {deleteExtraConfirm===e.id
                               ? <button onClick={()=>handleDeleteExtra(e.id)} style={{background:`${C.red}20`,border:`1px solid ${C.red}`,color:C.red,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>확인</button>
                               : <button onClick={()=>setDeleteExtraConfirm(e.id)} style={{background:"transparent",border:`1px solid ${C.dim}`,color:C.muted,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>삭제</button>
                             }
-                          </div>
+                          </div>}
                         </td>
                       </tr>
                     );
@@ -5006,7 +5012,7 @@ new Chart(document.getElementById('costChart'), {
         {tab === "cost" && <CostTab hospital={hospital} hData={hData} onDataLoad={setSharedCostData} isReadOnly={isReadOnly} />}
         {tab === "meeting" && <MeetingTab hospital={hospital} isReadOnly={isReadOnly} />}
         {tab === "keyword" && <KeywordRankTab hospital={hospital} isAdmin={isAdmin} onDataLoad={setSharedKeywordData} onSelMonthChange={setSharedKeywordSelMonth} isReadOnly={isReadOnly} />}
-        {tab === "marketing" && <MarketingTab hospital={hospital} chData={chData} initialContents={hospital.contentData || []} onUpdateHospital={onUpdateHospital} isAdmin={isAdmin} />}
+        {tab === "marketing" && <MarketingTab hospital={hospital} chData={chData} initialContents={hospital.contentData || []} onUpdateHospital={onUpdateHospital} isAdmin={isAdmin} isReadOnly={isReadOnly} />}
 
         {/* 새 탭 - 순차적으로 구현 예정 */}
         {tab === "ads" && <AdsTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
@@ -7464,14 +7470,14 @@ function HospitalScheduleTab({ hospital, globalSchedules, saveGlobalSchedules, i
                       <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>📅 {s.date}</div>
                       {s.memo && <div style={{ color:C.muted, fontSize:11, marginTop:2 }}>💬 {s.memo}</div>}
                     </div>
-                    <div style={{ display:"flex", gap:4, flexShrink:0 }}>
+                    {!isReadOnly && <div style={{ display:"flex", gap:4, flexShrink:0 }}>
                       <button onClick={() => { setEditId(s.id); setEditForm({ date:s.date, title:s.title, memo:s.memo||"", schedType:s.schedType||"regular", color:s.color||"" }); }}
                         style={{ background:`${hospital.color}10`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer", fontWeight:600 }}>수정</button>
                       {deleteConfirm === s.id
                         ? <button onClick={() => deleteSchedule(s.id)} style={{ background:`${C.red}15`, border:`1px solid ${C.red}`, color:C.red, borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer" }}>확인</button>
                         : <button onClick={() => setDeleteConfirm(s.id)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:6, padding:"3px 8px", fontSize:10, cursor:"pointer" }}>삭제</button>
                       }
-                    </div>
+                    </div>}
                   </div>
                 )}
               </div>
