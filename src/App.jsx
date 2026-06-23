@@ -3381,8 +3381,7 @@ const COST_CATEGORIES = [
 function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
   const [contracts, setContracts] = useState([]);
   const [expenses, setExpenses] = useState([]);
-  const [contractItems, setContractItems] = useState([]); // 계약 내용 항목 [{id, category, count, memo}]
-  const [extraExpenses, setExtraExpenses] = useState([]); // 추가 작업 내역 (금액 포함)
+  const [contractItemsMap, setContractItemsMap] = useState({}); // { [month]: [{id, category, count, memo}] }
   const currentYm = new Date().toISOString().slice(0,7);
   const [selMonth, setSelMonth] = useState(currentYm);
   const [showContractForm, setShowContractForm] = useState(false);
@@ -3407,10 +3406,13 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
         if (data?.data) {
           if (data.data.contracts) setContracts(data.data.contracts);
           if (data.data.expenses) setExpenses(data.data.expenses);
-          if (data.data.contractItems) setContractItems(data.data.contractItems);
-          else if (data.data.contractNote) {
-            // 구버전 텍스트 → 단일 메모 항목으로 자동 변환
-            setContractItems([{ id: Date.now(), category: "marketing", count: "", memo: data.data.contractNote }]);
+          // 구버전 contractItems(배열) → 월별 맵으로 자동 변환 (현재 월에 넣어줌)
+          if (data.data.contractItemsMap) {
+            setContractItemsMap(data.data.contractItemsMap);
+          } else if (Array.isArray(data.data.contractItems) && data.data.contractItems.length > 0) {
+            setContractItemsMap({ [currentYm]: data.data.contractItems });
+          } else if (data.data.contractNote) {
+            setContractItemsMap({ [currentYm]: [{ id: Date.now(), category: "marketing", count: "", memo: data.data.contractNote }] });
           }
           if (data.data.extraExpenses) setExtraExpenses(data.data.extraExpenses);
           if (onDataLoad) onDataLoad({ contracts: data.data.contracts||[], expenses: data.data.expenses||[] });
@@ -3420,18 +3422,27 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
     load();
   }, [hospital.id]);
 
-  const saveToSupabase = async (newContracts, newExpenses, newItems, newExtra) => {
+  const saveToSupabase = async (newContracts, newExpenses, newItemsMap, newExtra) => {
     try {
       await supabase.from('cost_data').upsert(
         { hospital_id: hospital.id, data: {
           contracts: newContracts,
           expenses: newExpenses,
-          contractItems: newItems !== undefined ? newItems : contractItems,
+          contractItemsMap: newItemsMap !== undefined ? newItemsMap : contractItemsMap,
           extraExpenses: newExtra !== undefined ? newExtra : extraExpenses,
         }},
         { onConflict: 'hospital_id' }
       );
     } catch(e) { console.error('비용관리 저장 실패:', e); }
+  };
+
+  // 현재 월의 계약 항목
+  const contractItems = contractItemsMap[selMonth] || [];
+  const setContractItems = (items) => setContractItemsMap(prev => ({ ...prev, [selMonth]: items }));
+  const saveContractItems = (items, contracts_, expenses_) => {
+    const newMap = { ...contractItemsMap, [selMonth]: items };
+    setContractItemsMap(newMap);
+    saveToSupabase(contracts_ ?? contracts, expenses_ ?? expenses, newMap, undefined);
   };
 
   const contractRec = contracts.find(c=>c.month===selMonth);
@@ -3568,9 +3579,7 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{color:C.text,fontWeight:800,fontSize:14}}>📋 계약 내용</div>
           {!isReadOnly && <button onClick={()=>{
-            const newItems = [...contractItems, {id:Date.now(), category:"marketing_blog", count:"", memo:""}];
-            setContractItems(newItems);
-            saveToSupabase(contracts, expenses, newItems, undefined);
+            saveContractItems([...contractItems, {id:Date.now(), category:"marketing_blog", count:"", memo:""}]);
           }} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 항목 추가</button>}
         </div>
 
@@ -3592,9 +3601,7 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
                   <select value={item.category}
                     disabled={isReadOnly}
                     onChange={e=>{
-                      const newItems = contractItems.map(it=>it.id===item.id?{...it,category:e.target.value}:it);
-                      setContractItems(newItems);
-                      saveToSupabase(contracts,expenses,newItems,undefined);
+                      saveContractItems(contractItems.map(it=>it.id===item.id?{...it,category:e.target.value}:it));
                     }}
                     style={{...inputSt,padding:"5px 8px",fontSize:12,appearance:"none",color:cat.color,fontWeight:700,opacity:isReadOnly?0.7:1}}>
                     {COST_CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
@@ -3602,31 +3609,25 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
                   <input type="number" value={item.count} placeholder="0"
                     disabled={isReadOnly}
                     onChange={e=>{
-                      const newItems = contractItems.map(it=>it.id===item.id?{...it,count:e.target.value}:it);
-                      setContractItems(newItems);
+                      setContractItems(contractItems.map(it=>it.id===item.id?{...it,count:e.target.value}:it));
                     }}
                     onBlur={e=>{
                       if(isReadOnly) return;
-                      const newItems = contractItems.map(it=>it.id===item.id?{...it,count:e.target.value}:it);
-                      saveToSupabase(contracts,expenses,newItems,undefined);
+                      saveContractItems(contractItems.map(it=>it.id===item.id?{...it,count:e.target.value}:it));
                     }}
                     style={{...inputSt,padding:"5px 8px",fontSize:12,textAlign:"right",opacity:isReadOnly?0.7:1}} />
                   <input type="text" value={item.memo||""} placeholder="메모 (선택)"
                     disabled={isReadOnly}
                     onChange={e=>{
-                      const newItems = contractItems.map(it=>it.id===item.id?{...it,memo:e.target.value}:it);
-                      setContractItems(newItems);
+                      setContractItems(contractItems.map(it=>it.id===item.id?{...it,memo:e.target.value}:it));
                     }}
                     onBlur={e=>{
                       if(isReadOnly) return;
-                      const newItems = contractItems.map(it=>it.id===item.id?{...it,memo:e.target.value}:it);
-                      saveToSupabase(contracts,expenses,newItems,undefined);
+                      saveContractItems(contractItems.map(it=>it.id===item.id?{...it,memo:e.target.value}:it));
                     }}
                     style={{...inputSt,padding:"5px 8px",fontSize:12,opacity:isReadOnly?0.7:1}} />
                   {!isReadOnly && <button onClick={()=>{
-                    const newItems = contractItems.filter(it=>it.id!==item.id);
-                    setContractItems(newItems);
-                    saveToSupabase(contracts,expenses,newItems,undefined);
+                    saveContractItems(contractItems.filter(it=>it.id!==item.id));
                   }} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:16,padding:0,textAlign:"center"}}>×</button>}
                   {isReadOnly && <div/>}
                 </div>
