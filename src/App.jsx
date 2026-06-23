@@ -5068,13 +5068,13 @@ function AdsTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
 
   const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
   const [savedMsg, setSavedMsg] = useState("");
-  const [activeSection, setActiveSection] = useState("channels"); // channels | campaigns | creatives
-  const [showForm, setShowForm] = useState(false);
-  const [editIdx, setEditIdx] = useState(null);
+  const [expandedChannel, setExpandedChannel] = useState(null); // 펼쳐진 채널 id
+  const [showCampForm, setShowCampForm] = useState(false);
+  const [editCampId, setEditCampId] = useState(null);
 
   const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
 
-  // adsData: { [YYYY-MM]: { channels, campaigns, creatives } }
+  // adsData: { [YYYY-MM]: { channels, campaigns } }
   const adsData = hospital.adsData || {};
   const monthData = adsData[selMonth] || initData();
 
@@ -5084,44 +5084,30 @@ function AdsTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
     toast("저장 완료!");
   };
 
-  // 채널 데이터 업데이트
-  const updateChannel = (id, field, val) => {
-    const updated = { ...monthData, channels: monthData.channels.map(c => c.id===id ? {...c, [field]: Number(val)||0} : c) };
+  // 채널 데이터 업데이트 (한 번에 여러 필드)
+  const updateChannelAll = (id, fields) => {
+    const updated = { ...monthData, channels: monthData.channels.map(c => c.id===id ? {...c, ...fields} : c) };
     saveMonth(updated);
   };
 
-  // 캠페인 CRUD
-  const EMPTY_CAMP = { name:"", channel:"meta", budget:0, spend:0, inquiry:0, reservation:0, cpl:0, ctr:0, roas:0, memo:"" };
+  // 채널별 캠페인 CRUD
+  const EMPTY_CAMP = { id:null, name:"", budget:0, spend:0, impressions:0, clicks:0, inquiry:0, reservation:0, roas:0, memo:"" };
   const [campForm, setCampForm] = useState(EMPTY_CAMP);
 
-  const saveCampaign = () => {
+  const saveCampaign = (channelId) => {
     const camps = [...(monthData.campaigns||[])];
-    if (editIdx !== null) camps[editIdx] = { ...campForm, id: camps[editIdx].id };
-    else camps.push({ ...campForm, id: Date.now() });
+    if (editCampId) {
+      const idx = camps.findIndex(c=>c.id===editCampId);
+      if (idx !== -1) camps[idx] = { ...campForm, channel:channelId, id:editCampId };
+    } else {
+      camps.push({ ...campForm, channel:channelId, id:Date.now() });
+    }
     saveMonth({ ...monthData, campaigns: camps });
-    setCampForm(EMPTY_CAMP); setShowForm(false); setEditIdx(null);
+    setCampForm(EMPTY_CAMP); setShowCampForm(false); setEditCampId(null);
   };
 
-  const deleteCampaign = (idx) => {
-    const camps = (monthData.campaigns||[]).filter((_,i)=>i!==idx);
-    saveMonth({ ...monthData, campaigns: camps });
-  };
-
-  // 소재 CRUD
-  const EMPTY_CREATIVE = { name:"", channel:"meta", type:"이미지", impressions:0, clicks:0, saves:0, shares:0, ctr:0, inquiry:0, hook:"", memo:"" };
-  const [creativeForm, setCreativeForm] = useState(EMPTY_CREATIVE);
-
-  const saveCreative = () => {
-    const items = [...(monthData.creatives||[])];
-    if (editIdx !== null) items[editIdx] = { ...creativeForm, id: items[editIdx].id };
-    else items.push({ ...creativeForm, id: Date.now() });
-    saveMonth({ ...monthData, creatives: items });
-    setCreativeForm(EMPTY_CREATIVE); setShowForm(false); setEditIdx(null);
-  };
-
-  const deleteCreative = (idx) => {
-    const items = (monthData.creatives||[]).filter((_,i)=>i!==idx);
-    saveMonth({ ...monthData, creatives: items });
+  const deleteCampaign = (id) => {
+    saveMonth({ ...monthData, campaigns: (monthData.campaigns||[]).filter(c=>c.id!==id) });
   };
 
   const fmtN = (n) => (n||0).toLocaleString();
@@ -5132,15 +5118,6 @@ function AdsTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
   const totalInquiry = monthData.channels.reduce((s,c)=>s+(c.inquiry||0),0);
   const totalReservation = monthData.channels.reduce((s,c)=>s+(c.reservation||0),0);
   const avgCpl = totalInquiry > 0 ? Math.round(totalSpend/totalInquiry) : 0;
-
-  const SectionBtn = ({ id, label }) => (
-    <button onClick={()=>{setActiveSection(id);setShowForm(false);setEditIdx(null);}} style={{
-      background: activeSection===id ? hospital.color : "transparent",
-      border: `1px solid ${activeSection===id ? hospital.color : C.border}`,
-      color: activeSection===id ? "#0F172A" : C.muted,
-      borderRadius:8, padding:"6px 16px", fontSize:12, cursor:"pointer", fontWeight:700,
-    }}>{label}</button>
-  );
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
@@ -5175,251 +5152,204 @@ function AdsTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
         ))}
       </div>
 
-      {/* 섹션 탭 */}
-      <div style={{ display:"flex", gap:8 }}>
-        <SectionBtn id="channels" label="📣 채널별 성과" />
-        <SectionBtn id="campaigns" label="🎯 캠페인별 성과" />
-        <SectionBtn id="creatives" label="🎨 소재 분석" />
-      </div>
-
-      {/* 채널별 성과 */}
-      {activeSection === "channels" && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>채널별 광고 성과 · {selMonth}</div>
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-              <thead>
-                <tr>
-                  {["채널","예산(만)","소진(만)","소진율","노출","클릭","CTR","문의","CPL(만)","예약","ROAS"].map(h=>(
-                    <th key={h} style={{ color:C.muted, fontWeight:700, padding:"8px 10px", textAlign:"center", borderBottom:`2px solid ${C.border}`, whiteSpace:"nowrap" }}>{h}</th>
-                  ))}
-                  {!isReadOnly && <th style={{ color:C.muted, fontWeight:700, padding:"8px 10px", borderBottom:`2px solid ${C.border}` }}>입력</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {monthData.channels.map((ch,i) => {
-                  const info = AD_CHANNELS.find(a=>a.id===ch.id);
-                  const spendPct = ch.budget > 0 ? Math.round((ch.spend||0)/ch.budget*100) : 0;
-                  const ctr = ch.impressions > 0 ? ((ch.clicks||0)/ch.impressions*100).toFixed(2) : (ch.ctr||0);
-                  const cpl = ch.inquiry > 0 ? Math.round((ch.spend||0)/ch.inquiry) : (ch.cpl||0);
-                  return (
-                    <EditableChannelRow key={i} ch={ch} info={info} spendPct={spendPct} ctr={ctr} cpl={cpl}
-                      isReadOnly={isReadOnly} onUpdate={(field,val)=>updateChannel(ch.id, field, val)} C={C} inputSt={inputSt} />
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* 캠페인별 성과 */}
-      {activeSection === "campaigns" && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-            <div style={{ color:C.text, fontWeight:800, fontSize:14 }}>캠페인별 성과 · {selMonth}</div>
-            {!isReadOnly && <button onClick={()=>{setShowForm(!showForm);setEditIdx(null);setCampForm(EMPTY_CAMP);}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 16px", fontSize:12, cursor:"pointer", fontWeight:700 }}>+ 캠페인 추가</button>}
-          </div>
-
-          {showForm && (
-            <div style={{ background:"#F8FAFC", borderRadius:12, padding:16, marginBottom:16, border:`1px solid ${hospital.color}30` }}>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
-                <div>
-                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>캠페인명</label>
-                  <input value={campForm.name} onChange={e=>setCampForm(p=>({...p,name:e.target.value}))} placeholder="캠페인명" style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
-                </div>
-                <div>
-                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>채널</label>
-                  <select value={campForm.channel} onChange={e=>setCampForm(p=>({...p,channel:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, appearance:"none" }}>
-                    {AD_CHANNELS.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>예산(만원)</label>
-                  <input type="number" value={campForm.budget||""} onChange={e=>setCampForm(p=>({...p,budget:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
-                </div>
-                <div>
-                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>소진(만원)</label>
-                  <input type="number" value={campForm.spend||""} onChange={e=>setCampForm(p=>({...p,spend:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
-                </div>
-                <div>
-                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>문의수</label>
-                  <input type="number" value={campForm.inquiry||""} onChange={e=>setCampForm(p=>({...p,inquiry:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
-                </div>
-                <div>
-                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>예약수</label>
-                  <input type="number" value={campForm.reservation||""} onChange={e=>setCampForm(p=>({...p,reservation:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
-                </div>
-                <div>
-                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>CTR(%)</label>
-                  <input type="number" step="0.01" value={campForm.ctr||""} onChange={e=>setCampForm(p=>({...p,ctr:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
-                </div>
-                <div>
-                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>ROAS(%)</label>
-                  <input type="number" value={campForm.roas||""} onChange={e=>setCampForm(p=>({...p,roas:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
-                </div>
-                <div>
-                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>메모</label>
-                  <input value={campForm.memo||""} onChange={e=>setCampForm(p=>({...p,memo:e.target.value}))} placeholder="메모" style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
-                </div>
-              </div>
-              <div style={{ display:"flex", gap:8 }}>
-                <button onClick={saveCampaign} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"7px 18px", fontSize:12, cursor:"pointer", fontWeight:700 }}>저장</button>
-                <button onClick={()=>{setShowForm(false);setEditIdx(null);}} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer" }}>취소</button>
-              </div>
-            </div>
-          )}
-
-          {(monthData.campaigns||[]).length === 0 ? (
-            <div style={{ color:C.muted, textAlign:"center", padding:32, fontSize:13 }}>캠페인 데이터를 추가해주세요</div>
-          ) : (
-            <div style={{ overflowX:"auto" }}>
-              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                <thead>
-                  <tr>{["캠페인명","채널","예산(만)","소진(만)","문의","예약","CPL(만)","CTR(%)","ROAS(%)","메모",""].map(h=>(
-                    <th key={h} style={{ color:C.muted, fontWeight:700, padding:"8px 10px", textAlign:"center", borderBottom:`2px solid ${C.border}`, whiteSpace:"nowrap" }}>{h}</th>
-                  ))}</tr>
-                </thead>
-                <tbody>
-                  {(monthData.campaigns||[]).map((camp,i) => {
-                    const chInfo = AD_CHANNELS.find(a=>a.id===camp.channel);
-                    const cpl = camp.inquiry > 0 ? Math.round((camp.spend||0)/camp.inquiry) : (camp.cpl||0);
-                    return (
-                      <tr key={i}>
-                        <td style={{ padding:"8px 10px", fontWeight:700, color:C.text, borderBottom:`1px solid ${C.dim}` }}>{camp.name}</td>
-                        <td style={{ padding:"8px 10px", textAlign:"center", borderBottom:`1px solid ${C.dim}` }}>
-                          <span style={{ background:`${chInfo?.color||C.accent}20`, color:chInfo?.color||C.accent, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{chInfo?.label||camp.channel}</span>
-                        </td>
-                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{fmtN(camp.budget)}</td>
-                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{fmtN(camp.spend)}</td>
-                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.accent, fontWeight:700 }}>{fmtN(camp.inquiry)}</td>
-                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.green, fontWeight:700 }}>{fmtN(camp.reservation)}</td>
-                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.accent2 }}>{cpl > 0 ? fmtN(cpl) : "-"}</td>
-                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{camp.ctr > 0 ? camp.ctr+"%" : "-"}</td>
-                        <td style={{ padding:"8px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.green }}>{camp.roas > 0 ? camp.roas+"%" : "-"}</td>
-                        <td style={{ padding:"8px 10px", color:C.muted, fontSize:11, borderBottom:`1px solid ${C.dim}` }}>{camp.memo}</td>
-                        {!isReadOnly && <td style={{ padding:"8px 10px", borderBottom:`1px solid ${C.dim}`, textAlign:"center" }}>
-                          <button onClick={()=>{setCampForm(camp);setEditIdx(i);setShowForm(true);}} style={{ background:`${hospital.color}15`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", marginRight:4 }}>수정</button>
-                          <button onClick={()=>deleteCampaign(i)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>삭제</button>
-                        </td>}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 소재 분석 */}
-      {activeSection === "creatives" && (
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-            <div style={{ color:C.text, fontWeight:800, fontSize:14 }}>소재 분석 · {selMonth}</div>
-            {!isReadOnly && <button onClick={()=>{setShowForm(!showForm);setEditIdx(null);setCreativeForm(EMPTY_CREATIVE);}} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"6px 16px", fontSize:12, cursor:"pointer", fontWeight:700 }}>+ 소재 추가</button>}
-          </div>
-
-          {showForm && (
-            <div style={{ background:"#F8FAFC", borderRadius:12, padding:16, marginBottom:16, border:`1px solid ${hospital.color}30` }}>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
-                {[
-                  { label:"소재명", field:"name", type:"text", ph:"소재명" },
-                  { label:"채널", field:"channel", type:"select" },
-                  { label:"유형", field:"type", type:"select2" },
-                  { label:"노출수", field:"impressions", type:"number" },
-                  { label:"클릭수", field:"clicks", type:"number" },
-                  { label:"저장수", field:"saves", type:"number" },
-                  { label:"공유수", field:"shares", type:"number" },
-                  { label:"문의전환", field:"inquiry", type:"number" },
-                  { label:"성과 Hook", field:"hook", type:"text", ph:"성과 좋은 Hook 문구" },
-                ].map(f => (
-                  <div key={f.field}>
-                    <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>{f.label}</label>
-                    {f.type === "select" ? (
-                      <select value={creativeForm[f.field]||""} onChange={e=>setCreativeForm(p=>({...p,[f.field]:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, appearance:"none" }}>
-                        {AD_CHANNELS.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-                      </select>
-                    ) : f.type === "select2" ? (
-                      <select value={creativeForm[f.field]||""} onChange={e=>setCreativeForm(p=>({...p,[f.field]:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12, appearance:"none" }}>
-                        {["이미지","영상","릴스","카드뉴스","텍스트"].map(t=><option key={t}>{t}</option>)}
-                      </select>
-                    ) : (
-                      <input type={f.type} value={creativeForm[f.field]||""} onChange={e=>setCreativeForm(p=>({...p,[f.field]:f.type==="number"?+e.target.value:e.target.value}))} placeholder={f.ph||""} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} />
-                    )}
-                  </div>
+      {/* 섹션: 채널별 성과 + 아코디언 상세 */}
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>채널별 광고 성과 · {selMonth}</div>
+        <div style={{ overflowX:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+            <thead>
+              <tr>
+                {["채널","예산(만)","소진(만)","소진율","노출","클릭","CTR","문의","CPL(만)","예약","ROAS"].map(h=>(
+                  <th key={h} style={{ color:C.muted, fontWeight:700, padding:"8px 10px", textAlign:"center", borderBottom:`2px solid ${C.border}`, whiteSpace:"nowrap" }}>{h}</th>
                 ))}
-              </div>
-              <div style={{ display:"flex", gap:8 }}>
-                <button onClick={saveCreative} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"7px 18px", fontSize:12, cursor:"pointer", fontWeight:700 }}>저장</button>
-                <button onClick={()=>{setShowForm(false);setEditIdx(null);}} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer" }}>취소</button>
-              </div>
-            </div>
-          )}
-
-          {(monthData.creatives||[]).length === 0 ? (
-            <div style={{ color:C.muted, textAlign:"center", padding:32, fontSize:13 }}>소재 데이터를 추가해주세요</div>
-          ) : (
-            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-              {(monthData.creatives||[]).sort((a,b)=>(b.inquiry||0)-(a.inquiry||0)).map((cr,i) => {
-                const chInfo = AD_CHANNELS.find(a=>a.id===cr.channel);
-                const ctr = cr.impressions > 0 ? ((cr.clicks||0)/cr.impressions*100).toFixed(2) : 0;
+                {!isReadOnly && <th style={{ color:C.muted, fontWeight:700, padding:"8px 10px", borderBottom:`2px solid ${C.border}` }}>입력</th>}
+                <th style={{ color:C.muted, fontWeight:700, padding:"8px 10px", borderBottom:`2px solid ${C.border}` }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthData.channels.map((ch,i) => {
+                const info = AD_CHANNELS.find(a=>a.id===ch.id);
+                const spendPct = ch.budget > 0 ? Math.round((ch.spend||0)/ch.budget*100) : 0;
+                const ctr = ch.impressions > 0 ? ((ch.clicks||0)/ch.impressions*100).toFixed(2) : (ch.ctr||0);
+                const cpl = ch.inquiry > 0 ? Math.round((ch.spend||0)/ch.inquiry) : (ch.cpl||0);
+                const isOpen = expandedChannel === ch.id;
+                const chCamps = (monthData.campaigns||[]).filter(c=>c.channel===ch.id);
                 return (
-                  <div key={i} style={{ background:"#F8FAFC", borderRadius:12, padding:16, border:`1px solid ${C.border}` }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                        <span style={{ background:`${chInfo?.color||C.accent}20`, color:chInfo?.color||C.accent, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{chInfo?.label}</span>
-                        <span style={{ background:`${C.accent2}15`, color:C.accent2, borderRadius:5, padding:"2px 8px", fontSize:11 }}>{cr.type}</span>
-                        <span style={{ color:C.text, fontWeight:700, fontSize:13 }}>{cr.name}</span>
-                      </div>
-                      {!isReadOnly && (
-                        <div style={{ display:"flex", gap:6 }}>
-                          <button onClick={()=>{setCreativeForm(cr);setEditIdx(i);setShowForm(true);}} style={{ background:`${hospital.color}15`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>수정</button>
-                          <button onClick={()=>deleteCreative(i)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer" }}>삭제</button>
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:8 }}>
-                      {[
-                        { label:"노출", value:fmtN(cr.impressions), color:C.muted },
-                        { label:"클릭", value:fmtN(cr.clicks), color:C.accent },
-                        { label:"CTR", value:ctr+"%", color:C.yellow },
-                        { label:"저장", value:fmtN(cr.saves), color:C.green },
-                        { label:"공유", value:fmtN(cr.shares), color:C.accent2 },
-                        { label:"문의전환", value:fmtN(cr.inquiry), color:C.orange },
-                      ].map((s,j) => (
-                        <div key={j} style={{ background:C.surface, borderRadius:8, padding:"8px 10px", textAlign:"center" }}>
-                          <div style={{ color:s.color, fontSize:16, fontWeight:800 }}>{s.value}</div>
-                          <div style={{ color:C.muted, fontSize:10, marginTop:2 }}>{s.label}</div>
-                        </div>
-                      ))}
-                    </div>
-                    {cr.hook && (
-                      <div style={{ marginTop:10, background:`${hospital.color}10`, borderRadius:8, padding:"8px 12px" }}>
-                        <span style={{ color:C.muted, fontSize:11 }}>💡 성과 Hook: </span>
-                        <span style={{ color:hospital.color, fontSize:12, fontWeight:700 }}>{cr.hook}</span>
-                      </div>
+                  <>
+                    <EditableChannelRow key={ch.id} ch={ch} info={info} spendPct={spendPct} ctr={ctr} cpl={cpl}
+                      isReadOnly={isReadOnly} onUpdateAll={(fields)=>updateChannelAll(ch.id, fields)} C={C} inputSt={inputSt}
+                      isOpen={isOpen}
+                      onToggle={()=>{ setExpandedChannel(isOpen?null:ch.id); setShowCampForm(false); setEditCampId(null); setCampForm(EMPTY_CAMP); }}
+                      campCount={chCamps.length}
+                    />
+                    {isOpen && (
+                      <tr key={`detail-${ch.id}`}>
+                        <td colSpan={!isReadOnly?13:12} style={{ padding:0, borderBottom:`2px solid ${info?.color||C.accent}` }}>
+                          <div style={{ background:`${info?.color||C.accent}12`, borderLeft:`4px solid ${info?.color||C.accent}`, borderTop:`1px solid ${info?.color||C.accent}30` }}>
+                            {/* 상세 헤더 */}
+                            <div style={{ background:`${info?.color||C.accent}20`, padding:"10px 16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                              <span style={{ color:info?.color||C.accent, fontWeight:800, fontSize:13 }}>
+                                {info?.icon} {info?.label} 캠페인 상세
+                                {chCamps.length > 0 && <span style={{ background:`${info?.color||C.accent}30`, borderRadius:10, padding:"1px 8px", fontSize:11, marginLeft:8 }}>{chCamps.length}개</span>}
+                              </span>
+                              {!isReadOnly && <button onClick={()=>{ setCampForm({...EMPTY_CAMP}); setEditCampId(null); setShowCampForm(showCampForm?false:ch.id); }}
+                                style={{ background:info?.color||C.accent, border:"none", color:"#fff", borderRadius:6, padding:"4px 14px", fontSize:11, cursor:"pointer", fontWeight:700 }}>
+                                + 캠페인 추가
+                              </button>}
+                            </div>
+
+                            <div style={{ padding:"12px 16px" }}>
+
+                            {/* 캠페인 추가/수정 폼 */}
+                            {showCampForm === ch.id && !isReadOnly && (
+                              <div style={{ background:"#fff", borderRadius:10, padding:12, marginBottom:12, border:`1px solid ${C.dim}` }}>
+                                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))", gap:8, marginBottom:8 }}>
+                                  {[
+                                    { key:"name", label:"캠페인명", type:"text" },
+                                    { key:"budget", label:"예산(만)", type:"number" },
+                                    { key:"spend", label:"소진(만)", type:"number" },
+                                    { key:"impressions", label:"노출", type:"number" },
+                                    { key:"clicks", label:"클릭", type:"number" },
+                                    { key:"inquiry", label:"문의", type:"number" },
+                                    { key:"reservation", label:"예약", type:"number" },
+                                    { key:"roas", label:"ROAS(%)", type:"number" },
+                                  ].map(f=>(
+                                    <div key={f.key}>
+                                      <label style={{ color:C.muted, fontSize:10, display:"block", marginBottom:3 }}>{f.label}</label>
+                                      <input type={f.type} value={campForm[f.key]||""} onChange={e=>setCampForm(p=>({...p,[f.key]:f.type==="number"?+e.target.value:e.target.value}))}
+                                        placeholder={f.label} style={{ ...inputSt, padding:"4px 7px", fontSize:11 }} />
+                                    </div>
+                                  ))}
+                                  <div style={{ gridColumn:"1/-1" }}>
+                                    <label style={{ color:C.muted, fontSize:10, display:"block", marginBottom:3 }}>메모</label>
+                                    <input value={campForm.memo||""} onChange={e=>setCampForm(p=>({...p,memo:e.target.value}))} placeholder="메모" style={{ ...inputSt, padding:"4px 7px", fontSize:11 }} />
+                                  </div>
+                                </div>
+                                <div style={{ display:"flex", gap:6 }}>
+                                  <button onClick={()=>saveCampaign(ch.id)} style={{ background:info?.color||C.accent, border:"none", color:"#fff", borderRadius:6, padding:"4px 14px", fontSize:11, cursor:"pointer", fontWeight:700 }}>저장</button>
+                                  <button onClick={()=>{setShowCampForm(false);setEditCampId(null);setCampForm(EMPTY_CAMP);}} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer" }}>취소</button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 캠페인 테이블 */}
+                            {chCamps.length === 0 ? (
+                              <div style={{ color:C.muted, fontSize:11, textAlign:"center", padding:"10px 0" }}>등록된 캠페인이 없어요.</div>
+                            ) : (
+                              <div style={{ overflowX:"auto" }}>
+                                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                                  <thead>
+                                    <tr style={{ background:"#F8FAFC" }}>
+                                      {["캠페인명","예산(만)","소진(만)","소진율","노출","클릭","CTR","문의","CPL(만)","예약","ROAS","메모",!isReadOnly?"관리":""].map((h,i)=>(
+                                        <th key={i} style={{ color:C.muted, fontWeight:600, padding:"6px 10px", textAlign:"left", borderBottom:`1px solid ${C.dim}`, whiteSpace:"nowrap" }}>{h}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {chCamps.map(camp=>{
+                                      const campCtr = camp.impressions>0?((camp.clicks||0)/camp.impressions*100).toFixed(2):(camp.ctr||0);
+                                      const campCpl = camp.inquiry>0?Math.round((camp.spend||0)/camp.inquiry):(camp.cpl||0);
+                                      const campSpendPct = camp.budget>0?Math.round((camp.spend||0)/camp.budget*100):0;
+                                      const isEditing = editCampId === camp.id && showCampForm === ch.id;
+                                      return (
+                                        <tr key={camp.id} style={{ borderBottom:`1px solid ${C.dim}` }}>
+                                          {isEditing ? (
+                                            <>
+                                              {["name","budget","spend"].map(f=>(
+                                                <td key={f} style={{ padding:"4px 6px" }}>
+                                                  <input type={f==="name"?"text":"number"} value={campForm[f]||""} onChange={e=>setCampForm(p=>({...p,[f]:f==="name"?e.target.value:+e.target.value}))} style={{ ...inputSt, padding:"3px 5px", fontSize:10, width:70 }} />
+                                                </td>
+                                              ))}
+                                              <td style={{ padding:"4px 6px", color:C.muted, fontSize:10 }}>{campForm.budget>0?Math.round((campForm.spend||0)/campForm.budget*100)+"%":"-"}</td>
+                                              {["impressions","clicks"].map(f=>(
+                                                <td key={f} style={{ padding:"4px 6px" }}>
+                                                  <input type="number" value={campForm[f]||""} onChange={e=>setCampForm(p=>({...p,[f]:+e.target.value}))} style={{ ...inputSt, padding:"3px 5px", fontSize:10, width:70 }} />
+                                                </td>
+                                              ))}
+                                              <td style={{ padding:"4px 6px", color:C.muted, fontSize:10 }}>{campForm.impressions>0?((campForm.clicks||0)/campForm.impressions*100).toFixed(2)+"%":"-"}</td>
+                                              {["inquiry","reservation","roas"].map(f=>(
+                                                <td key={f} style={{ padding:"4px 6px" }}>
+                                                  <input type="number" value={campForm[f]||""} onChange={e=>setCampForm(p=>({...p,[f]:+e.target.value}))} style={{ ...inputSt, padding:"3px 5px", fontSize:10, width:60 }} />
+                                                </td>
+                                              ))}
+                                              <td style={{ padding:"4px 6px" }}>
+                                                <input value={campForm.memo||""} onChange={e=>setCampForm(p=>({...p,memo:e.target.value}))} style={{ ...inputSt, padding:"3px 5px", fontSize:10, width:80 }} />
+                                              </td>
+                                              <td style={{ padding:"4px 6px", whiteSpace:"nowrap" }}>
+                                                <button onClick={()=>saveCampaign(ch.id)} style={{ background:info?.color||C.accent, border:"none", color:"#fff", borderRadius:4, padding:"2px 8px", fontSize:10, cursor:"pointer", marginRight:3 }}>저장</button>
+                                                <button onClick={()=>{setEditCampId(null);setShowCampForm(false);setCampForm(EMPTY_CAMP);}} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:4, padding:"2px 6px", fontSize:10, cursor:"pointer" }}>취소</button>
+                                              </td>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <td style={{ padding:"6px 10px", fontWeight:600, color:C.text }}>{camp.name||"-"}</td>
+                                              <td style={{ padding:"6px 10px", textAlign:"right", color:C.muted }}>{fmtN(camp.budget)}</td>
+                                              <td style={{ padding:"6px 10px", textAlign:"right", color:C.muted }}>{fmtN(camp.spend)}</td>
+                                              <td style={{ padding:"6px 10px", textAlign:"center", color:C.muted }}>{campSpendPct}%</td>
+                                              <td style={{ padding:"6px 10px", textAlign:"right", color:C.muted }}>{fmtN(camp.impressions)}</td>
+                                              <td style={{ padding:"6px 10px", textAlign:"right", color:C.muted }}>{fmtN(camp.clicks)}</td>
+                                              <td style={{ padding:"6px 10px", textAlign:"right", color:C.yellow }}>{campCtr}%</td>
+                                              <td style={{ padding:"6px 10px", textAlign:"right", color:C.accent, fontWeight:700 }}>{fmtN(camp.inquiry)}</td>
+                                              <td style={{ padding:"6px 10px", textAlign:"right", color:C.accent2 }}>{campCpl>0?fmtN(campCpl):"-"}</td>
+                                              <td style={{ padding:"6px 10px", textAlign:"right", color:C.green }}>{fmtN(camp.reservation)}</td>
+                                              <td style={{ padding:"6px 10px", textAlign:"right", color:C.green, fontWeight:700 }}>{camp.roas>0?camp.roas+"%":"-"}</td>
+                                              <td style={{ padding:"6px 10px", color:C.muted }}>{camp.memo||"-"}</td>
+                                              {!isReadOnly && <td style={{ padding:"6px 10px", whiteSpace:"nowrap" }}>
+                                                <button onClick={()=>{ setEditCampId(camp.id); setCampForm({...camp}); setShowCampForm(ch.id); }}
+                                                  style={{ background:`${info?.color||C.accent}15`, border:`1px solid ${info?.color||C.accent}30`, color:info?.color||C.accent, borderRadius:4, padding:"2px 8px", fontSize:10, cursor:"pointer", marginRight:4 }}>수정</button>
+                                                <button onClick={()=>deleteCampaign(camp.id)}
+                                                  style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:4, padding:"2px 6px", fontSize:10, cursor:"pointer" }}>삭제</button>
+                                              </td>}
+                                            </>
+                                          )}
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>{/* padding div */}
+                          </div>{/* 상세 전체 div */}
+                        </td>
+                      </tr>
                     )}
-                  </div>
+                  </>
                 );
               })}
-            </div>
-          )}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
+
 // 채널별 인라인 편집 행
-function EditableChannelRow({ ch, info, spendPct, ctr, cpl, isReadOnly, onUpdate, C, inputSt }) {
+function EditableChannelRow({ ch, info, spendPct, ctr, cpl, isReadOnly, onUpdateAll, C, inputSt, isOpen, onToggle, campCount }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ budget:ch.budget||0, spend:ch.spend||0, impressions:ch.impressions||0, clicks:ch.clicks||0, inquiry:ch.inquiry||0, reservation:ch.reservation||0, roas:ch.roas||0 });
 
+  useEffect(() => {
+    setForm({ budget:ch.budget||0, spend:ch.spend||0, impressions:ch.impressions||0, clicks:ch.clicks||0, inquiry:ch.inquiry||0, reservation:ch.reservation||0, roas:ch.roas||0 });
+  }, [ch]);
+
   const save = () => {
-    Object.entries(form).forEach(([k,v]) => onUpdate(k, v));
+    onUpdateAll(form);
     setEditing(false);
   };
+
+  // 입력 필드 정의 (자동계산 제외)
+  const INPUT_FIELDS = [
+    { key:"budget",      label:"예산(만)" },
+    { key:"spend",       label:"소진(만)" },
+    { key:"impressions", label:"노출" },
+    { key:"clicks",      label:"클릭" },
+    { key:"inquiry",     label:"문의" },
+    { key:"reservation", label:"예약" },
+    { key:"roas",        label:"ROAS(%)" },
+  ];
 
   return (
     <tr style={{ background: editing ? `${info?.color||"#0EA5E9"}08` : "transparent" }}>
@@ -5429,39 +5359,76 @@ function EditableChannelRow({ ch, info, spendPct, ctr, cpl, isReadOnly, onUpdate
       </td>
       {editing ? (
         <>
-          {["budget","spend","impressions","clicks","inquiry","reservation","roas"].map(f => (
-            <td key={f} style={{ padding:"6px 8px", borderBottom:`1px solid ${C.dim}` }}>
+          {/* 예산/소진 */}
+          {["budget","spend"].map(f => (
+            <td key={f} style={{ padding:"6px 6px", borderBottom:`1px solid ${C.dim}` }}>
               <input type="number" value={form[f]||""} onChange={e=>setForm(p=>({...p,[f]:+e.target.value}))}
-                style={{ ...inputSt, padding:"4px 6px", fontSize:11, width:70, textAlign:"right" }} />
+                style={{ ...inputSt, padding:"4px 6px", fontSize:11, width:74, textAlign:"right" }} />
             </td>
           ))}
-          <td style={{ padding:"6px 8px", borderBottom:`1px solid ${C.dim}` }}>-</td>
-          <td style={{ padding:"6px 8px", borderBottom:`1px solid ${C.dim}` }}>-</td>
-          <td style={{ padding:"6px 8px", borderBottom:`1px solid ${C.dim}`, textAlign:"center" }}>
-            <button onClick={save} style={{ background:`${info?.color||"#0EA5E9"}`, border:"none", color:"#fff", borderRadius:5, padding:"3px 10px", fontSize:11, cursor:"pointer", marginRight:4 }}>저장</button>
-            <button onClick={()=>setEditing(false)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"3px 8px", fontSize:11, cursor:"pointer" }}>취소</button>
+          {/* 소진율 - 자동계산 */}
+          <td style={{ padding:"6px 6px", borderBottom:`1px solid ${C.dim}`, textAlign:"center", color:C.muted, fontSize:11 }}>
+            {form.budget > 0 ? Math.round((form.spend||0)/form.budget*100)+"%" : "-"}
           </td>
+          {/* 노출/클릭 */}
+          {["impressions","clicks"].map(f => (
+            <td key={f} style={{ padding:"6px 6px", borderBottom:`1px solid ${C.dim}` }}>
+              <input type="number" value={form[f]||""} onChange={e=>setForm(p=>({...p,[f]:+e.target.value}))}
+                style={{ ...inputSt, padding:"4px 6px", fontSize:11, width:74, textAlign:"right" }} />
+            </td>
+          ))}
+          {/* CTR - 자동계산 */}
+          <td style={{ padding:"6px 6px", borderBottom:`1px solid ${C.dim}`, textAlign:"center", color:C.muted, fontSize:11 }}>
+            {form.impressions > 0 ? ((form.clicks||0)/form.impressions*100).toFixed(2)+"%" : "-"}
+          </td>
+          {/* 문의 */}
+          <td style={{ padding:"6px 6px", borderBottom:`1px solid ${C.dim}` }}>
+            <input type="number" value={form.inquiry||""} onChange={e=>setForm(p=>({...p,inquiry:+e.target.value}))}
+              style={{ ...inputSt, padding:"4px 6px", fontSize:11, width:64, textAlign:"right" }} />
+          </td>
+          {/* CPL - 자동계산 */}
+          <td style={{ padding:"6px 6px", borderBottom:`1px solid ${C.dim}`, textAlign:"center", color:C.muted, fontSize:11 }}>
+            {form.inquiry > 0 ? Math.round((form.spend||0)/form.inquiry).toLocaleString() : "-"}
+          </td>
+          {/* 예약/ROAS */}
+          {["reservation","roas"].map(f => (
+            <td key={f} style={{ padding:"6px 6px", borderBottom:`1px solid ${C.dim}` }}>
+              <input type="number" value={form[f]||""} onChange={e=>setForm(p=>({...p,[f]:+e.target.value}))}
+                step={f==="roas"?"0.1":undefined}
+                style={{ ...inputSt, padding:"4px 6px", fontSize:11, width:64, textAlign:"right" }} />
+            </td>
+          ))}
+          <td style={{ padding:"6px 8px", borderBottom:`1px solid ${C.dim}`, textAlign:"center", whiteSpace:"nowrap" }}>
+            <button onClick={save} style={{ background:info?.color||"#0EA5E9", border:"none", color:"#fff", borderRadius:5, padding:"3px 10px", fontSize:11, cursor:"pointer", marginRight:4 }}>저장</button>
+            <button onClick={()=>{setEditing(false);setForm({ budget:ch.budget||0, spend:ch.spend||0, impressions:ch.impressions||0, clicks:ch.clicks||0, inquiry:ch.inquiry||0, reservation:ch.reservation||0, roas:ch.roas||0 });}} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"3px 8px", fontSize:11, cursor:"pointer" }}>취소</button>
+          </td>
+          <td style={{ borderBottom:`1px solid ${C.dim}` }} />
         </>
       ) : (
         <>
-          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{(ch.budget||0).toLocaleString()}</td>
-          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{(ch.spend||0).toLocaleString()}</td>
-          <td style={{ padding:"10px 12px", textAlign:"center", borderBottom:`1px solid ${C.dim}` }}>
-            <div style={{ background:C.dim, borderRadius:4, height:6, width:60, margin:"0 auto 3px" }}>
+          <td style={{ padding:"10px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{(ch.budget||0).toLocaleString()}</td>
+          <td style={{ padding:"10px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{(ch.spend||0).toLocaleString()}</td>
+          <td style={{ padding:"10px 10px", textAlign:"center", borderBottom:`1px solid ${C.dim}` }}>
+            <div style={{ background:C.dim, borderRadius:4, height:6, width:54, margin:"0 auto 3px" }}>
               <div style={{ width:`${Math.min(spendPct,100)}%`, height:"100%", background:info?.color||C.accent, borderRadius:4 }} />
             </div>
             <span style={{ fontSize:10, color:C.muted }}>{spendPct}%</span>
           </td>
-          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{(ch.impressions||0).toLocaleString()}</td>
-          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{(ch.clicks||0).toLocaleString()}</td>
-          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.yellow }}>{ctr}%</td>
-          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.accent, fontWeight:700 }}>{(ch.inquiry||0).toLocaleString()}</td>
-          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.accent2 }}>{cpl > 0 ? cpl.toLocaleString() : "-"}</td>
-          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.green }}>{(ch.reservation||0).toLocaleString()}</td>
-          <td style={{ padding:"10px 12px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.green, fontWeight:700 }}>{ch.roas > 0 ? ch.roas+"%" : "-"}</td>
-          {!isReadOnly && <td style={{ padding:"10px 12px", borderBottom:`1px solid ${C.dim}`, textAlign:"center" }}>
+          <td style={{ padding:"10px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{(ch.impressions||0).toLocaleString()}</td>
+          <td style={{ padding:"10px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}` }}>{(ch.clicks||0).toLocaleString()}</td>
+          <td style={{ padding:"10px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.yellow }}>{ctr}%</td>
+          <td style={{ padding:"10px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.accent, fontWeight:700 }}>{(ch.inquiry||0).toLocaleString()}</td>
+          <td style={{ padding:"10px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.accent2 }}>{cpl > 0 ? cpl.toLocaleString() : "-"}</td>
+          <td style={{ padding:"10px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.green }}>{(ch.reservation||0).toLocaleString()}</td>
+          <td style={{ padding:"10px 10px", textAlign:"right", borderBottom:`1px solid ${C.dim}`, color:C.green, fontWeight:700 }}>{ch.roas > 0 ? ch.roas+"%" : "-"}</td>
+          {!isReadOnly && <td style={{ padding:"10px 10px", borderBottom:`1px solid ${C.dim}`, textAlign:"center" }}>
             <button onClick={()=>setEditing(true)} style={{ background:`${info?.color||C.accent}15`, border:`1px solid ${info?.color||C.accent}30`, color:info?.color||C.accent, borderRadius:5, padding:"3px 10px", fontSize:10, cursor:"pointer" }}>입력</button>
           </td>}
+          <td style={{ padding:"10px 10px", borderBottom:`1px solid ${C.dim}`, textAlign:"center" }}>
+            <button onClick={onToggle} style={{ background:isOpen?`${info?.color||C.accent}15`:"transparent", border:`1px solid ${isOpen?info?.color||C.accent:C.dim}`, color:isOpen?info?.color||C.accent:C.muted, borderRadius:5, padding:"3px 10px", fontSize:10, cursor:"pointer", whiteSpace:"nowrap" }}>
+              {isOpen?"▲ 닫기":`▼ 상세${campCount>0?` (${campCount})`:""}` }
+            </button>
+          </td>
         </>
       )}
     </tr>
