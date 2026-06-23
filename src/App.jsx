@@ -3382,6 +3382,7 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
   const [contracts, setContracts] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [contractItemsMap, setContractItemsMap] = useState({}); // { [month]: [{id, category, count, memo}] }
+  const [extraExpenses, setExtraExpenses] = useState([]); // 추가 작업 내역 (금액 포함)
   const currentYm = new Date().toISOString().slice(0,7);
   const [selMonth, setSelMonth] = useState(currentYm);
   const [showContractForm, setShowContractForm] = useState(false);
