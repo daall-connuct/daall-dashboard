@@ -7493,20 +7493,17 @@ function AppInner() {
 
   const loadHospitals = async () => {
     try {
-      // schedule_data는 없을 수도 있으므로 별도로 처리
-      const [hospRes, monthlyRes, channelRes, contentRes, meetingRes] = await Promise.all([
+      // 6개 테이블 완전 병렬 로드 (schedule_data 에러는 개별 처리)
+      const [hospRes, monthlyRes, channelRes, contentRes, meetingRes, schedRes] = await Promise.all([
         supabase.from('hospitals').select('*'),
         supabase.from('monthly_data').select('*'),
         supabase.from('channel_data').select('*'),
         supabase.from('content_data').select('*'),
         supabase.from('meeting_data').select('*'),
+        supabase.from('schedule_data').select('*').eq('id', 1).single().catch(()=>({data:null})),
       ]);
 
-      // schedule_data는 실패해도 무시
-      try {
-        const schedRes = await supabase.from('schedule_data').select('*').eq('id', 1).single();
-        if (schedRes.data?.data) setGlobalSchedules(schedRes.data.data);
-      } catch(e) {}
+      if (schedRes.data?.data) setGlobalSchedules(schedRes.data.data);
 
       const hospRows = hospRes.data;
       const monthlyRows = monthlyRes.data || [];
@@ -7531,10 +7528,9 @@ function AppInner() {
             meetingData: meeting?.data || [],
             tabs: h.tabs ? h.tabs : DEFAULT_TABS,
           };
-        }).filter(h => h.id && h.name); // id와 name이 있는 것만 유효한 병원
+        }).filter(h => h.id && h.name);
         setHospitals(loaded);
       } else {
-        // DB가 비어있으면 초기 데이터로 시작 후 저장
         const initial = HOSPITALS_INIT.map(h => ({
           ...h,
           monthlyData: MONTHLY_INIT[h.id] || [],
@@ -7546,7 +7542,7 @@ function AppInner() {
         await saveAllToSupabase(initial, supabase);
       }
     } catch (err) {
-      console.error('DB 로드 실패, 로컬 데이터 사용:', err);
+      console.error('DB 로드 실패:', err);
       try {
         setHospitals(HOSPITALS_INIT.map(h => ({
           ...h,
@@ -7555,9 +7551,7 @@ function AppInner() {
           contentData: CONTENT_INIT[h.id] || [],
           meetingData: [],
         })));
-      } catch(e2) {
-        setHospitals([]);
-      }
+      } catch(e2) { setHospitals([]); }
     } finally {
       setLoading(false);
     }
