@@ -7515,25 +7515,23 @@ function AppInner() {
       const meetingRows = meetingRes.data || [];
 
       if (hospRows && hospRows.length > 0) {
-        // row.data가 null인 경우 방어
-        const loaded = hospRows
-          .filter(row => row.data)
-          .map(row => {
-            const h = row.data;
-            const hId = Number(h.id);
-            const monthly = monthlyRows.find(r => Number(r.hospital_id) === hId);
-            const channel = channelRows.find(r => Number(r.hospital_id) === hId);
-            const content = contentRows.find(r => Number(r.hospital_id) === hId);
-            const meeting = meetingRows.find(r => Number(r.hospital_id) === hId);
-            return {
-              ...h,
-              monthlyData: monthly?.data || [],
-              channelData: channel?.data || [],
-              contentData: content?.data || [],
-              meetingData: meeting?.data || [],
-              tabs: h.tabs ? h.tabs : DEFAULT_TABS,
-            };
-          });
+        const loaded = hospRows.map(row => {
+          const h = row.data || {};
+          const hId = Number(h.id || row.id);
+          const monthly = monthlyRows.find(r => Number(r.hospital_id) === hId);
+          const channel = channelRows.find(r => Number(r.hospital_id) === hId);
+          const content = contentRows.find(r => Number(r.hospital_id) === hId);
+          const meeting = meetingRows.find(r => Number(r.hospital_id) === hId);
+          return {
+            ...h,
+            id: hId,
+            monthlyData: monthly?.data || [],
+            channelData: channel?.data || [],
+            contentData: content?.data || [],
+            meetingData: meeting?.data || [],
+            tabs: h.tabs ? h.tabs : DEFAULT_TABS,
+          };
+        }).filter(h => h.id && h.name); // id와 name이 있는 것만 유효한 병원
         setHospitals(loaded);
       } else {
         // DB가 비어있으면 초기 데이터로 시작 후 저장
