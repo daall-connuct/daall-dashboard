@@ -7493,42 +7493,47 @@ function AppInner() {
 
   const loadHospitals = async () => {
     try {
-      // 모든 테이블 병렬 로드
-      const [hospRes, monthlyRes, channelRes, contentRes, meetingRes, schedRes] = await Promise.all([
+      // schedule_data는 없을 수도 있으므로 별도로 처리
+      const [hospRes, monthlyRes, channelRes, contentRes, meetingRes] = await Promise.all([
         supabase.from('hospitals').select('*'),
         supabase.from('monthly_data').select('*'),
         supabase.from('channel_data').select('*'),
         supabase.from('content_data').select('*'),
         supabase.from('meeting_data').select('*'),
-        supabase.from('schedule_data').select('*').eq('id', 1).single(),
       ]);
 
+      // schedule_data는 실패해도 무시
+      try {
+        const schedRes = await supabase.from('schedule_data').select('*').eq('id', 1).single();
+        if (schedRes.data?.data) setGlobalSchedules(schedRes.data.data);
+      } catch(e) {}
+
       const hospRows = hospRes.data;
-      const monthlyRows = monthlyRes.data;
-      const channelRows = channelRes.data;
-      const contentRows = contentRes.data;
-      const meetingRows = meetingRes.data;
-      if (schedRes.data?.data) setGlobalSchedules(schedRes.data.data);
+      const monthlyRows = monthlyRes.data || [];
+      const channelRows = channelRes.data || [];
+      const contentRows = contentRes.data || [];
+      const meetingRows = meetingRes.data || [];
 
       if (hospRows && hospRows.length > 0) {
-        // DB에 데이터가 있으면 불러오기
-        const loaded = hospRows.map(row => {
-          const h = row.data;
-          const hId = Number(h.id);
-          const monthly = monthlyRows?.find(r => Number(r.hospital_id) === hId);
-          const channel = channelRows?.find(r => Number(r.hospital_id) === hId);
-          const content = contentRows?.find(r => Number(r.hospital_id) === hId);
-          const meeting = meetingRows?.find(r => Number(r.hospital_id) === hId);
-          return {
-            ...h,
-            monthlyData: monthly?.data || [],
-            channelData: channel?.data || [],
-            contentData: content?.data || [],
-            meetingData: meeting?.data || [],
-            // 신규 탭은 아직 한번도 설정 안한 병원에만 추가 (기존 tabs가 있으면 유지)
-            tabs: h.tabs ? h.tabs : DEFAULT_TABS,
-          };
-        });
+        // row.data가 null인 경우 방어
+        const loaded = hospRows
+          .filter(row => row.data)
+          .map(row => {
+            const h = row.data;
+            const hId = Number(h.id);
+            const monthly = monthlyRows.find(r => Number(r.hospital_id) === hId);
+            const channel = channelRows.find(r => Number(r.hospital_id) === hId);
+            const content = contentRows.find(r => Number(r.hospital_id) === hId);
+            const meeting = meetingRows.find(r => Number(r.hospital_id) === hId);
+            return {
+              ...h,
+              monthlyData: monthly?.data || [],
+              channelData: channel?.data || [],
+              contentData: content?.data || [],
+              meetingData: meeting?.data || [],
+              tabs: h.tabs ? h.tabs : DEFAULT_TABS,
+            };
+          });
         setHospitals(loaded);
       } else {
         // DB가 비어있으면 초기 데이터로 시작 후 저장
@@ -7544,13 +7549,17 @@ function AppInner() {
       }
     } catch (err) {
       console.error('DB 로드 실패, 로컬 데이터 사용:', err);
-      setHospitals(HOSPITALS_INIT.map(h => ({
-        ...h,
-        monthlyData: MONTHLY_INIT[h.id] || [],
-        channelData: CHANNEL_INIT[h.id] || [],
-        contentData: CONTENT_INIT[h.id] || [],
-        meetingData: [],
-      })));
+      try {
+        setHospitals(HOSPITALS_INIT.map(h => ({
+          ...h,
+          monthlyData: MONTHLY_INIT[h.id] || [],
+          channelData: CHANNEL_INIT[h.id] || [],
+          contentData: CONTENT_INIT[h.id] || [],
+          meetingData: [],
+        })));
+      } catch(e2) {
+        setHospitals([]);
+      }
     } finally {
       setLoading(false);
     }
