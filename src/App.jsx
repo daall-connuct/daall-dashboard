@@ -7568,35 +7568,44 @@ function AppInner() {
     }
   };
 
-  const saveHospitalToSupabase = async (h) => {
+  const saveHospitalToSupabase = async (h, changedFields = null) => {
     try {
       const { monthlyData, channelData, contentData, meetingData, adsData, inflowData, brandingData, crmData, aiData, growData, aiQaData, onlineAssetData, ...hospData } = h;
-      await supabase.from('hospitals').upsert(
+
+      // 항상 저장: hospitals 테이블 (주요 데이터 포함)
+      const mainSave = supabase.from('hospitals').upsert(
         { id: h.id, data: { ...hospData, adsData:adsData||{}, inflowData:inflowData||{}, brandingData:brandingData||{}, crmData:crmData||{}, aiData:aiData||{}, growData:growData||{}, aiQaData:aiQaData||{questions:[],records:{}}, onlineAssetData:onlineAssetData||{} } },
         { onConflict: 'id' }
       );
-      await supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData || [] }, { onConflict: 'hospital_id' });
-      await supabase.from('channel_data').upsert({ hospital_id: h.id, data: channelData || [] }, { onConflict: 'hospital_id' });
-      await supabase.from('content_data').upsert({ hospital_id: h.id, data: contentData || [] }, { onConflict: 'hospital_id' });
-      await supabase.from('meeting_data').upsert({ hospital_id: h.id, data: meetingData || [] }, { onConflict: 'hospital_id' });
+
+      // 변경된 필드만 선택적으로 저장 (changedFields 없으면 전체 저장)
+      const saves = [mainSave];
+      if (!changedFields || changedFields.includes('monthlyData'))
+        saves.push(supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData || [] }, { onConflict: 'hospital_id' }));
+      if (!changedFields || changedFields.includes('channelData'))
+        saves.push(supabase.from('channel_data').upsert({ hospital_id: h.id, data: channelData || [] }, { onConflict: 'hospital_id' }));
+      if (!changedFields || changedFields.includes('contentData'))
+        saves.push(supabase.from('content_data').upsert({ hospital_id: h.id, data: contentData || [] }, { onConflict: 'hospital_id' }));
+      if (!changedFields || changedFields.includes('meetingData'))
+        saves.push(supabase.from('meeting_data').upsert({ hospital_id: h.id, data: meetingData || [] }, { onConflict: 'hospital_id' }));
+
+      // 병렬 저장 (순차 → 병렬로 변경하여 시간 단축)
+      await Promise.all(saves);
     } catch (err) {
       console.error('저장 실패:', err);
     }
   };
 
-  // 동시 다중 저장 방지: 병원별로 마지막 요청만 실행 (debounce 300ms)
+  // 동시 다중 저장 방지: debounce 2초 (300ms → 2000ms로 증가하여 DB 부하 대폭 감소)
   const saveTimers = useRef({});
-  const handleUpdateHospital = (updated) => {
-    // 로컬 state는 즉시 반영 (UI 끊김 없음)
+  const handleUpdateHospital = (updated, changedFields = null) => {
     setHospitals(prev => prev.map(h => h.id === updated.id ? updated : h));
     setSelectedId(updated.id);
-    // 같은 병원에 연속 저장 요청이 오면 마지막 것만 실제 저장
     if (saveTimers.current[updated.id]) clearTimeout(saveTimers.current[updated.id]);
     saveTimers.current[updated.id] = setTimeout(async () => {
-      await saveHospitalToSupabase(updated);
-      await logActivity("데이터 수정", updated.name, "병원 데이터 업데이트");
+      await saveHospitalToSupabase(updated, changedFields);
       delete saveTimers.current[updated.id];
-    }, 300);
+    }, 2000);
   };
 
   const handleAddHospital = async (form) => {
@@ -7607,11 +7616,9 @@ function AppInner() {
     };
     setHospitals(prev => [...prev, newHospital]);
     await saveHospitalToSupabase(newHospital);
-    await logActivity("병원 추가", form.name, "새 병원 등록");
   };
 
   const handleEditHospital = async (updated) => {
-    // setHospitals의 콜백에서 최신 h를 가져와 stale closure 버그 방지
     let fullUpdated = null;
     setHospitals(prev => {
       const next = prev.map(h => {
@@ -7621,12 +7628,8 @@ function AppInner() {
       });
       return next;
     });
-    // setTimeout으로 state 업데이트 후 저장 (fullUpdated가 세팅된 시점)
     setTimeout(async () => {
-      if (fullUpdated) {
-        await saveHospitalToSupabase(fullUpdated);
-        await logActivity("병원 정보 수정", updated.name, "병원 기본 정보 변경");
-      }
+      if (fullUpdated) await saveHospitalToSupabase(fullUpdated);
     }, 0);
   };
 
