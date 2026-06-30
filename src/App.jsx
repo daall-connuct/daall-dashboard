@@ -7634,15 +7634,19 @@ function AppInner() {
   };
 
   const handleDeleteHospital = async (id) => {
-    const hospital = hospitals.find(h => h.id === id);
     setHospitals(prev => prev.filter(h => h.id !== id));
     try {
-      await supabase.from('hospitals').delete().eq('id', id);
-      await supabase.from('monthly_data').delete().eq('hospital_id', id);
-      await supabase.from('channel_data').delete().eq('hospital_id', id);
-      await supabase.from('content_data').delete().eq('hospital_id', id);
-      await supabase.from('meeting_data').delete().eq('hospital_id', id);
-      await logActivity("병원 삭제", hospital?.name || "", "병원 완전 삭제");
+      // 병원과 관련된 모든 테이블에서 데이터 완전 삭제 (병렬 처리)
+      await Promise.all([
+        supabase.from('hospitals').delete().eq('id', id),
+        supabase.from('monthly_data').delete().eq('hospital_id', id),
+        supabase.from('channel_data').delete().eq('hospital_id', id),
+        supabase.from('content_data').delete().eq('hospital_id', id),
+        supabase.from('meeting_data').delete().eq('hospital_id', id),
+        supabase.from('cost_data').delete().eq('hospital_id', id),
+        supabase.from('keyword_data').delete().eq('hospital_id', id),
+        supabase.from('patient_data').delete().eq('hospital_id', id),
+      ]);
     } catch (err) {
       console.error('삭제 실패:', err);
     }
