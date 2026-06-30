@@ -3,8 +3,8 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { BrowserRouter, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(
-  'https://jfausjwfxpturkkmmyrd.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmYXVzandmeHB0dXJra21teXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MDE1NzksImV4cCI6MjA4OTQ3NzU3OX0.PofOLAP6nT7NZ8pWM5xNaEq6T-yCNzNThz36IgynOfM'
+  'https://bvzvbplqqyxdepaxxoig.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2enZicGxxcXl4ZGVwYXh4b2lnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4Mjc2OTQsImV4cCI6MjA5ODQwMzY5NH0.VyCBjWgsB3eyrfGjHM6-zm6JKLIvEvYdWrf8Q10ttg8'
 );
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 
