@@ -2359,7 +2359,6 @@ function PatientTab({ hospital }) {
       : [...records, formData].sort((a,b)=>b.month>a.month?1:-1);
     setRecords(newRecords);
     saveToSupabase(newRecords);
-    logActivity("환자유입 저장", hospital.name, formData.month);
     setSelMonth(formData.month); setShowForm(false); toast("저장 완료!");
   };
 
@@ -2536,12 +2535,7 @@ function PatientTab({ hospital }) {
 }
 
 // ─── 전역 활동 로그 함수 ──────────────────────────────────────
-const logActivity = async (action, hospitalName = "", detail = "") => {
-  try {
-    const actor = sessionStorage.getItem("daall_actor") || "알 수 없음";
-    await supabase.from('activity_log').insert({ actor, hospital_name: hospitalName, action, detail });
-  } catch(e) {}
-};
+
 
 function KeywordRankTab({ hospital, isAdmin, onDataLoad, onSelMonthChange, isReadOnly }) {
   const [keywords, setKeywords] = useState([]);
@@ -2688,7 +2682,6 @@ function KeywordRankTab({ hospital, isAdmin, onDataLoad, onSelMonthChange, isRea
       const newData = [...kept, ...parsed];
       setKeywords(newData);
       saveKeywords(newData);
-      logActivity("키워드 업로드", hospital.name, `${parsed.length}개 키워드`);
       if (uploadedMonths.length > 0) setSelMonth(uploadedMonths[0]);
       toast(`${parsed.length}개 키워드 업로드 완료!`);
     };
