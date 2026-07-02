@@ -272,7 +272,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   const [mainTab, setMainTab]       = useState("hospitals");
   const [searchQ, setSearchQ]       = useState("");
 
-  const [adminAccounts, setAdminAccounts] = useState([{ id:1, name:"임지혜", password:"Daall" }]);
+  const [adminAccounts, setAdminAccounts] = useState([]);
   const [showAccountMgmt, setShowAccountMgmt] = useState(false);
   const [newAccount, setNewAccount] = useState({ name:"", password:"", role:"중간관리자" });
   const [resetConfirmId, setResetConfirmId] = useState(null);
@@ -283,8 +283,17 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
     const load = async () => {
       try {
         const { data } = await supabase.from('admin_accounts').select('*').eq('id', 1).single();
-        if (data?.data?.length > 0) setAdminAccounts(data.data);
-      } catch(e) {}
+        if (data?.data?.length > 0) {
+          setAdminAccounts(data.data);
+        } else {
+          // DB에 계정이 없으면 기본 계정 생성 후 저장
+          const defaults = [{ id:1, name:"임지혜", password:"Daall", role:"최고관리자" }];
+          setAdminAccounts(defaults);
+          await supabase.from('admin_accounts').upsert({ id:1, data:defaults }, { onConflict:'id' });
+        }
+      } catch(e) {
+        setAdminAccounts([{ id:1, name:"임지혜", password:"Daall", role:"최고관리자" }]);
+      }
     };
     load();
   }, []);
