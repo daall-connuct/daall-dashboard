@@ -7497,15 +7497,17 @@ function AppInner() {
 
   const loadHospitals = async () => {
     try {
-      // 6개 테이블 완전 병렬 로드 (schedule_data 에러는 개별 처리)
       const [hospRes, monthlyRes, channelRes, contentRes, meetingRes, schedRes] = await Promise.all([
         supabase.from('hospitals').select('*'),
         supabase.from('monthly_data').select('*'),
         supabase.from('channel_data').select('*'),
         supabase.from('content_data').select('*'),
         supabase.from('meeting_data').select('*'),
-        supabase.from('schedule_data').select('*').eq('id', 1).single().catch(()=>({data:null})),
+        (async () => { try { return await supabase.from('schedule_data').select('*').eq('id', 1).single(); } catch(e) { return {data:null}; } })(),
       ]);
+
+      console.log('[loadHospitals] hospRes:', hospRes);
+      console.log('[loadHospitals] hospRows count:', hospRes.data?.length);
 
       if (schedRes.data?.data) setGlobalSchedules(schedRes.data.data);
 
@@ -7532,13 +7534,13 @@ function AppInner() {
             meetingData: meeting?.data || [],
             tabs: h.tabs ? h.tabs : DEFAULT_TABS,
           };
-        }).filter(h => h.id); // name 조건 제거 — id만 있으면 유효
+        }).filter(h => h.id);
+        console.log('[loadHospitals] loaded count:', loaded.length, loaded.map(h=>h.name));
         if (loaded.length > 0) {
           setHospitals(loaded);
         }
-        // loaded가 빈 배열이어도 기존 데이터 덮어쓰지 않음
       } else {
-        // DB에 hospitals 테이블 자체가 비어있을 때만 초기 데이터로 시작
+        console.log('[loadHospitals] DB 비어있음 → 초기 데이터로 시작');
         const initial = HOSPITALS_INIT.map(h => ({
           ...h,
           monthlyData: MONTHLY_INIT[h.id] || [],
