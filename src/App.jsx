@@ -299,8 +299,10 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
   }, []);
 
   const saveAdminAccounts = async (accounts) => {
-    try { await supabase.from('admin_accounts').upsert({ id:1, data:accounts }, { onConflict:'id' }); }
-    catch(e) {}
+    try {
+      const { error } = await supabase.from('admin_accounts').upsert({ id:1, data:accounts }, { onConflict:'id' });
+      if (error) console.error('계정 저장 실패:', error);
+    } catch(e) { console.error('계정 저장 예외:', e); }
   };
 
   const handleAddAccount = () => {
@@ -7530,9 +7532,13 @@ function AppInner() {
             meetingData: meeting?.data || [],
             tabs: h.tabs ? h.tabs : DEFAULT_TABS,
           };
-        }).filter(h => h.id && h.name);
-        setHospitals(loaded);
+        }).filter(h => h.id); // name 조건 제거 — id만 있으면 유효
+        if (loaded.length > 0) {
+          setHospitals(loaded);
+        }
+        // loaded가 빈 배열이어도 기존 데이터 덮어쓰지 않음
       } else {
+        // DB에 hospitals 테이블 자체가 비어있을 때만 초기 데이터로 시작
         const initial = HOSPITALS_INIT.map(h => ({
           ...h,
           monthlyData: MONTHLY_INIT[h.id] || [],
