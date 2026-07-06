@@ -237,6 +237,7 @@ const ALL_TABS = [
   { id:"cs",         label:"CS 관리",     category:"operation", required:false, defaultOn:false },
   { id:"sop",        label:"SOP 관리",    category:"operation", required:false, defaultOn:false },
   { id:"biz",        label:"경영 지표",    category:"operation", required:false, defaultOn:false },
+  { id:"clinicperf", label:"진료 성과",    category:"operation", required:false, defaultOn:false },
 ];
 const DEFAULT_TABS = ALL_TABS.filter(t => t.required || t.defaultOn).map(t => t.id);
 // 카테고리별 산하 탭 id 목록
@@ -5051,6 +5052,7 @@ new Chart(document.getElementById('costChart'), {
         {tab === "cs" && <CsManageTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
         {tab === "sop" && <SopTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
         {tab === "biz" && <BizTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
+        {tab === "clinicperf" && <ClinicPerfTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
         {tab === "ai" && <AiSearchTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
         {tab === "growreport" && <GrowReportTab hospital={hospital} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdateHospital={onUpdateHospital} />}
 
@@ -6606,6 +6608,219 @@ function BizTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ─── 진료 성과 탭 ─────────────────────────────────────────────
+function ClinicPerfTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
+  const perfData = hospital.clinicPerfData || {};
+  const [selMonth, setSelMonth] = useState(new Date().toISOString().slice(0,7));
+  const [savedMsg, setSavedMsg] = useState("");
+  const [activeSection, setActiveSection] = useState("disease"); // disease | consultant | doctor
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ name:"", revenue:0, count:0, memo:"" });
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  const toast = (msg) => { setSavedMsg(msg); setTimeout(()=>setSavedMsg(""),2000); };
+
+  const availMonths = useMemo(() => {
+    const months = [];
+    const now = new Date();
+    for (let i = -3; i <= 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+    }
+    return months.sort().reverse();
+  }, []);
+
+  const monthData = perfData[selMonth] || { disease:[], consultant:[], doctor:[] };
+  const sectionData = monthData[activeSection] || [];
+
+  const saveData = (section, items) => {
+    const newMonthData = { ...monthData, [section]: items };
+    const newPerfData = { ...perfData, [selMonth]: newMonthData };
+    onUpdateHospital({ ...hospital, clinicPerfData: newPerfData });
+    toast("저장 완료!");
+  };
+
+  const handleSave = () => {
+    if (!form.name.trim()) return;
+    let items;
+    if (editId) {
+      items = sectionData.map(i => i.id === editId ? { ...form, id: editId } : i);
+      setEditId(null);
+    } else {
+      items = [...sectionData, { ...form, id: Date.now(), revenue: +form.revenue||0, count: +form.count||0 }];
+    }
+    saveData(activeSection, items);
+    setForm({ name:"", revenue:0, count:0, memo:"" });
+    setShowForm(false);
+  };
+
+  const handleEdit = (item) => {
+    setEditId(item.id);
+    setForm({ name:item.name, revenue:item.revenue||0, count:item.count||0, memo:item.memo||"" });
+    setShowForm(true);
+  };
+
+  const handleDelete = (id) => {
+    saveData(activeSection, sectionData.filter(i => i.id !== id));
+    setDeleteConfirm(null);
+  };
+
+  const totalRevenue = sectionData.reduce((s, i) => s + (+i.revenue||0), 0);
+  const totalCount = sectionData.reduce((s, i) => s + (+i.count||0), 0);
+
+  const SECTIONS = [
+    { id:"disease",    label:"질환/시술별",  icon:"💊" },
+    { id:"consultant", label:"상담실장별",   icon:"👩‍💼" },
+    { id:"doctor",     label:"원장별",       icon:"👨‍⚕️" },
+  ];
+
+  const SECTION_LABELS = {
+    disease:    { name:"질환/시술명", namePh:"예: 보톡스, 피부재생, 도수치료" },
+    consultant: { name:"상담실장명", namePh:"예: 김지영 실장" },
+    doctor:     { name:"원장명",     namePh:"예: 박원장" },
+  };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <Toast msg={savedMsg} />
+
+      {/* 월 선택 */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ color:C.muted, fontSize:13 }}>조회 월:</span>
+          <YearMonthSelector availMonths={availMonths} selMonth={selMonth} setSelMonth={m=>{ setSelMonth(m); setShowForm(false); setEditId(null); }} color={hospital.color} />
+        </div>
+        {!isReadOnly && (
+          <button onClick={()=>{ setShowForm(!showForm); setEditId(null); setForm({ name:"", revenue:0, count:0, memo:"" }); }}
+            style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:9, padding:"8px 16px", fontSize:12, cursor:"pointer", fontWeight:700 }}>
+            + 항목 추가
+          </button>
+        )}
+      </div>
+
+      {/* 섹션 탭 */}
+      <div style={{ display:"flex", gap:8 }}>
+        {SECTIONS.map(s => (
+          <button key={s.id} onClick={()=>{ setActiveSection(s.id); setShowForm(false); setEditId(null); setForm({ name:"", revenue:0, count:0, memo:"" }); }} style={{
+            background: activeSection===s.id ? `${hospital.color}20` : "transparent",
+            border: `1px solid ${activeSection===s.id ? hospital.color : C.border}`,
+            color: activeSection===s.id ? hospital.color : C.muted,
+            borderRadius:9, padding:"7px 18px", fontSize:13, cursor:"pointer", fontWeight:700,
+          }}>{s.icon} {s.label}</button>
+        ))}
+      </div>
+
+      {/* KPI 요약 */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+        <KPICard label={`${SECTIONS.find(s=>s.id===activeSection)?.label} 총 매출`} value={(totalRevenue||0).toLocaleString()} unit="원" color={hospital.color} />
+        <KPICard label="총 건수" value={(totalCount||0).toLocaleString()} unit="건" color={C.accent2} />
+        <KPICard label="항목 수" value={sectionData.length} unit="개" color={C.green} />
+      </div>
+
+      {/* 입력 폼 */}
+      {showForm && !isReadOnly && (
+        <div style={{ background:"#F8FAFC", border:`1px solid ${hospital.color}30`, borderRadius:14, padding:20 }}>
+          <div style={{ color:hospital.color, fontWeight:700, fontSize:13, marginBottom:14 }}>
+            {editId ? "항목 수정" : `${SECTIONS.find(s=>s.id===activeSection)?.label} 추가`}
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:12, marginBottom:14 }}>
+            <div>
+              <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>{SECTION_LABELS[activeSection].name} *</label>
+              <input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))}
+                placeholder={SECTION_LABELS[activeSection].namePh}
+                style={inputSt} />
+            </div>
+            <div>
+              <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>매출 (원)</label>
+              <input type="number" value={form.revenue||""} onChange={e=>setForm(p=>({...p,revenue:+e.target.value}))}
+                placeholder="0" style={inputSt} />
+            </div>
+            <div>
+              <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>건수</label>
+              <input type="number" value={form.count||""} onChange={e=>setForm(p=>({...p,count:+e.target.value}))}
+                placeholder="0" style={inputSt} />
+            </div>
+            <div>
+              <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>메모</label>
+              <input value={form.memo||""} onChange={e=>setForm(p=>({...p,memo:e.target.value}))}
+                placeholder="특이사항 (선택)" style={inputSt} />
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={handleSave} style={{ background:`linear-gradient(135deg,${hospital.color},${C.accent2})`, border:"none", color:"#0F172A", borderRadius:8, padding:"8px 20px", fontSize:12, cursor:"pointer", fontWeight:700 }}>{editId?"수정 완료":"저장"}</button>
+            <button onClick={()=>{ setShowForm(false); setEditId(null); }} style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer" }}>취소</button>
+          </div>
+        </div>
+      )}
+
+      {/* 데이터 테이블 */}
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:22 }}>
+        <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>
+          {selMonth.slice(5)}월 {SECTIONS.find(s=>s.id===activeSection)?.label} 성과
+        </div>
+        <div style={{ overflowX:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+            <thead>
+              <tr>
+                {[SECTION_LABELS[activeSection].name, "매출 (원)", "건수", "건당 매출", "메모", !isReadOnly?"관리":""].map((h,i) => (
+                  <th key={i} style={{ color:C.muted, fontWeight:700, padding:"8px 12px", textAlign: i>=1&&i<=3?"right":"left", borderBottom:`2px solid ${C.border}`, whiteSpace:"nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sectionData.length === 0 ? (
+                <tr><td colSpan={!isReadOnly?6:5} style={{ padding:"32px", textAlign:"center", color:C.muted }}>데이터가 없어요. 항목을 추가해주세요.</td></tr>
+              ) : (
+                [...sectionData].sort((a,b) => (+b.revenue||0) - (+a.revenue||0)).map(item => {
+                  const perCase = item.count > 0 ? Math.round((+item.revenue||0) / item.count) : 0;
+                  const pct = totalRevenue > 0 ? Math.round((+item.revenue||0)/totalRevenue*100) : 0;
+                  return (
+                    <tr key={item.id} style={{ borderBottom:`1px solid ${C.dim}` }}
+                      onMouseEnter={e=>e.currentTarget.style.background=`${hospital.color}06`}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <td style={{ padding:"10px 12px", fontWeight:600, color:C.text }}>
+                        {item.name}
+                        {pct > 0 && <span style={{ marginLeft:8, background:`${hospital.color}15`, color:hospital.color, borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700 }}>{pct}%</span>}
+                      </td>
+                      <td style={{ padding:"10px 12px", textAlign:"right", color:hospital.color, fontWeight:700 }}>{(+item.revenue||0).toLocaleString()}</td>
+                      <td style={{ padding:"10px 12px", textAlign:"right", color:C.muted }}>{(+item.count||0).toLocaleString()}건</td>
+                      <td style={{ padding:"10px 12px", textAlign:"right", color:C.accent2 }}>{perCase > 0 ? perCase.toLocaleString() : "-"}</td>
+                      <td style={{ padding:"10px 12px", color:C.muted }}>{item.memo||"-"}</td>
+                      {!isReadOnly && (
+                        <td style={{ padding:"10px 12px", whiteSpace:"nowrap" }}>
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button onClick={()=>handleEdit(item)} style={{ background:`${hospital.color}15`, border:`1px solid ${hospital.color}30`, color:hospital.color, borderRadius:5, padding:"3px 10px", fontSize:11, cursor:"pointer" }}>수정</button>
+                            {deleteConfirm===item.id
+                              ? <button onClick={()=>handleDelete(item.id)} style={{ background:`${C.red}20`, border:`1px solid ${C.red}`, color:C.red, borderRadius:5, padding:"3px 10px", fontSize:11, cursor:"pointer", fontWeight:700 }}>확인</button>
+                              : <button onClick={()=>setDeleteConfirm(item.id)} style={{ background:"transparent", border:`1px solid ${C.dim}`, color:C.muted, borderRadius:5, padding:"3px 10px", fontSize:11, cursor:"pointer" }}>삭제</button>
+                            }
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+            {sectionData.length > 0 && (
+              <tfoot>
+                <tr style={{ borderTop:`2px solid ${C.border}`, background:"#F8FAFC" }}>
+                  <td style={{ padding:"10px 12px", fontWeight:700, color:C.text }}>합계</td>
+                  <td style={{ padding:"10px 12px", textAlign:"right", color:hospital.color, fontWeight:900, fontSize:13 }}>{totalRevenue.toLocaleString()}</td>
+                  <td style={{ padding:"10px 12px", textAlign:"right", color:C.muted, fontWeight:700 }}>{totalCount.toLocaleString()}건</td>
+                  <td style={{ padding:"10px 12px", textAlign:"right", color:C.accent2 }}>{totalCount > 0 ? Math.round(totalRevenue/totalCount).toLocaleString() : "-"}</td>
+                  <td />{!isReadOnly && <td />}
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
