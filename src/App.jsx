@@ -6794,6 +6794,48 @@ function ClinicPerfTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
         </div>
       )}
 
+      {/* 전월 비교 차트 */}
+      {sectionData.length > 0 && (
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+          {/* 매출 비교 차트 */}
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+            <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:12 }}>📊 매출 비교 (전월 vs 이번달)</div>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={[...sectionData].sort((a,b)=>(+b.revenue||0)-(+a.revenue||0)).map(item => {
+                const prev = prevSectionData.find(p => p.name === item.name);
+                return { name: item.name, 이번달: +item.revenue||0, 전월: prev ? +prev.revenue||0 : 0 };
+              })} margin={{ top:5, right:10, left:0, bottom:30 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.dim} />
+                <XAxis dataKey="name" tick={{ fontSize:10, fill:C.muted }} angle={-20} textAnchor="end" />
+                <YAxis tick={{ fontSize:10, fill:C.muted }} tickFormatter={v=>v>=10000?(v/10000)+'만':v} />
+                <Tooltip formatter={(v,n)=>[v.toLocaleString()+'원', n]} />
+                <Legend wrapperStyle={{ fontSize:11 }} />
+                <Bar dataKey="전월" fill={C.dim} radius={[4,4,0,0]} />
+                <Bar dataKey="이번달" fill={hospital.color} radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          {/* 건수 비교 차트 */}
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+            <div style={{ color:C.text, fontWeight:700, fontSize:13, marginBottom:12 }}>📋 건수 비교 (전월 vs 이번달)</div>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={[...sectionData].sort((a,b)=>(+b.count||0)-(+a.count||0)).map(item => {
+                const prev = prevSectionData.find(p => p.name === item.name);
+                return { name: item.name, 이번달: +item.count||0, 전월: prev ? +prev.count||0 : 0 };
+              })} margin={{ top:5, right:10, left:0, bottom:30 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.dim} />
+                <XAxis dataKey="name" tick={{ fontSize:10, fill:C.muted }} angle={-20} textAnchor="end" />
+                <YAxis tick={{ fontSize:10, fill:C.muted }} />
+                <Tooltip formatter={(v,n)=>[v.toLocaleString()+'건', n]} />
+                <Legend wrapperStyle={{ fontSize:11 }} />
+                <Bar dataKey="전월" fill={C.dim} radius={[4,4,0,0]} />
+                <Bar dataKey="이번달" fill={C.accent2} radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
       {/* 데이터 테이블 */}
       <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:22 }}>
         <div style={{ color:C.text, fontWeight:800, fontSize:14, marginBottom:16 }}>
@@ -6803,8 +6845,8 @@ function ClinicPerfTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
             <thead>
               <tr>
-                {[SECTION_LABELS[activeSection].name, "매출 (원)", "전월 대비", "건수", "건당 매출", "메모", !isReadOnly?"관리":""].map((h,i) => (
-                  <th key={i} style={{ color:C.muted, fontWeight:700, padding:"8px 12px", textAlign: i>=1&&i<=3?"right":"left", borderBottom:`2px solid ${C.border}`, whiteSpace:"nowrap" }}>{h}</th>
+                {[SECTION_LABELS[activeSection].name, "매출 (원)", "매출 전월", "건수", "건수 전월", "건당 매출", "메모", !isReadOnly?"관리":""].map((h,i) => (
+                  <th key={i} style={{ color:C.muted, fontWeight:700, padding:"8px 12px", textAlign: i>=1&&i<=5?"right":"left", borderBottom:`2px solid ${C.border}`, whiteSpace:"nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -6836,6 +6878,17 @@ function ClinicPerfTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
                         })()}
                       </td>
                       <td style={{ padding:"10px 12px", textAlign:"right", color:C.muted }}>{(+item.count||0).toLocaleString()}건</td>
+                      <td style={{ padding:"10px 12px", textAlign:"right" }}>
+                        {(() => {
+                          const prev = prevSectionData.find(p => p.name === item.name);
+                          if (!prev) return <span style={{ color:C.muted, fontSize:11 }}>-</span>;
+                          const diff = (+item.count||0) - (+prev.count||0);
+                          const diffPct = prev.count > 0 ? Math.round(diff/prev.count*100) : 0;
+                          return <span style={{ color:diff>0?C.green:diff<0?C.red:C.muted, fontWeight:700, fontSize:11 }}>
+                            {diff>0?"▲":"▼"} {Math.abs(diff)}건 ({Math.abs(diffPct)}%)
+                          </span>;
+                        })()}
+                      </td>
                       <td style={{ padding:"10px 12px", textAlign:"right", color:C.accent2 }}>{perCase > 0 ? perCase.toLocaleString() : "-"}</td>
                       <td style={{ padding:"10px 12px", color:C.muted }}>{item.memo||"-"}</td>
                       {!isReadOnly && (
@@ -6867,6 +6920,13 @@ function ClinicPerfTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
                     })()}
                   </td>
                   <td style={{ padding:"10px 12px", textAlign:"right", color:C.muted, fontWeight:700 }}>{totalCount.toLocaleString()}건</td>
+                  <td style={{ padding:"10px 12px", textAlign:"right" }}>
+                    {prevTotalCount > 0 && (() => {
+                      const diff = totalCount - prevTotalCount;
+                      const pct = Math.round(diff/prevTotalCount*100);
+                      return <span style={{ color:diff>0?C.green:diff<0?C.red:C.muted, fontWeight:700, fontSize:11 }}>{diff>0?"▲":"▼"} {Math.abs(pct)}%</span>;
+                    })()}
+                  </td>
                   <td style={{ padding:"10px 12px", textAlign:"right", color:C.accent2 }}>{totalCount > 0 ? Math.round(totalRevenue/totalCount).toLocaleString() : "-"}</td>
                   <td />{!isReadOnly && <td />}
                 </tr>
