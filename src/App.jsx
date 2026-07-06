@@ -523,9 +523,9 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
                 {[
                   { label:"총 문의", value:fmt(allKpi.inquiry)+"건", color:C.accent },
                   { label:"총 신환", value:fmt(allKpi.newPatient)+"명", color:hospital_color_fallback },
-                  { label:"총 매출", value:fmt(allKpi.revenue)+"만", color:C.green },
-                  { label:"총 광고비", value:fmt(allKpi.mktCost)+"만", color:C.orange },
-                  { label:"평균 CPL", value:allKpi.cpl>0?fmt(allKpi.cpl)+"만":"-", color:C.accent2 },
+                  { label:"총 매출", value:fmt(allKpi.revenue)+"원", color:C.green },
+                  { label:"총 광고비", value:fmt(allKpi.mktCost)+"원", color:C.orange },
+                  { label:"평균 CPL", value:allKpi.cpl>0?fmt(allKpi.cpl)+"원":"-", color:C.accent2 },
                   { label:"평균 ROI", value:allKpi.roi>0?allKpi.roi+"%":"-", color:allKpi.roi>=200?C.green:allKpi.roi>=100?C.yellow:C.red },
                 ].map((k,i) => (
                   <div key={i} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:"14px 16px" }}>
@@ -585,7 +585,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
                         {[
                           { label:"문의", value:fmt(last.inquiry)+"건", color:C.accent },
                           { label:"신환", value:fmt(last.newPatient)+"명", color:h.color },
-                          { label:"CPL", value:cpl>0?fmt(cpl)+"만":"-", color:C.accent2 },
+                          { label:"CPL", value:cpl>0?fmt(cpl)+"원":"-", color:C.accent2 },
                         ].map((k,i) => (
                           <div key={i} style={{ background:`${k.color}08`, borderRadius:8, padding:"7px 8px", textAlign:"center" }}>
                             <div style={{ color:k.color, fontSize:14, fontWeight:800 }}>{k.value}</div>
@@ -639,7 +639,7 @@ function HospitalSelectScreen({ hospitals, onSelect, onAddHospital, onEditHospit
           <div onClick={e=>e.stopPropagation()} style={{ background:C.surface, borderRadius:20, padding:28, width:580, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}>
             <div style={{ color:C.text, fontSize:15, fontWeight:800, marginBottom:20 }}>{editTarget?"병원 정보 수정":"새 병원 추가"}</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:16 }}>
-              {[["병원명 *","name","text"],["지역","region","text"],["진료과","dept","text"],["담당자","manager","text"],["신환 목표 (명)","target_patients","number"],["매출 목표 (만원)","target_revenue","number"]].map(([label,field,type])=>(
+              {[["병원명 *","name","text"],["지역","region","text"],["진료과","dept","text"],["담당자","manager","text"],["신환 목표 (명)","target_patients","number"],["매출 목표 (원)","target_revenue","number"]].map(([label,field,type])=>(
                 <div key={field}>
                   <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:5 }}>{label}</label>
                   <input type={type} value={form[field]||""} onChange={e=>setForm({...form,[field]:e.target.value})} style={inputSt} />
@@ -1739,8 +1739,8 @@ function PerformanceInputForm({ hospital, monthlyData, onSave, onClose }) {
     { key:"payment",      label:"결제 수",    unit:"건" },
     { key:"firstPayment", label:"초진 결제",  unit:"건" },
     { key:"newPatient",   label:"신환 수",    unit:"명" },
-    { key:"revenue",      label:"매출",       unit:"만원" },
-    { key:"marketingCost",label:"마케팅비",   unit:"만원" },
+    { key:"revenue",      label:"매출",       unit:"원" },
+    { key:"marketingCost",label:"마케팅비",   unit:"원" },
   ];
 
   return (
@@ -1816,7 +1816,7 @@ function ChannelInputForm({ hospital, channelData, onSave, onClose }) {
   };
 
   const cols = ["inflow","visit","payment","revenue","cost"];
-  const colLabels = ["유입","내원","결제","매출(만)","광고비(만)"];
+  const colLabels = ["유입","내원","결제","매출","광고비"];
 
   return (
     <div style={{ background:"#F8FAFC", border:`1px solid ${hospital.color}30`, borderRadius:16, padding:24, marginBottom:20 }}>
@@ -3538,8 +3538,8 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
           <div style={{color:C.accent2,fontSize:13,fontWeight:700,marginBottom:14}}>월 금액 등록</div>
           <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
             <div style={{flex:1,minWidth:140}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>월 *</label><input type="month" value={contractForm.month} onChange={e=>setContractForm({...contractForm,month:e.target.value})} style={inputSt}/></div>
-            <div style={{flex:2,minWidth:180}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>계약금 (만원)</label><input type="number" placeholder="0" value={contractForm.amount} onChange={e=>setContractForm({...contractForm,amount:e.target.value})} style={inputSt}/></div>
-            <div style={{flex:2,minWidth:180}}><label style={{color:C.orange,fontSize:11,display:"block",marginBottom:5,fontWeight:700}}>후불 금액 (만원)</label><input type="number" placeholder="0" value={contractForm.deferred} onChange={e=>setContractForm({...contractForm,deferred:e.target.value})} style={{...inputSt,borderColor:C.orange}}/></div>
+            <div style={{flex:2,minWidth:180}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:5}}>계약금 (원)</label><input type="number" placeholder="0" value={contractForm.amount} onChange={e=>setContractForm({...contractForm,amount:e.target.value})} style={inputSt}/></div>
+            <div style={{flex:2,minWidth:180}}><label style={{color:C.orange,fontSize:11,display:"block",marginBottom:5,fontWeight:700}}>후불 금액 (원)</label><input type="number" placeholder="0" value={contractForm.deferred} onChange={e=>setContractForm({...contractForm,deferred:e.target.value})} style={{...inputSt,borderColor:C.orange}}/></div>
           </div>
           <div style={{display:"flex",gap:10,marginTop:14}}>
             <button onClick={handleSaveContract} style={{background:`linear-gradient(135deg,${C.accent2},${C.accent})`,border:"none",color:"#0F172A",borderRadius:9,padding:"9px 22px",fontSize:13,cursor:"pointer",fontWeight:700}}>저장</button>
@@ -3575,8 +3575,8 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
 
       {/* KPI — 계약금/후불 */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14}}>
-        <KPICard label="계약금" value={fmt(contractAmt)} unit="만원" color={C.accent2}/>
-        <KPICard label="후불 금액" value={fmt(deferredAmt)} unit="만원" color={C.orange} sub={deferredAmt>0?"별도 청구":"미등록"}/>
+        <KPICard label="계약금" value={fmt(contractAmt)} unit="원" color={C.accent2}/>
+        <KPICard label="후불 금액" value={fmt(deferredAmt)} unit="원" color={C.orange} sub={deferredAmt>0?"별도 청구":"미등록"}/>
       </div>
 
       {/* ─── 계약 내용 (채널+건수 표 형식) ──────────────── */}
@@ -3787,7 +3787,7 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
                   {COST_CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
                 </select>
               </div>
-              <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>금액 (만원)</label><input type="number" placeholder="0" value={extraForm.amount} onChange={e=>setExtraForm({...extraForm,amount:e.target.value})} style={inputSt}/></div>
+              <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>금액 (원)</label><input type="number" placeholder="0" value={extraForm.amount} onChange={e=>setExtraForm({...extraForm,amount:e.target.value})} style={inputSt}/></div>
             </div>
             <div style={{marginBottom:12}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>작업 내용</label><input type="text" placeholder="예: 추가 이벤트 배너 제작 2건" value={extraForm.memo||""} onChange={e=>setExtraForm({...extraForm,memo:e.target.value})} style={inputSt}/></div>
             <div style={{display:"flex",gap:8}}>
@@ -3799,7 +3799,7 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
 
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead><tr>{["날짜","항목","그룹","작업 내용","금액(만원)","관리"].map(h=>(
+            <thead><tr>{["날짜","항목","그룹","작업 내용","금액(원)","관리"].map(h=>(
               <th key={h} style={{color:C.muted,fontWeight:600,padding:"8px 12px",textAlign:"left",borderBottom:`1px solid ${C.dim}`,whiteSpace:"nowrap"}}>{h}</th>
             ))}</tr></thead>
             <tbody>
@@ -3835,7 +3835,7 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
         {monthExtra.length > 0 && (
           <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:12,paddingTop:12,borderTop:`1px solid ${C.dim}`}}>
             <span style={{color:C.muted,fontSize:12}}>추가 작업 합계</span>
-            <span style={{color:C.green,fontSize:14,fontWeight:900}}>{fmt(totalExtra)}만원</span>
+            <span style={{color:C.green,fontSize:14,fontWeight:900}}>{fmt(totalExtra)}원</span>
           </div>
         )}
       </div>
@@ -4057,8 +4057,8 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
       { label:"초진내원", value:fmtN(reportData.firstVisit),    unit:"명",  color:"#FBBF24" },
       { label:"초진결제", value:fmtN(reportData.firstPayment),  unit:"건",  color:"#FB923C" },
       { label:"신환",     value:fmtN(reportData.newPatient),    unit:"명",  color:hospital.color },
-      { label:"매출",     value:fmtN(reportData.revenue),       unit:"만원",color:"#FBBF24" },
-      { label:"마케팅비", value:fmtN(reportData.marketingCost), unit:"만원",color:"#FB923C" },
+      { label:"매출",     value:fmtN(reportData.revenue),       unit:"원",color:"#FBBF24" },
+      { label:"마케팅비", value:fmtN(reportData.marketingCost), unit:"원",color:"#FB923C" },
     ].map(k => `
       <div class="kpi-card">
         <div class="kpi-label">${k.label}</div>
@@ -4103,7 +4103,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
       { label:"예약→내원율",      val: reportData.firstVisit && reportData.reservation ? pctN(reportData.firstVisit, reportData.reservation) : "-" },
       { label:"광고비 대비 매출", val: reportData.revenue && reportData.marketingCost ? `${(reportData.revenue/reportData.marketingCost).toFixed(1)}배` : "-" },
       { label:"재방문율",          val: reportData.visit && reportData.firstVisit ? pctN(reportData.visit-reportData.firstVisit, reportData.visit) : "-" },
-      { label:"환자당 매출",       val: reportData.revenue && reportData.firstPayment ? `${fmtN(Math.round(reportData.revenue/(reportData.firstPayment||1)))}만원` : "-" },
+      { label:"환자당 매출",       val: reportData.revenue && reportData.firstPayment ? `${fmtN(Math.round(reportData.revenue/(reportData.firstPayment||1)))}원` : "-" },
     ].map(i => `<div class="roi-item"><div class="val">${i.val}</div><div class="lbl">${i.label}</div></div>`).join("");
 
     // 4. 채널 분석 - targetMonth 기준으로 직접 계산
@@ -4155,7 +4155,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
         <td style="text-align:center">${e.date||'-'}</td>
         <td style="text-align:center">${e.category||'-'}</td>
         <td style="text-align:center">${e.memo||'-'}</td>
-        <td class="num">${fmtN(e.amount)}만원</td>
+        <td class="num">${fmtN(e.amount)}원</td>
       </tr>`).join("");
 
     // 8. 키워드 현황 - sharedKeywordData는 이미 현재 선택 월 기준
@@ -4293,13 +4293,13 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
     <div class="kpi-grid" style="margin-bottom:24px;">
       ${[
         { label:"신환 수",     val:`${fmtN(reportData.newPatient)}명`,    color:"#0EA5E9" },
-        { label:"매출",        val:`${fmtN(reportData.revenue)}만원`,      color:"#10B981" },
-        { label:"마케팅비",    val:`${fmtN(reportData.marketingCost)}만원`,color:"#F59E0B" },
+        { label:"매출",        val:`${fmtN(reportData.revenue)}원`,      color:"#10B981" },
+        { label:"마케팅비",    val:`${fmtN(reportData.marketingCost)}원`,color:"#F59E0B" },
         { label:"ROI",         val:`${roi2}%`,                             color: roi2>=0?"#10B981":"#EF4444" },
         { label:"문의",        val:`${fmtN(reportData.inquiry)}건`,         color:"#6366F1" },
         { label:"초진내원",    val:`${fmtN(reportData.firstVisit)}명`,      color:"#8B5CF6" },
         { label:"초진결제",    val:`${fmtN(reportData.firstPayment)}건`,    color:"#EC4899" },
-        { label:"CPA",         val:`${reportData.newPatient ? fmtN(Math.round((reportData.marketingCost||0)/reportData.newPatient))+'만원' : '-'}`, color:"#F97316" },
+        { label:"CPA",         val:`${reportData.newPatient ? fmtN(Math.round((reportData.marketingCost||0)/reportData.newPatient))+'원' : '-'}`, color:"#F97316" },
       ].map(k=>`<div class="kpi-card"><div class="kpi-label">${k.label}</div><div class="kpi-value" style="color:${k.color}">${k.val}</div></div>`).join("")}
     </div>
     ${hData.length > 1 ? `
@@ -4325,7 +4325,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
     </div>
     <div style="margin-top:20px;overflow-x:auto;">
       <table>
-        <thead><tr><th>월</th><th>문의</th><th>초진내원</th><th>초진결제</th><th>신환</th><th>매출(만)</th><th>마케팅비(만)</th><th>ROI</th></tr></thead>
+        <thead><tr><th>월</th><th>문의</th><th>초진내원</th><th>초진결제</th><th>신환</th><th>매출</th><th>마케팅비</th><th>ROI</th></tr></thead>
         <tbody>${trendRows}</tbody>
       </table>
     </div>
@@ -4349,7 +4349,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
             { label:"예약→내원율",      val: reportData.firstVisit && reportData.reservation ? pctN(reportData.firstVisit, reportData.reservation) : "-" },
             { label:"광고비 대비 매출", val: reportData.revenue && reportData.marketingCost ? `${(reportData.revenue/reportData.marketingCost).toFixed(1)}배` : "-" },
             { label:"재방문율",          val: reportData.visit && reportData.firstVisit ? pctN(reportData.visit-reportData.firstVisit, reportData.visit) : "-" },
-            { label:"환자당 매출",       val: reportData.revenue && reportData.firstPayment ? `${fmtN(Math.round(reportData.revenue/(reportData.firstPayment||1)))}만원` : "-" },
+            { label:"환자당 매출",       val: reportData.revenue && reportData.firstPayment ? `${fmtN(Math.round(reportData.revenue/(reportData.firstPayment||1)))}원` : "-" },
           ].map(i=>`<div class="stat-box"><div class="stat-val" style="font-size:18px">${i.val}</div><div class="stat-lbl">${i.label}</div></div>`).join("")}
         </div>
       </div>
@@ -4373,7 +4373,7 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
     </div>
     <div style="margin-top:16px;overflow-x:auto;">
       <table>
-        <thead><tr><th>채널</th><th>유입</th><th>내원</th><th>결제</th><th>매출(만)</th><th>광고비(만)</th><th>ROI</th></tr></thead>
+        <thead><tr><th>채널</th><th>유입</th><th>내원</th><th>결제</th><th>매출</th><th>광고비</th><th>ROI</th></tr></thead>
         <tbody>${channelRows}</tbody>
       </table>
     </div>` : `<div class="no-data">해당 월 채널 데이터가 없어요</div>`}
@@ -4462,9 +4462,9 @@ function HospitalDashboard({ hospital, onBack, onUpdateHospital, isAdmin, adminR
     <div class="two-col" style="margin-bottom:16px;">
       <div>
         <div class="three-col">
-          <div class="stat-box"><div class="stat-val">${fmtN(monthContract)}만원</div><div class="stat-lbl">월 계약금</div></div>
-          <div class="stat-box"><div class="stat-val" style="color:#EF4444">${fmtN(totalExpense)}만원</div><div class="stat-lbl">소진액</div></div>
-          <div class="stat-box"><div class="stat-val" style="color:#10B981">${fmtN(monthContract-totalExpense)}만원</div><div class="stat-lbl">잔액</div></div>
+          <div class="stat-box"><div class="stat-val">${fmtN(monthContract)}원</div><div class="stat-lbl">월 계약금</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#EF4444">${fmtN(totalExpense)}원</div><div class="stat-lbl">소진액</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#10B981">${fmtN(monthContract-totalExpense)}원</div><div class="stat-lbl">잔액</div></div>
         </div>
         ${expenseRows ? `<div style="margin-top:16px;overflow-x:auto;"><table><thead><tr><th>날짜</th><th>항목</th><th>메모</th><th>금액</th></tr></thead><tbody>${expenseRows}</tbody></table></div>` : ""}
       </div>
@@ -4514,7 +4514,7 @@ new Chart(document.getElementById('overviewChart'), {
     labels: months6,
     datasets: [
       { label: '신환', data: newPat6, backgroundColor: color1+'99', borderColor: color1, borderWidth:2, borderRadius:6, yAxisID:'y' },
-      { label: '매출(만원)', data: revenue6, type:'line', borderColor:'#10B981', backgroundColor:'#10B98120', borderWidth:2.5, pointRadius:4, tension:0.4, fill:true, yAxisID:'y1' },
+      { label: '매출(원)', data: revenue6, type:'line', borderColor:'#10B981', backgroundColor:'#10B98120', borderWidth:2.5, pointRadius:4, tension:0.4, fill:true, yAxisID:'y1' },
     ]
   },
   options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'top' } }, scales:{ y:{ beginAtZero:true, grid:{ color:'#F1F5F9' } }, y1:{ position:'right', beginAtZero:true, grid:{ drawOnChartArea:false } } } }
@@ -4528,7 +4528,7 @@ new Chart(document.getElementById('perfChart1'), {
     labels: months6,
     datasets: [
       { label:'신환', data: newPat6, backgroundColor: color1+'88', borderColor: color1, borderWidth:2, borderRadius:5, yAxisID:'y' },
-      { label:'매출(만)', data: revenue6, type:'line', borderColor:'#10B981', borderWidth:2, pointRadius:3, tension:0.4, yAxisID:'y1' }
+      { label:'매출', data: revenue6, type:'line', borderColor:'#10B981', borderWidth:2, pointRadius:3, tension:0.4, yAxisID:'y1' }
     ]
   },
   options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'top', labels:{ boxWidth:12 } } }, scales:{ y:{ beginAtZero:true, grid:{ color:'#F1F5F9' } }, y1:{ position:'right', beginAtZero:true, grid:{ drawOnChartArea:false } } } }
@@ -4644,7 +4644,7 @@ new Chart(document.getElementById('costChart'), {
     responsive:true, maintainAspectRatio:false, 
     plugins:{ 
       legend:{ position:'right', labels:{ boxWidth:12, font:{ size:11 } } }, 
-      tooltip:{ callbacks:{ label: ctx => ctx.label+': '+ctx.raw.toLocaleString()+'만원 ('+Math.round(ctx.raw/costData.reduce((a,b)=>a+b,0)*100)+'%)' } } 
+      tooltip:{ callbacks:{ label: ctx => ctx.label+': '+ctx.raw.toLocaleString()+'원 ('+Math.round(ctx.raw/costData.reduce((a,b)=>a+b,0)*100)+'%)' } } 
     } 
   }
 });` : ""}
@@ -4888,15 +4888,15 @@ new Chart(document.getElementById('costChart'), {
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
                       <KpiBox label="총 문의수" value={fmt(last.inquiry)} unit="건" d={dInquiry} color={C.accent}/>
                       <KpiBox label="신환 수" value={fmt(last.newPatient)} unit="명" d={dPatient} color={hospital.color} achieve={patientAchieve}/>
-                      <KpiBox label="매출" value={fmt(last.revenue)} unit="만원" d={dRevenue} color={C.green} achieve={revenueAchieve}/>
-                      <KpiBox label="광고비" value={fmt(totalMktCost)} unit="만원" d={dCost} color={C.orange}/>
+                      <KpiBox label="매출" value={fmt(last.revenue)} unit="원" d={dRevenue} color={C.green} achieve={revenueAchieve}/>
+                      <KpiBox label="광고비" value={fmt(totalMktCost)} unit="원" d={dCost} color={C.orange}/>
                     </div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                      <KpiBox label="CPL (문의당 비용)" value={fmt(cpl)} unit="만원" d={dCpl} color={C.accent2} sub={`문의 ${fmt(last.inquiry)}건`}/>
+                      <KpiBox label="CPL (문의당 비용)" value={fmt(cpl)} unit="원" d={dCpl} color={C.accent2} sub={`문의 ${fmt(last.inquiry)}건`}/>
                       <KpiBox label="ROI" value={roi} unit="%" color={roi>=200?C.green:roi>=100?C.yellow:C.red} sub="광고비 대비 수익"/>
                       <KpiBox label="예약" value={fmt(last.reservation)} unit="건" color="#8B5CF6" sub={`내원 ${fmt(last.visit)}명`}/>
                       <KpiBox label="초진 결제" value={fmt(last.firstPayment)} unit="건" color="#EC4899"
-                        sub={`객단가 ${fmt(last.firstPayment>0?Math.round((last.revenue||0)/(last.firstPayment)):0)}만원`}/>
+                        sub={`객단가 ${fmt(last.firstPayment>0?Math.round((last.revenue||0)/(last.firstPayment)):0)}원`}/>
                     </div>
                   </div>
 
@@ -4908,7 +4908,7 @@ new Chart(document.getElementById('costChart'), {
                         {[
                           dInquiry!==null&&{icon:"📞",text:`문의 전월 대비 ${dInquiry>0?`+${dInquiry}% 증가`:`${dInquiry}% 감소`}`,color:dInquiry>0?C.green:C.red},
                           dPatient!==null&&{icon:"👤",text:`신환 전월 대비 ${dPatient>0?`+${dPatient}% 증가`:`${dPatient}% 감소`}`,color:dPatient>0?C.green:C.red},
-                          cpl>0&&{icon:"💰",text:`CPL ${fmt(cpl)}만원`,color:C.muted},
+                          cpl>0&&{icon:"💰",text:`CPL ${fmt(cpl)}원`,color:C.muted},
                           roi>0&&{icon:"📈",text:`ROI ${roi}% · ${roi>=300?"우수 🎉":roi>=100?"양호":"개선 필요"}`,color:roi>=300?C.green:roi>=100?C.yellow:C.red},
                           topChannels[0]&&{icon:"🔝",text:`주요 유입: ${topChannels[0].channel}`,color:C.muted},
                         ].filter(Boolean).map((item,i)=>(
@@ -4984,7 +4984,7 @@ new Chart(document.getElementById('costChart'), {
                   <div style={{overflowX:"auto"}}>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                       <thead>
-                        <tr>{["월","문의","신환","매출(만)","광고비(만)","CPL(만)","ROI"].map(h=>(
+                        <tr>{["월","문의","신환","매출","광고비","CPL","ROI"].map(h=>(
                           <th key={h} style={{color:C.muted,fontWeight:700,padding:"7px 10px",textAlign:"center",borderBottom:`2px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
                         ))}</tr>
                       </thead>
@@ -5145,10 +5145,10 @@ function AdsTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
       {/* 채널 합계 KPI */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
         {[
-          { label:"총 광고비", value:`${fmtN(totalSpend)}만원`, color:C.orange },
+          { label:"총 광고비", value:`${fmtN(totalSpend)}원`, color:C.orange },
           { label:"총 문의", value:`${fmtN(totalInquiry)}건`, color:C.accent },
           { label:"총 예약", value:`${fmtN(totalReservation)}건`, color:C.green },
-          { label:"평균 CPL", value: avgCpl > 0 ? `${fmtN(avgCpl)}만원` : "-", color:C.accent2 },
+          { label:"평균 CPL", value: avgCpl > 0 ? `${fmtN(avgCpl)}원` : "-", color:C.accent2 },
         ].map((k,i) => (
           <div key={i} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:16, textAlign:"center" }}>
             <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:6 }}>{k.label}</div>
@@ -5164,7 +5164,7 @@ function AdsTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
             <thead>
               <tr>
-                {["채널","예산(만)","소진(만)","소진율","노출","클릭","CTR","문의","CPL(만)","예약","ROAS"].map(h=>(
+                {["채널","예산","소진","소진율","노출","클릭","CTR","문의","CPL","예약","ROAS"].map(h=>(
                   <th key={h} style={{ color:C.muted, fontWeight:700, padding:"8px 10px", textAlign:"center", borderBottom:`2px solid ${C.border}`, whiteSpace:"nowrap" }}>{h}</th>
                 ))}
                 {!isReadOnly && <th style={{ color:C.muted, fontWeight:700, padding:"8px 10px", borderBottom:`2px solid ${C.border}` }}>입력</th>}
@@ -5211,8 +5211,8 @@ function AdsTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
                                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))", gap:8, marginBottom:8 }}>
                                   {[
                                     { key:"name", label:"캠페인명", type:"text" },
-                                    { key:"budget", label:"예산(만)", type:"number" },
-                                    { key:"spend", label:"소진(만)", type:"number" },
+                                    { key:"budget", label:"예산", type:"number" },
+                                    { key:"spend", label:"소진", type:"number" },
                                     { key:"impressions", label:"노출", type:"number" },
                                     { key:"clicks", label:"클릭", type:"number" },
                                     { key:"inquiry", label:"문의", type:"number" },
@@ -5245,7 +5245,7 @@ function AdsTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
                                 <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
                                   <thead>
                                     <tr style={{ background:"#F8FAFC" }}>
-                                      {["캠페인명","예산(만)","소진(만)","소진율","노출","클릭","CTR","문의","CPL(만)","예약","ROAS","메모",!isReadOnly?"관리":""].map((h,i)=>(
+                                      {["캠페인명","예산","소진","소진율","노출","클릭","CTR","문의","CPL","예약","ROAS","메모",!isReadOnly?"관리":""].map((h,i)=>(
                                         <th key={i} style={{ color:C.muted, fontWeight:600, padding:"6px 10px", textAlign:"left", borderBottom:`1px solid ${C.dim}`, whiteSpace:"nowrap" }}>{h}</th>
                                       ))}
                                     </tr>
@@ -5347,8 +5347,8 @@ function EditableChannelRow({ ch, info, spendPct, ctr, cpl, isReadOnly, onUpdate
 
   // 입력 필드 정의 (자동계산 제외)
   const INPUT_FIELDS = [
-    { key:"budget",      label:"예산(만)" },
-    { key:"spend",       label:"소진(만)" },
+    { key:"budget",      label:"예산" },
+    { key:"spend",       label:"소진" },
     { key:"impressions", label:"노출" },
     { key:"clicks",      label:"클릭" },
     { key:"inquiry",     label:"문의" },
@@ -5595,7 +5595,7 @@ function InflowTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>문의수</label><input type="number" value={form.inquiry||""} onChange={e=>setForm(p=>({...p,inquiry:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>예약수</label><input type="number" value={form.reservation||""} onChange={e=>setForm(p=>({...p,reservation:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>내원수</label><input type="number" value={form.visit||""} onChange={e=>setForm(p=>({...p,visit:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
-              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>객단가(만원)</label><input type="number" value={form.unitPrice||""} onChange={e=>setForm(p=>({...p,unitPrice:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
+              <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>객단가(원)</label><input type="number" value={form.unitPrice||""} onChange={e=>setForm(p=>({...p,unitPrice:+e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
               <div><label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:3 }}>메모</label><input value={form.memo||""} onChange={e=>setForm(p=>({...p,memo:e.target.value}))} style={{ ...inputSt, padding:"6px 10px", fontSize:12 }} /></div>
             </>}
 
@@ -5739,7 +5739,7 @@ function InflowTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
                       { label:"문의", value:fmtN(pr.inquiry)+"건", color:C.accent },
                       { label:"예약률", value:reserveRate+"%", color:C.green },
                       { label:"내원률", value:visitRate+"%", color:hospital.color },
-                      { label:"객단가", value:pr.unitPrice>0?fmtN(pr.unitPrice)+"만":"-", color:C.yellow },
+                      { label:"객단가", value:pr.unitPrice>0?fmtN(pr.unitPrice)+"원":"-", color:C.yellow },
                     ].map((s,j) => (
                       <div key={j} style={{ background:C.surface, borderRadius:8, padding:"8px", textAlign:"center" }}>
                         <div style={{ color:s.color, fontSize:15, fontWeight:800 }}>{s.value}</div>
@@ -6576,8 +6576,8 @@ function BizTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
             ))}
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
-            <CrmNumCard label="매출" value={fmtN(last.revenue)} unit="만원" color={C.accent} />
-            <CrmNumCard label="객단가" value={fmtN(arpu)} unit="만원" color={C.accent2} />
+            <CrmNumCard label="매출" value={fmtN(last.revenue)} unit="원" color={C.accent} />
+            <CrmNumCard label="객단가" value={fmtN(arpu)} unit="원" color={C.accent2} />
             <CrmNumCard label="결제 건수" value={fmtN(last.payment)} unit="건" color={C.green} />
             <CrmNumCard label="전월 대비 성장률" value={growth===null?"-":growth} unit={growth===null?"":"%"} color={growth>0?C.green:growth<0?C.red:C.muted} />
           </div>
