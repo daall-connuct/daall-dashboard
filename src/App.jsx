@@ -5885,18 +5885,6 @@ function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
   const [topForm, setTopForm] = useState({ title:"", views:0, channel:"" });
   const [inflowKwForm, setInflowKwForm] = useState({ keyword:"", pct:0 });
 
-  const [localSearch, setLocalSearch] = useState({ hospital:0, doctor:0 });
-  const [localSns, setLocalSns] = useState({ instaFollowers:0, instaLikes:0, instaComments:0, instaSaves:0, reelsViews:0 });
-  const [localContent, setLocalContent] = useState({ blogAvgTime:0 });
-  const [localTrust, setLocalTrust] = useState({ reviewCount:0, reviewRate:0, avgRating:0, directSearchChange:0, reVisitRate:0 });
-
-  useEffect(() => {
-    setLocalSearch({ hospital:monthData.search.hospital||0, doctor:monthData.search.doctor||0 });
-    setLocalSns({ instaFollowers:monthData.sns.instaFollowers||0, instaLikes:monthData.sns.instaLikes||0, instaComments:monthData.sns.instaComments||0, instaSaves:monthData.sns.instaSaves||0, reelsViews:monthData.sns.reelsViews||0 });
-    setLocalContent({ blogAvgTime:monthData.content.blogAvgTime||0 });
-    setLocalTrust({ reviewCount:monthData.trust.reviewCount||0, reviewRate:monthData.trust.reviewRate||0, avgRating:monthData.trust.avgRating||0, directSearchChange:monthData.trust.directSearchChange||0, reVisitRate:monthData.trust.reVisitRate||0 });
-  }, [selMonth]);
-
   // 전달 비교 뱃지
   const Diff = ({ cur, prev, unit="", inverse=false }) => {
     if (!prev || prev===0) return null;
@@ -5911,33 +5899,34 @@ function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
     );
   };
 
-  const NI = ({ label, localKey, localState, setLocalState, section, field, unit="", prevVal }) => (
-    <div style={{ background:"#F8FAFC", borderRadius:10, padding:12 }}>
-      <label style={{ color:C.muted, fontSize:10, fontWeight:700, display:"block", marginBottom:5 }}>{label}</label>
-      <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-        <input
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          value={localState[localKey] === 0 ? "" : String(localState[localKey] ?? "")}
-          disabled={isReadOnly}
-          onChange={e => {
-            const v = e.target.value.replace(/[^0-9.]/g, "");
-            setLocalState(p => ({...p, [localKey]: v}));
-          }}
-          onBlur={e => {
-            const v = e.target.value.replace(/[^0-9.]/g, "");
-            const num = v === "" ? 0 : (isNaN(+v) ? 0 : +v);
-            setLocalState(p => ({...p, [localKey]: num}));
-            updateField(section, field, num);
-          }}
-          style={{ ...inputSt, padding:"5px 8px", fontSize:13, fontWeight:700, width:"100%", textAlign:"right" }}
-        />
-        {unit && <span style={{ color:C.muted, fontSize:11, flexShrink:0 }}>{unit}</span>}
+  // 독립 숫자 입력 컴포넌트 — selMonth 변경 시 savedVal로 리셋, 입력 중 외부 영향 없음
+  const NI = ({ label, section, field, unit="", prevVal }) => {
+    const savedVal = monthData[section]?.[field] || 0;
+    const [localVal, setLocalVal] = useState(String(savedVal || ""));
+    useEffect(() => { setLocalVal(savedVal === 0 ? "" : String(savedVal)); }, [savedVal, selMonth]);
+    return (
+      <div style={{ background:"#F8FAFC", borderRadius:10, padding:12 }}>
+        <label style={{ color:C.muted, fontSize:10, fontWeight:700, display:"block", marginBottom:5 }}>{label}</label>
+        <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={localVal}
+            disabled={isReadOnly}
+            onChange={e => setLocalVal(e.target.value.replace(/[^0-9.]/g, ""))}
+            onBlur={e => {
+              const num = e.target.value === "" ? 0 : (+e.target.value || 0);
+              setLocalVal(num === 0 ? "" : String(num));
+              updateField(section, field, num);
+            }}
+            style={{ ...inputSt, padding:"5px 8px", fontSize:13, fontWeight:700, width:"100%", textAlign:"right" }}
+          />
+          {unit && <span style={{ color:C.muted, fontSize:11, flexShrink:0 }}>{unit}</span>}
+        </div>
+        {prevVal!==undefined && <Diff cur={savedVal} prev={prevVal} unit={unit} />}
       </div>
-      {prevVal!==undefined && <Diff cur={+(localState[localKey]||0)} prev={prevVal} unit={unit} />}
-    </div>
-  );
+    );
+  };
 
   const SectionCard = ({ title, children }) => (
     <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
@@ -5972,8 +5961,8 @@ function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
         {/* 🔍 브랜드 검색량 */}
         <SectionCard title="🔍 브랜드 검색량">
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
-            <NI label="병원명 검색량" localKey="hospital" localState={localSearch} setLocalState={setLocalSearch} section="search" field="hospital" unit="회" prevVal={prevData.search.hospital} />
-            <NI label="원장명 검색량" localKey="doctor" localState={localSearch} setLocalState={setLocalSearch} section="search" field="doctor" unit="회" prevVal={prevData.search.doctor} />
+            <NI label="병원명 검색량" section="search" field="hospital" unit="회" prevVal={prevData.search.hospital} />
+            <NI label="원장명 검색량" section="search" field="doctor" unit="회" prevVal={prevData.search.doctor} />
           </div>
           <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:8 }}>시술 연관 검색량</div>
           {!isReadOnly && (
@@ -6027,14 +6016,14 @@ function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
         <SectionCard title="📱 SNS 반응">
           <div style={{ color:C.muted, fontSize:10, fontWeight:700, marginBottom:8 }}>📸 인스타그램 (월 평균)</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
-            <NI label="팔로워" localKey="instaFollowers" localState={localSns} setLocalState={setLocalSns} section="sns" field="instaFollowers" unit="명" prevVal={prevData.sns.instaFollowers} />
-            <NI label="좋아요 (평균)" localKey="instaLikes" localState={localSns} setLocalState={setLocalSns} section="sns" field="instaLikes" prevVal={prevData.sns.instaLikes} />
-            <NI label="댓글 (평균)" localKey="instaComments" localState={localSns} setLocalState={setLocalSns} section="sns" field="instaComments" prevVal={prevData.sns.instaComments} />
-            <NI label="저장 (평균)" localKey="instaSaves" localState={localSns} setLocalState={setLocalSns} section="sns" field="instaSaves" prevVal={prevData.sns.instaSaves} />
+            <NI label="팔로워" section="sns" field="instaFollowers" unit="명" prevVal={prevData.sns.instaFollowers} />
+            <NI label="좋아요 (평균)" section="sns" field="instaLikes" prevVal={prevData.sns.instaLikes} />
+            <NI label="댓글 (평균)" section="sns" field="instaComments" prevVal={prevData.sns.instaComments} />
+            <NI label="저장 (평균)" section="sns" field="instaSaves" prevVal={prevData.sns.instaSaves} />
           </div>
           <div style={{ color:C.muted, fontSize:10, fontWeight:700, marginBottom:8 }}>▶️ 릴스</div>
           <div style={{ marginBottom:14 }}>
-            <NI label="릴스 조회수" localKey="reelsViews" localState={localSns} setLocalState={setLocalSns} section="sns" field="reelsViews" unit="회" prevVal={prevData.sns.reelsViews} />
+            <NI label="릴스 조회수" section="sns" field="reelsViews" unit="회" prevVal={prevData.sns.reelsViews} />
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
             {[
@@ -6054,7 +6043,7 @@ function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
         {/* 📝 콘텐츠 반응 */}
         <SectionCard title="📝 콘텐츠 반응">
           <div style={{ marginBottom:14 }}>
-            <NI label="블로그 평균 체류시간 (초)" localKey="blogAvgTime" localState={localContent} setLocalState={setLocalContent} section="content" field="blogAvgTime" unit="초" prevVal={prevData.content.blogAvgTime} />
+            <NI label="블로그 평균 체류시간 (초)" section="content" field="blogAvgTime" unit="초" prevVal={prevData.content.blogAvgTime} />
           </div>
           <div style={{ color:C.muted, fontSize:11, fontWeight:700, marginBottom:8 }}>🏆 인기 콘텐츠</div>
           {!isReadOnly && (
@@ -6107,11 +6096,11 @@ function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
         {/* ⭐ 브랜드 신뢰도 */}
         <SectionCard title="⭐ 브랜드 신뢰도">
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
-            <NI label="신규 리뷰 수" localKey="reviewCount" localState={localTrust} setLocalState={setLocalTrust} section="trust" field="reviewCount" unit="건" prevVal={prevData.trust.reviewCount} />
-            <NI label="리뷰 증가율" localKey="reviewRate" localState={localTrust} setLocalState={setLocalTrust} section="trust" field="reviewRate" unit="%" prevVal={prevData.trust.reviewRate} />
-            <NI label="평균 평점" localKey="avgRating" localState={localTrust} setLocalState={setLocalTrust} section="trust" field="avgRating" unit="점" prevVal={prevData.trust.avgRating} />
-            <NI label="직접검색 증가율" localKey="directSearchChange" localState={localTrust} setLocalState={setLocalTrust} section="trust" field="directSearchChange" unit="%" prevVal={prevData.trust.directSearchChange} />
-            <NI label="재방문 증가율" localKey="reVisitRate" localState={localTrust} setLocalState={setLocalTrust} section="trust" field="reVisitRate" unit="%" prevVal={prevData.trust.reVisitRate} />
+            <NI label="신규 리뷰 수" section="trust" field="reviewCount" unit="건" prevVal={prevData.trust.reviewCount} />
+            <NI label="리뷰 증가율" section="trust" field="reviewRate" unit="%" prevVal={prevData.trust.reviewRate} />
+            <NI label="평균 평점" section="trust" field="avgRating" unit="점" prevVal={prevData.trust.avgRating} />
+            <NI label="직접검색 증가율" section="trust" field="directSearchChange" unit="%" prevVal={prevData.trust.directSearchChange} />
+            <NI label="재방문 증가율" section="trust" field="reVisitRate" unit="%" prevVal={prevData.trust.reVisitRate} />
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
             {[
