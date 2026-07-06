@@ -7794,9 +7794,6 @@ function AppInner() {
         (async () => { try { return await supabase.from('schedule_data').select('*').eq('id', 1).single(); } catch(e) { return {data:null}; } })(),
       ]);
 
-      console.log('[loadHospitals] hospRes:', hospRes);
-      console.log('[loadHospitals] hospRows count:', hospRes.data?.length);
-
       if (schedRes.data?.data) setGlobalSchedules(schedRes.data.data);
 
       const hospRows = hospRes.data;
@@ -7823,12 +7820,10 @@ function AppInner() {
             tabs: h.tabs ? h.tabs : DEFAULT_TABS,
           };
         }).filter(h => h.id);
-        console.log('[loadHospitals] loaded count:', loaded.length, loaded.map(h=>h.name));
         if (loaded.length > 0) {
           setHospitals(loaded);
         }
       } else {
-        console.log('[loadHospitals] DB 비어있음 → 초기 데이터로 시작');
         const initial = HOSPITALS_INIT.map(h => ({
           ...h,
           monthlyData: MONTHLY_INIT[h.id] || [],
@@ -7868,15 +7863,13 @@ function AppInner() {
 
   const saveHospitalToSupabase = async (h, changedFields = null) => {
     try {
-      const { monthlyData, channelData, contentData, meetingData, adsData, inflowData, brandingData, crmData, aiData, growData, aiQaData, onlineAssetData, ...hospData } = h;
+      const { monthlyData, channelData, contentData, meetingData, adsData, inflowData, brandingData, crmData, aiData, growData, aiQaData, onlineAssetData, clinicPerfData, ...hospData } = h;
 
-      // 항상 저장: hospitals 테이블 (주요 데이터 포함)
       const mainSave = supabase.from('hospitals').upsert(
-        { id: h.id, data: { ...hospData, adsData:adsData||{}, inflowData:inflowData||{}, brandingData:brandingData||{}, crmData:crmData||{}, aiData:aiData||{}, growData:growData||{}, aiQaData:aiQaData||{questions:[],records:{}}, onlineAssetData:onlineAssetData||{} } },
+        { id: h.id, data: { ...hospData, adsData:adsData||{}, inflowData:inflowData||{}, brandingData:brandingData||{}, crmData:crmData||{}, aiData:aiData||{}, growData:growData||{}, aiQaData:aiQaData||{questions:[],records:{}}, onlineAssetData:onlineAssetData||{}, clinicPerfData:clinicPerfData||{} } },
         { onConflict: 'id' }
       );
 
-      // 변경된 필드만 선택적으로 저장 (changedFields 없으면 전체 저장)
       const saves = [mainSave];
       if (!changedFields || changedFields.includes('monthlyData'))
         saves.push(supabase.from('monthly_data').upsert({ hospital_id: h.id, data: monthlyData || [] }, { onConflict: 'hospital_id' }));
@@ -7887,7 +7880,6 @@ function AppInner() {
       if (!changedFields || changedFields.includes('meetingData'))
         saves.push(supabase.from('meeting_data').upsert({ hospital_id: h.id, data: meetingData || [] }, { onConflict: 'hospital_id' }));
 
-      // 병렬 저장 (순차 → 병렬로 변경하여 시간 단축)
       await Promise.all(saves);
     } catch (err) {
       console.error('저장 실패:', err);
