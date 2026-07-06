@@ -1885,12 +1885,15 @@ function MarketingTab({ hospital, chData, initialContents, onUpdateHospital, isA
 
   // 월 목록 (콘텐츠에서 추출 + 전체)
   const monthList = useMemo(() => {
-    const contentMonths = [...new Set(contents.map(c => c.date?.slice(0,7)).filter(Boolean))];
-    const rawCh = hospital.channelData || {};
-    const inflowMonths = Array.isArray(rawCh) ? [] : Object.keys(rawCh);
-    const months = [...new Set([...contentMonths, ...inflowMonths])].sort().reverse();
-    return ["전체", ...months];
-  }, [contents, hospital.channelData]);
+    // 과거 24개월 ~ 미래 3개월 고정 범위 (저장된 데이터 여부와 무관하게 항상 선택 가능)
+    const months = [];
+    const now = new Date();
+    for (let i = -3; i <= 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+    }
+    return months.sort().reverse();
+  }, []);
 
   // 월 필터 적용된 콘텐츠
   const monthFiltered = useMemo(() =>
@@ -2342,7 +2345,15 @@ function PatientTab({ hospital }) {
     } catch(e) { console.error('환자유입 저장 실패:', e); }
   };
   const rec = records.find(r=>r.month===selMonth)||null;
-  const availMonths = [...records.map(r=>r.month)].sort().reverse();
+  const availMonths = useMemo(() => {
+    const months = [];
+    const now = new Date();
+    for (let i = -3; i <= 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+    }
+    return months.sort().reverse();
+  }, []);
   const trendData = [...records].sort((a,b)=>a.month>b.month?1:-1).map(r=>({ month:r.month.slice(5)+"월", 신환:r.newPatient, 구환:r.returnPatient, 목표:r.targetNew }));
   const totalNew = rec?.newPatient||0, totalReturn = rec?.returnPatient||0;
   const totalPatient = totalNew+totalReturn;
@@ -3455,7 +3466,15 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
   const deferredAmt = contractRec?.deferred||0;
   const monthExpenses = expenses.filter(e=>e.month===selMonth);
   const monthExtra = extraExpenses.filter(e=>e.month===selMonth);
-  const availMonths = [...new Set(contracts.map(c=>c.month))].sort().reverse();
+  const availMonths = useMemo(() => {
+    const months = [];
+    const now = new Date();
+    for (let i = -3; i <= 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+    }
+    return months.sort().reverse();
+  }, []);
   const totalExtra = monthExtra.reduce((s,e)=>s+(+e.amount||0),0);
 
   const handleSaveContract = () => {
