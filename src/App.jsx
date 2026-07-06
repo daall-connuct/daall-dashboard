@@ -5915,10 +5915,24 @@ function BrandingTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
     <div style={{ background:"#F8FAFC", borderRadius:10, padding:12 }}>
       <label style={{ color:C.muted, fontSize:10, fontWeight:700, display:"block", marginBottom:5 }}>{label}</label>
       <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-        <input type="number" value={localState[localKey]??""} disabled={isReadOnly}
-          onChange={e => setLocalState(p => ({...p, [localKey]: e.target.value}))}
-          onBlur={e => updateField(section, field, e.target.value)}
-          style={{ ...inputSt, padding:"5px 8px", fontSize:13, fontWeight:700, width:"100%", textAlign:"right" }} />
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={localState[localKey] === 0 ? "" : String(localState[localKey] ?? "")}
+          disabled={isReadOnly}
+          onChange={e => {
+            const v = e.target.value.replace(/[^0-9.]/g, "");
+            setLocalState(p => ({...p, [localKey]: v}));
+          }}
+          onBlur={e => {
+            const v = e.target.value.replace(/[^0-9.]/g, "");
+            const num = v === "" ? 0 : (isNaN(+v) ? 0 : +v);
+            setLocalState(p => ({...p, [localKey]: num}));
+            updateField(section, field, num);
+          }}
+          style={{ ...inputSt, padding:"5px 8px", fontSize:13, fontWeight:700, width:"100%", textAlign:"right" }}
+        />
         {unit && <span style={{ color:C.muted, fontSize:11, flexShrink:0 }}>{unit}</span>}
       </div>
       {prevVal!==undefined && <Diff cur={+(localState[localKey]||0)} prev={prevVal} unit={unit} />}
