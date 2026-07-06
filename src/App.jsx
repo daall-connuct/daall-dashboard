@@ -6638,6 +6638,17 @@ function ClinicPerfTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
   const monthData = perfData[selMonth] || { disease:[], consultant:[], doctor:[] };
   const sectionData = monthData[activeSection] || [];
 
+  // 전월 계산
+  const prevMonth = useMemo(() => {
+    const [y, m] = selMonth.split('-').map(Number);
+    const d = new Date(y, m - 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }, [selMonth]);
+  const prevMonthData = perfData[prevMonth] || {};
+  const prevSectionData = prevMonthData[activeSection] || [];
+  const prevTotalRevenue = prevSectionData.reduce((s, i) => s + (+i.revenue||0), 0);
+  const prevTotalCount = prevSectionData.reduce((s, i) => s + (+i.count||0), 0);
+
   const saveData = (section, items) => {
     const newMonthData = { ...monthData, [section]: items };
     const newPerfData = { ...perfData, [selMonth]: newMonthData };
@@ -6715,11 +6726,36 @@ function ClinicPerfTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
         ))}
       </div>
 
-      {/* KPI 요약 */}
+      {/* KPI 요약 + 전월 비교 */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
-        <KPICard label={`${SECTIONS.find(s=>s.id===activeSection)?.label} 총 매출`} value={(totalRevenue||0).toLocaleString()} unit="원" color={hospital.color} />
-        <KPICard label="총 건수" value={(totalCount||0).toLocaleString()} unit="건" color={C.accent2} />
-        <KPICard label="항목 수" value={sectionData.length} unit="개" color={C.green} />
+        {(() => {
+          const revDiff = totalRevenue - prevTotalRevenue;
+          const cntDiff = totalCount - prevTotalCount;
+          const revPct = prevTotalRevenue > 0 ? Math.round(revDiff/prevTotalRevenue*100) : null;
+          const cntPct = prevTotalCount > 0 ? Math.round(cntDiff/prevTotalCount*100) : null;
+          const DiffBadge = ({ diff, pct }) => {
+            if (diff === 0 || pct === null) return null;
+            const up = diff > 0;
+            return <span style={{ fontSize:10, color:up?C.green:C.red, fontWeight:700, marginLeft:6 }}>{up?"▲":"▼"}{Math.abs(pct)}%</span>;
+          };
+          return (<>
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:16 }}>
+              <div style={{ color:C.muted, fontSize:11, marginBottom:6 }}>{SECTIONS.find(s=>s.id===activeSection)?.label} 총 매출</div>
+              <div style={{ color:hospital.color, fontSize:20, fontWeight:900 }}>{totalRevenue.toLocaleString()}<span style={{ fontSize:12, marginLeft:4 }}>원</span><DiffBadge diff={revDiff} pct={revPct}/></div>
+              {prevTotalRevenue > 0 && <div style={{ color:C.muted, fontSize:10, marginTop:4 }}>전월 {prevTotalRevenue.toLocaleString()}원</div>}
+            </div>
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:16 }}>
+              <div style={{ color:C.muted, fontSize:11, marginBottom:6 }}>총 건수</div>
+              <div style={{ color:C.accent2, fontSize:20, fontWeight:900 }}>{totalCount.toLocaleString()}<span style={{ fontSize:12, marginLeft:4 }}>건</span><DiffBadge diff={cntDiff} pct={cntPct}/></div>
+              {prevTotalCount > 0 && <div style={{ color:C.muted, fontSize:10, marginTop:4 }}>전월 {prevTotalCount.toLocaleString()}건</div>}
+            </div>
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:16 }}>
+              <div style={{ color:C.muted, fontSize:11, marginBottom:6 }}>항목 수</div>
+              <div style={{ color:C.green, fontSize:20, fontWeight:900 }}>{sectionData.length}<span style={{ fontSize:12, marginLeft:4 }}>개</span></div>
+              {prevSectionData.length > 0 && <div style={{ color:C.muted, fontSize:10, marginTop:4 }}>전월 {prevSectionData.length}개</div>}
+            </div>
+          </>);
+        })()}
       </div>
 
       {/* 입력 폼 */}
@@ -6767,7 +6803,7 @@ function ClinicPerfTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
             <thead>
               <tr>
-                {[SECTION_LABELS[activeSection].name, "매출 (원)", "건수", "건당 매출", "메모", !isReadOnly?"관리":""].map((h,i) => (
+                {[SECTION_LABELS[activeSection].name, "매출 (원)", "전월 대비", "건수", "건당 매출", "메모", !isReadOnly?"관리":""].map((h,i) => (
                   <th key={i} style={{ color:C.muted, fontWeight:700, padding:"8px 12px", textAlign: i>=1&&i<=3?"right":"left", borderBottom:`2px solid ${C.border}`, whiteSpace:"nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -6788,6 +6824,17 @@ function ClinicPerfTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
                         {pct > 0 && <span style={{ marginLeft:8, background:`${hospital.color}15`, color:hospital.color, borderRadius:4, padding:"1px 6px", fontSize:10, fontWeight:700 }}>{pct}%</span>}
                       </td>
                       <td style={{ padding:"10px 12px", textAlign:"right", color:hospital.color, fontWeight:700 }}>{(+item.revenue||0).toLocaleString()}</td>
+                      <td style={{ padding:"10px 12px", textAlign:"right" }}>
+                        {(() => {
+                          const prev = prevSectionData.find(p => p.name === item.name);
+                          if (!prev) return <span style={{ color:C.muted, fontSize:11 }}>-</span>;
+                          const diff = (+item.revenue||0) - (+prev.revenue||0);
+                          const diffPct = prev.revenue > 0 ? Math.round(diff/prev.revenue*100) : 0;
+                          return <span style={{ color:diff>0?C.green:diff<0?C.red:C.muted, fontWeight:700, fontSize:11 }}>
+                            {diff>0?"▲":"▼"} {Math.abs(diff).toLocaleString()} ({Math.abs(diffPct)}%)
+                          </span>;
+                        })()}
+                      </td>
                       <td style={{ padding:"10px 12px", textAlign:"right", color:C.muted }}>{(+item.count||0).toLocaleString()}건</td>
                       <td style={{ padding:"10px 12px", textAlign:"right", color:C.accent2 }}>{perCase > 0 ? perCase.toLocaleString() : "-"}</td>
                       <td style={{ padding:"10px 12px", color:C.muted }}>{item.memo||"-"}</td>
@@ -6812,6 +6859,13 @@ function ClinicPerfTab({ hospital, isAdmin, isReadOnly, onUpdateHospital }) {
                 <tr style={{ borderTop:`2px solid ${C.border}`, background:"#F8FAFC" }}>
                   <td style={{ padding:"10px 12px", fontWeight:700, color:C.text }}>합계</td>
                   <td style={{ padding:"10px 12px", textAlign:"right", color:hospital.color, fontWeight:900, fontSize:13 }}>{totalRevenue.toLocaleString()}</td>
+                  <td style={{ padding:"10px 12px", textAlign:"right" }}>
+                    {prevTotalRevenue > 0 && (() => {
+                      const diff = totalRevenue - prevTotalRevenue;
+                      const pct = Math.round(diff/prevTotalRevenue*100);
+                      return <span style={{ color:diff>0?C.green:diff<0?C.red:C.muted, fontWeight:700, fontSize:11 }}>{diff>0?"▲":"▼"} {Math.abs(pct)}%</span>;
+                    })()}
+                  </td>
                   <td style={{ padding:"10px 12px", textAlign:"right", color:C.muted, fontWeight:700 }}>{totalCount.toLocaleString()}건</td>
                   <td style={{ padding:"10px 12px", textAlign:"right", color:C.accent2 }}>{totalCount > 0 ? Math.round(totalRevenue/totalCount).toLocaleString() : "-"}</td>
                   <td />{!isReadOnly && <td />}
