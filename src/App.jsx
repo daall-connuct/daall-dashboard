@@ -54,20 +54,20 @@ const getSchedTypeColor = (typeId) => SCHED_TYPES.find(t=>t.id===typeId)?.color 
 const CH_COLORS = ["#00C49F","#0088FE","#FFBB28","#FF8042","#A28DFF","#FF6B9D","#FF6B35","#4ECDC4","#45B7D1","#96CEB4"];
 
 const CHANNEL_META = {
-  "네이버블로그":  { color:"#03C75A" }, "인스타그램":   { color:"#E1306C" },
-  "유튜브":        { color:"#FF0000" }, "네이버카페":   { color:"#0088FE" },
-  "지식인":        { color:"#FFBB28" }, "홈페이지SEO":  { color:"#38BDF8" },
-  "워드프레스":    { color:"#8B5CF6" }, "메타광고":     { color:"#4ECDC4" },
-  "검색광고":      { color:"#A78BFA" }, "지도리뷰":     { color:"#EAB308" },
-  "블로그":        { color:"#03C75A" }, "카페":          { color:"#0088FE" },
-  "플레이스":      { color:"#FF6B35" }, "강남언니":     { color:"#FF4E8C" },
-  "바비톡":        { color:"#F59E0B" },
+  "브랜드블로그": { color:"#03C75A" }, "인스타그램":  { color:"#E1306C" },
+  "유튜브":       { color:"#FF0000" }, "카페칼럼":    { color:"#0088FE" },
+  "카페침투":     { color:"#00B8D9" }, "지식인":      { color:"#FFBB28" },
+  "홈페이지SEO":  { color:"#38BDF8" }, "워드프레스":  { color:"#8B5CF6" },
+  "메타광고":     { color:"#4ECDC4" }, "검색광고":    { color:"#A78BFA" },
+  "지도리뷰":     { color:"#EAB308" }, "어플리뷰":    { color:"#F97316" },
+  "언론보도":     { color:"#6366F1" }, "당근마켓":    { color:"#FF7E36" },
 };
 
-const FIXED_CHANNELS = ["네이버블로그","인스타그램","유튜브","네이버카페","워드프레스","홈페이지SEO","메타광고","검색광고","지도리뷰","지식인","강남언니","바비톡","언론보도"];
-const CHANNEL_OPTIONS = ["네이버블로그","인스타그램","유튜브","네이버카페","지식인","홈페이지SEO","워드프레스","메타광고","검색광고","지도리뷰","강남언니","바비톡","언론보도"];
+const UNIFIED_CHANNELS = ["브랜드블로그","인스타그램","유튜브","카페칼럼","카페침투","지식인","홈페이지SEO","워드프레스","메타광고","검색광고","지도리뷰","어플리뷰","언론보도","당근마켓"];
+const FIXED_CHANNELS = UNIFIED_CHANNELS;
+const CHANNEL_OPTIONS = UNIFIED_CHANNELS;
 const STATUS_OPTIONS = ["발행","예약발행","임시저장","수정필요"];
-const EMPTY_FORM = { channel:"네이버블로그", date:"", title:"", url:"", views:0, clicks:0, rank:"", topExposed:false, status:"발행", memo:"" };
+const EMPTY_FORM = { channel:"브랜드블로그", date:"", title:"", url:"", views:0, clicks:0, rank:"", topExposed:false, status:"발행", memo:"" };
 
 // ─── 초기 월별 성과 데이터 (샘플 없음 - 직접 입력)
 const MONTHLY_INIT = { 1:[], 2:[], 3:[], 4:[], 5:[], 6:[], 7:[] };
@@ -3379,19 +3379,22 @@ function MeetingTab({ hospital, isReadOnly }) {
 
 
 const COST_CATEGORIES = [
-  { id:"marketing",          label:"마케팅",               group:"마케팅", color:"#0EA5E9" },
-  { id:"marketing_blog",    label:"마케팅 - 블로그",     group:"마케팅", color:"#03C75A" },
-  { id:"marketing_insta",   label:"마케팅 - 인스타그램", group:"마케팅", color:"#E1306C" },
-  { id:"marketing_youtube", label:"마케팅 - 유튜브",     group:"마케팅", color:"#FF0000" },
-  { id:"marketing_cafe",    label:"마케팅 - 네이버카페", group:"마케팅", color:"#0088FE" },
-  { id:"marketing_jisik",   label:"마케팅 - 지식인",     group:"마케팅", color:"#00C73C" },
-  { id:"marketing_search",  label:"마케팅 - 검색광고",   group:"마케팅", color:"#A78BFA" },
-  { id:"marketing_meta",    label:"마케팅 - 메타광고",   group:"마케팅", color:"#4ECDC4" },
-  { id:"marketing_press",   label:"마케팅 - 언론보도",   group:"마케팅", color:"#6366F1" },
-  { id:"marketing_wp",      label:"마케팅 - 워드프레스", group:"마케팅", color:"#8B5CF6" },
-  { id:"marketing_review",  label:"마케팅 - 리뷰",       group:"마케팅", color:"#F59E0B" },
-  { id:"design",            label:"디자인물",             group:"디자인", color:"#FBBF24" },
-  { id:"cs",                label:"CS 경영지원",          group:"CS",     color:"#FB923C" },
+  { id:"blog",     label:"브랜드블로그", group:"마케팅", color:"#03C75A" },
+  { id:"insta",    label:"인스타그램",   group:"마케팅", color:"#E1306C" },
+  { id:"youtube",  label:"유튜브",       group:"마케팅", color:"#FF0000" },
+  { id:"cafe_col", label:"카페칼럼",     group:"마케팅", color:"#0088FE" },
+  { id:"cafe_pen", label:"카페침투",     group:"마케팅", color:"#00B8D9" },
+  { id:"jisik",    label:"지식인",       group:"마케팅", color:"#FFBB28" },
+  { id:"seo",      label:"홈페이지SEO",  group:"마케팅", color:"#38BDF8" },
+  { id:"wp",       label:"워드프레스",   group:"마케팅", color:"#8B5CF6" },
+  { id:"meta",     label:"메타광고",     group:"마케팅", color:"#4ECDC4" },
+  { id:"search",   label:"검색광고",     group:"마케팅", color:"#A78BFA" },
+  { id:"map",      label:"지도리뷰",     group:"마케팅", color:"#EAB308" },
+  { id:"app",      label:"어플리뷰",     group:"마케팅", color:"#F97316" },
+  { id:"press",    label:"언론보도",     group:"마케팅", color:"#6366F1" },
+  { id:"daangn",   label:"당근마켓",     group:"마케팅", color:"#FF7E36" },
+  { id:"design",   label:"디자인물",     group:"디자인", color:"#FBBF24" },
+  { id:"cs",       label:"CS 경영지원",  group:"CS",     color:"#FB923C" },
 ];
 
 function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
@@ -3404,9 +3407,9 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
   const [showContractForm, setShowContractForm] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showExtraForm, setShowExtraForm] = useState(false);
-  const [expenseForm, setExpenseForm] = useState({month:selMonth,category:"marketing_blog",memo:"",date:"",url:"",keyword:""});
+  const [expenseForm, setExpenseForm] = useState({month:selMonth,category:"blog",memo:"",date:"",url:"",keyword:""});
   const [contractForm, setContractForm] = useState({month:selMonth,amount:"",deferred:""});
-  const [extraForm, setExtraForm] = useState({month:selMonth,date:"",category:"marketing_blog",memo:"",amount:""});
+  const [extraForm, setExtraForm] = useState({month:selMonth,date:"",category:"blog",memo:"",amount:""});
   const [editExpId, setEditExpId] = useState(null);
   const [editExtraId, setEditExtraId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -3502,7 +3505,7 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
     }
     setExpenses(newExpenses);
     saveToSupabase(contracts, newExpenses, undefined, undefined);
-    setExpenseForm({month:selMonth,category:"marketing_blog",memo:"",date:"",url:"",keyword:""}); setShowExpenseForm(false);
+    setExpenseForm({month:selMonth,category:"blog",memo:"",date:"",url:"",keyword:""}); setShowExpenseForm(false);
   };
 
   const handleSaveExtra = () => {
@@ -3517,7 +3520,7 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
     }
     setExtraExpenses(newExtra);
     saveToSupabase(contracts, expenses, undefined, newExtra);
-    setExtraForm({month:selMonth,date:"",category:"marketing_blog",memo:"",amount:""}); setShowExtraForm(false);
+    setExtraForm({month:selMonth,date:"",category:"blog",memo:"",amount:""}); setShowExtraForm(false);
   };
 
   const handleEditExp = (e) => { setEditExpId(e.id); setExpenseForm({...e}); setShowExpenseForm(true); };
@@ -3604,7 +3607,7 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{color:C.text,fontWeight:800,fontSize:14}}>📋 계약 내용</div>
           {!isReadOnly && <button onClick={()=>{
-            saveContractItems([...contractItems, {id:Date.now(), category:"marketing_blog", count:"", memo:""}]);
+            saveContractItems([...contractItems, {id:Date.now(), category:"blog", count:"", memo:""}]);
           }} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 항목 추가</button>}
         </div>
 
@@ -3736,7 +3739,7 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
                 }}>{g}</button>
               ))}
             </div>
-            {!isReadOnly && <button onClick={()=>{setEditExpId(null);setExpenseForm({month:selMonth,category:"marketing_blog",memo:"",date:"",url:"",keyword:""});setShowExpenseForm(!showExpenseForm);}} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:9,padding:"7px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 작업 내역 추가</button>}
+            {!isReadOnly && <button onClick={()=>{setEditExpId(null);setExpenseForm({month:selMonth,category:"blog",memo:"",date:"",url:"",keyword:""});setShowExpenseForm(!showExpenseForm);}} style={{background:`linear-gradient(135deg,${hospital.color},${C.accent2})`,border:"none",color:"#0F172A",borderRadius:9,padding:"7px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 작업 내역 추가</button>}
           </div>
         </div>
         <div style={{overflowX:"auto"}}>
@@ -3790,7 +3793,7 @@ function CostTab({ hospital, hData, onDataLoad, isReadOnly }) {
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:22}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <SectionTitle>{selMonth.slice(5)}월 추가 작업 내역</SectionTitle>
-          {!isReadOnly && <button onClick={()=>{setEditExtraId(null);setExtraForm({month:selMonth,date:"",category:"marketing_blog",memo:"",amount:""});setShowExtraForm(!showExtraForm);}}
+          {!isReadOnly && <button onClick={()=>{setEditExtraId(null);setExtraForm({month:selMonth,date:"",category:"blog",memo:"",amount:""});setShowExtraForm(!showExtraForm);}}
             style={{background:`linear-gradient(135deg,${C.green},${C.accent})`,border:"none",color:"#fff",borderRadius:9,padding:"7px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>
             + 추가 작업 내역 추가
           </button>}
