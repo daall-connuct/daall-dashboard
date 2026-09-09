@@ -597,6 +597,30 @@ function PatientArea({ data, onChange, dashData, hospital }) {
   const revenuePerPt = total>0?Math.round(revenue/total):null;
   const items = monthData.ptTreatments||[];
 
+  // ── 성별 구성 ──────────────────────────────────────────────
+  const malePt   = monthData.malePatients||0;
+  const femalePt = monthData.femalePatients||0;
+  const genderTotal = malePt + femalePt;
+  const maleRatio   = genderTotal>0 ? ((malePt/genderTotal)*100).toFixed(1) : null;
+  const femaleRatio = genderTotal>0 ? ((femalePt/genderTotal)*100).toFixed(1) : null;
+  const genderUnclassified = total - malePt - femalePt;
+  const genderOverflow = genderTotal > total && total > 0;
+
+  // ── 연령대 구성 ────────────────────────────────────────────
+  const AGE_KEYS = [
+    { key:"ageUnder20", label:"10대 이하" },
+    { key:"age20s",     label:"20대" },
+    { key:"age30s",     label:"30대" },
+    { key:"age40s",     label:"40대" },
+    { key:"age50s",     label:"50대" },
+    { key:"age60s",     label:"60대" },
+    { key:"age70Plus",  label:"70대 이상" },
+  ];
+  const ageValues = AGE_KEYS.map(a => monthData[a.key]||0);
+  const ageTotal  = ageValues.reduce((s,v)=>s+v, 0);
+  const ageUnclassified = total - ageTotal;
+  const ageOverflow = ageTotal > total && total > 0;
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
@@ -604,6 +628,7 @@ function PatientArea({ data, onChange, dashData, hospital }) {
         <MonthSelector selMonth={selMonth} setSelMonth={setSelMonth} />
       </div>
 
+      {/* 상단 KPI — 기존 유지 */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))", gap:14 }}>
         <KPI label="신환" value={newPt||null} unit="명" color={hospital.color||C.purple} pctDiff={diffPct(newPt,prev.newPatient)} sub={prev.newPatient?`전월 ${fmt(prev.newPatient)}명`:undefined} />
         <KPI label="재진" value={returnPt||null} unit="명" color={C.green} pctDiff={diffPct(returnPt,prev.returnPatient)} />
@@ -612,6 +637,7 @@ function PatientArea({ data, onChange, dashData, hospital }) {
         <KPI label="환자당 매출" value={revenuePerPt} unit="원" color={C.orange} sub={revenue?`매출 ${fmt(revenue)}원 기준`:undefined} />
       </div>
 
+      {/* 환자 수 입력 — 기존 유지 */}
       <Card>
         <div style={{ fontWeight:700, fontSize:14, marginBottom:14 }}>환자 수 입력</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
@@ -624,7 +650,102 @@ function PatientArea({ data, onChange, dashData, hospital }) {
         </div>
       </Card>
 
-      {/* 진료별 환자 + 매출 연결 */}
+      {/* ── 환자 구성 분석 (신규) ─────────────────────────── */}
+      <Card>
+        <div style={{ fontWeight:700, fontSize:15, color:C.text, marginBottom:16, display:"flex", alignItems:"center", gap:8 }}>
+          🔍 환자 구성 분석
+          <span style={{ fontSize:11, color:C.muted, fontWeight:400 }}>성별 · 연령대</span>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
+
+          {/* 성별 구성 */}
+          <div>
+            <div style={{ fontWeight:700, fontSize:13, color:C.purple, marginBottom:12 }}>성별 구성</div>
+            {/* 입력 */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
+              {[["남성","malePatients","#3B82F6"],["여성","femalePatients","#EC4899"]].map(([label,key,color])=>(
+                <div key={key} style={{ background:C.dim, borderRadius:10, padding:10 }}>
+                  <label style={{ color:C.muted, fontSize:11, display:"block", marginBottom:4 }}>{label}</label>
+                  <NumInput value={monthData[key]||0} onSave={v=>update(key,v)} />
+                  {genderTotal>0 && <div style={{ color, fontSize:11, fontWeight:700, marginTop:4 }}>
+                    {key==="malePatients"?maleRatio:femaleRatio}%
+                  </div>}
+                </div>
+              ))}
+            </div>
+            {/* 가로 비율바 */}
+            {genderTotal > 0 && (
+              <div style={{ marginBottom:8 }}>
+                <div style={{ height:10, borderRadius:10, overflow:"hidden", background:"#F1F5F9", display:"flex" }}>
+                  <div style={{ width:`${maleRatio}%`, background:"#3B82F6", transition:"width 0.3s" }} />
+                  <div style={{ width:`${femaleRatio}%`, background:"#EC4899", transition:"width 0.3s" }} />
+                </div>
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:6, fontSize:11 }}>
+                  <span style={{ color:"#3B82F6", fontWeight:700 }}>남성 {fmt(malePt)}명 ({maleRatio}%)</span>
+                  <span style={{ color:"#EC4899", fontWeight:700 }}>여성 {fmt(femalePt)}명 ({femaleRatio}%)</span>
+                </div>
+              </div>
+            )}
+            {genderOverflow && (
+              <div style={{ color:C.red, fontSize:11, background:C.red+"10", borderRadius:6, padding:"4px 10px", marginTop:4 }}>
+                ⚠️ 남성+여성 합계({fmt(genderTotal)}명)가 총 환자수({fmt(total)}명)를 초과합니다.
+              </div>
+            )}
+            {!genderOverflow && genderUnclassified > 0 && total > 0 && (
+              <div style={{ color:C.muted, fontSize:11, marginTop:4 }}>
+                성별 정보 미입력 {fmt(genderUnclassified)}명
+              </div>
+            )}
+            {genderTotal === 0 && <div style={{ color:C.muted, fontSize:12, textAlign:"center", padding:"12px 0" }}>성별 수를 입력해주세요.</div>}
+          </div>
+
+          {/* 연령대 구성 */}
+          <div>
+            <div style={{ fontWeight:700, fontSize:13, color:C.orange, marginBottom:12 }}>연령대 구성</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {AGE_KEYS.map((a,i)=>{
+                const val = ageValues[i];
+                const ratio = ageTotal>0 ? ((val/ageTotal)*100).toFixed(1) : null;
+                const barW  = ageTotal>0 ? (val/ageTotal*100) : 0;
+                const BAR_COLORS = ["#8B5CF6","#3B82F6","#10B981","#F59E0B","#EF4444","#14B8A6","#6366F1"];
+                return (
+                  <div key={a.key}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:2 }}>
+                      <span style={{ color:C.muted, fontSize:11, width:60, flexShrink:0 }}>{a.label}</span>
+                      <div style={{ flex:1, height:8, background:C.dim, borderRadius:6, overflow:"hidden" }}>
+                        <div style={{ width:`${barW}%`, height:"100%", background:BAR_COLORS[i], borderRadius:6, transition:"width 0.3s" }} />
+                      </div>
+                      <div style={{ width:90, flexShrink:0 }}>
+                        <NumInput value={val} onSave={v=>update(a.key,v)} width="100%" />
+                      </div>
+                      <span style={{ color:BAR_COLORS[i], fontSize:11, fontWeight:700, width:38, textAlign:"right" }}>
+                        {ratio!==null?`${ratio}%`:""}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${C.dim}`, display:"flex", justifyContent:"space-between", fontSize:12 }}>
+              <span style={{ color:C.muted }}>합계</span>
+              <span style={{ fontWeight:700, color:C.text }}>{fmt(ageTotal)}명</span>
+            </div>
+            {ageOverflow && (
+              <div style={{ color:C.red, fontSize:11, background:C.red+"10", borderRadius:6, padding:"4px 10px", marginTop:6 }}>
+                ⚠️ 연령대 합계({fmt(ageTotal)}명)가 총 환자수({fmt(total)}명)를 초과합니다.
+              </div>
+            )}
+            {!ageOverflow && ageUnclassified > 0 && total > 0 && (
+              <div style={{ color:C.muted, fontSize:11, marginTop:6 }}>
+                연령 정보 미입력 {fmt(ageUnclassified)}명
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* 진료별 환자 + 매출 연결 — 기존 유지 */}
       <Card>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
           <div style={{ fontWeight:700, fontSize:14 }}>진료별 환자 수 · 매출 연결</div>
